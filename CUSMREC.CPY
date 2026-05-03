@@ -6,7 +6,7 @@
            05 CUSM-ID-CLIENTE          PIC 9(08).
            05 CUSM-TIPO-DOC            PIC X(02).
            05 CUSM-DOC-CLIENTE         PIC X(15).
-           05 CUSM-FECHA-ALTA          PIC 9(08).
+           05 CUSM-FECHA-ALTA          PIC 9(10).
            05 CUSM-NOMBRE              PIC X(30).
            05 CUSM-APELLIDOS           PIC X(30).
            05 CUSM-DIRECCION           PIC X(50).

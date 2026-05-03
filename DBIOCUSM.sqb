@@ -1,0 +1,128 @@
+      *================================================================*
+      * PROGRAMA: DBIOCUSM.sqb                                         *
+      * FUNCION:  CRUD de la tabla CUSM (Clientes)                     *
+      * ARQUITECTURA: Capa de Acceso a Datos (DBIO)                    *
+      *================================================================*
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. DBIOCUSM.
+
+       ENVIRONMENT DIVISION.
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+      *    Area de comunicacion de SQL
+           EXEC SQL INCLUDE SQLCA END-EXEC.
+           01 WS-ID-GENERADO           PIC 9(08).
+       LINKAGE SECTION.
+      *    Recibimos los datos del cliente y el control de transaccion
+           COPY CUSMREC.
+           COPY LKCIF.
+
+       PROCEDURE DIVISION USING REG-CUSM, LK-DATOS-TRANSACCION.
+
+       0000-PRINCIPAL.
+           MOVE 0 TO LK-COD-RETORNO
+           MOVE SPACES TO LK-MENSAJE
+
+           EVALUATE LK-ACCION-DB
+               WHEN 'A'
+                   PERFORM 1000-INSERTAR-CLIENTE
+               WHEN 'C'
+                   PERFORM 2000-CONSULTAR-CLIENTE
+               WHEN 'M'
+                   PERFORM 3000-ACTUALIZAR-CLIENTE
+               WHEN 'B'
+                   PERFORM 4000-BAJA-LOGICA-CLIENTE
+               WHEN OTHER
+                   MOVE 98 TO LK-COD-RETORNO
+                   MOVE "ACCION DB NO SOPORTADA" TO LK-MENSAJE
+           END-EVALUATE.
+
+           EXIT PROGRAM.
+
+       1000-INSERTAR-CLIENTE.
+           EXEC SQL
+               INSERT INTO CUSM (
+                   TIPO_DOC,
+                   DOC_CLIENTE,
+                   FECHA_ALTA,
+                   NOMBRE_CLIENTE,
+                   APELLIDOS_CLIENTE,
+                   DIRECCION_CLIENTE,
+                   TELEF_CLIENTE,
+                   EMAIL_CLIENTE,
+                   FLG_CTA_ACTIVA,
+                   CUSM_ESTADO
+               ) VALUES (
+                   :CUSM-TIPO-DOC,
+                   :CUSM-DOC-CLIENTE,
+                   :CUSM-FECHA-ALTA,
+                   :CUSM-NOMBRE,
+                   :CUSM-APELLIDOS,
+                   :CUSM-DIRECCION,
+                   :CUSM-TELEFONO,
+                   :CUSM-EMAIL,
+                   :CUSM-FLG-CTA-ACTIVA,
+                   :CUSM-ESTADO
+               )
+      *        Capturamos el ID generado para devolverlo al Mainline
+               RETURNING ID_CLIENTE INTO :CUSM-ID-CLIENTE
+           END-EXEC.
+
+           PERFORM 9000-EVALUAR-SQL.
+
+           IF LK-COD-RETORNO = 0
+               EXEC SQL
+                   SELECT LAST_INSERT_ID() INTO :CUSM-ID-CLIENTE
+               END-EXEC
+               MOVE "CLIENTE REGISTRADO CON EXITO" TO LK-MENSAJE
+      *        El CUSM-ID-CLIENTE ya viaja de vuelta en REG-CUSM
+           END-IF.
+
+       2000-CONSULTAR-CLIENTE.
+           EXEC SQL
+               SELECT NOMBRE_CLIENTE, DIRECCION_CLIENTE,
+                      TELEF_CLIENTE, CUSM_ESTADO
+               INTO :CUSM-NOMBRE, :CUSM-DIRECCION,
+                    :CUSM-TELEFONO, :CUSM-ESTADO
+               FROM CUSM
+               WHERE ID_CLIENTE = :CUSM-ID-CLIENTE
+           END-EXEC.
+           PERFORM 9000-EVALUAR-SQL.
+           IF LK-COD-RETORNO = 0
+               MOVE "CONSULTA EXITOSA" TO LK-MENSAJE
+           END-IF.
+
+       3000-ACTUALIZAR-CLIENTE.
+           EXEC SQL
+               UPDATE CUSM
+               SET DIRECCION_CLIENTE = :CUSM-DIRECCION,
+                   TELEF_CLIENTE = :CUSM-TELEFONO
+               WHERE ID_CLIENTE = :CUSM-ID-CLIENTE
+           END-EXEC.
+           PERFORM 9000-EVALUAR-SQL.
+           IF LK-COD-RETORNO = 0
+               MOVE "CLIENTE ACTUALIZADO" TO LK-MENSAJE
+           END-IF.
+
+       4000-BAJA-LOGICA-CLIENTE.
+           EXEC SQL
+               UPDATE CUSM
+               SET CUSM_ESTADO = 'I'
+               WHERE ID_CLIENTE = :CUSM-ID-CLIENTE
+           END-EXEC.
+           PERFORM 9000-EVALUAR-SQL.
+           IF LK-COD-RETORNO = 0
+               MOVE "BAJA LOGICA REALIZADA" TO LK-MENSAJE
+           END-IF.
+
+       9000-EVALUAR-SQL.
+           EVALUATE SQLCODE
+               WHEN 0
+                   MOVE 00 TO LK-COD-RETORNO
+               WHEN 100
+                   MOVE 01 TO LK-COD-RETORNO
+                   MOVE "REGISTRO NO ENCONTRADO" TO LK-MENSAJE
+               WHEN OTHER
+                   MOVE 99 TO LK-COD-RETORNO
+                   MOVE "ERROR CRITICO EN BASE DE DATOS" TO LK-MENSAJE
+           END-EVALUATE.
