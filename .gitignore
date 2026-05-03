@@ -1,0 +1,24 @@
+# --- Binarios y Ejecutables ---
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# --- Archivos Intermedios de Compilación ---
+*.o
+*.obj
+*.lst
+*.idy
+*.gnt
+*.int
+
+# --- Archivos de Configuración de IDE (OpenIDE / VS Code) ---
+.project
+.settings/
+.vscode/
+.DS_Store
+
+# --- Temporales y Logs ---
+*.log
+*.tmp

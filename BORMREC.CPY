@@ -1,0 +1,11 @@
+       * TABLA BORM - MAESTRO DE PRESTAMOS E HIPOTECAS
+       01  REG-BORM.
+           05 BORM-ID-HIPOTECA     PIC 9(08).
+           05 BORM-ID-CLIENTE      PIC 9(08).
+           05 BORM-FECHA-INICIO    PIC X(08).
+           05 BORM-MONTO-ORIGINAL  PIC S9(10)V99 COMP-3.
+      *    Decimal (5,2)
+           05 BORM-TASA-INTERES    PIC S9(03)V99 COMP-3.
+           05 BORM-SALDO-ACTUAL    PIC S9(10)V99 COMP-3.
+           05 BORM-FECHA-VENCIM    PIC X(08).
+           05 BORM-ESTADO          PIC X(20).
