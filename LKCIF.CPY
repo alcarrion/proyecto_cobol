@@ -10,6 +10,13 @@
       *    'M' = MODIFICACION (UPDATE)
       *    'C' = CONSULTA (SELECT)
            05 LK-ACCION-DB             PIC X(01).
+           05 LK-COD-RETORNO           PIC 9(02).
+           05 LK-MENSAJE               PIC X(50).
+           05 LK-ID-CLIENTE            PIC 9(09).
+           05 LK-IMPORTE-TRANSACCION   PIC S9(13)V99 COMP-3.
+           05 LK-MODO-OPERACION        PIC X(01).
+              88 LK-CONSULTA           VALUE 'C'.
+              88 LK-ALTA               VALUE 'A'.
 
       *    CODIGO DE RETORNO (RESULTADO DE LA OPERACION)
       *    00 = EXITO / OPERACION REALIZADA
