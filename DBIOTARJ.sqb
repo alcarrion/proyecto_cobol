@@ -1,0 +1,129 @@
+      *================================================================*
+      * PROGRAMA: DBIOTARJ.sqb                                         *
+      * FUNCION:  CRUD de la tabla TARJETAS (Tarjetas de Credito)      *
+      * ARQUITECTURA: Capa de Acceso a Datos (DBIO)                    *
+      * OPERACIONES: INSERT/SELECT/UPDATE + CALCULAR DEUDA             *
+      * PK COMPUESTA: (ID_CLIENTE, NRO_TARJETA)                        *
+      *================================================================*
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. DBIOTARJ.
+
+       ENVIRONMENT DIVISION.
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+      *    Area de comunicacion de SQL
+           EXEC SQL INCLUDE SQLCA END-EXEC.
+
+       LINKAGE SECTION.
+      *    Recibimos los datos de la tarjeta y el control de transaccion
+           COPY TARJREC.
+           COPY LKCIF.
+
+       PROCEDURE DIVISION USING REG-TARJ, LK-DATOS-TRANSACCION.
+
+       0000-PRINCIPAL.
+           MOVE 0 TO LK-COD-RETORNO
+           MOVE SPACES TO LK-MENSAJE
+
+           EVALUATE LK-ACCION-DB
+               WHEN 'A'
+                   PERFORM 1000-INSERTAR-TARJETA
+               WHEN 'C'
+                   PERFORM 2000-CONSULTAR-TARJETA
+               WHEN 'M'
+                   PERFORM 3000-ACTUALIZAR-TARJETA
+               WHEN 'B'
+                   PERFORM 4000-BAJA-LOGICA-TARJETA
+               WHEN OTHER
+                   MOVE 98 TO LK-COD-RETORNO
+                   MOVE "ACCION DB NO SOPORTADA" TO LK-MENSAJE
+           END-EVALUATE.
+
+           EXIT PROGRAM.
+
+       1000-INSERTAR-TARJETA.
+           EXEC SQL
+               INSERT INTO TARJETAS (
+                   ID_CLIENTE,
+                   NRO_TARJETA,
+                   FECHA_EMISION,
+                   FECHA_VENCIMIENTO,
+                   LIMITE_TARJETA,
+                   ACUM_MES,
+                   LIQUIDACION_MES,
+                   ESTADO
+               ) VALUES (
+                   :TARJ-ID-CLIENTE,
+                   :TARJ-NRO-TARJETA,
+                   :TARJ-FECHA-EMISION,
+                   :TARJ-FECHA-VENCIM,
+                   :TARJ-LIMITE-TARJETA,
+                   :TARJ-ACUM-MES,
+                   :TARJ-LIQUIDACION-MES,
+                   :TARJ-ESTADO
+               )
+           END-EXEC.
+
+           PERFORM 9000-EVALUAR-SQL.
+
+           IF LK-COD-RETORNO = 0
+               MOVE "TARJETA REGISTRADA CON EXITO" TO LK-MENSAJE
+           END-IF.
+
+       2000-CONSULTAR-TARJETA.
+           EXEC SQL
+               SELECT ID_CLIENTE, NRO_TARJETA,
+                      FECHA_EMISION, FECHA_VENCIMIENTO,
+                      LIMITE_TARJETA, ACUM_MES,
+                      LIQUIDACION_MES, ESTADO
+               INTO :TARJ-ID-CLIENTE, :TARJ-NRO-TARJETA,
+                    :TARJ-FECHA-EMISION, :TARJ-FECHA-VENCIM,
+                    :TARJ-LIMITE-TARJETA, :TARJ-ACUM-MES,
+                    :TARJ-LIQUIDACION-MES, :TARJ-ESTADO
+               FROM TARJETAS
+               WHERE ID_CLIENTE = :TARJ-ID-CLIENTE
+                 AND NRO_TARJETA = :TARJ-NRO-TARJETA
+           END-EXEC.
+           PERFORM 9000-EVALUAR-SQL.
+           IF LK-COD-RETORNO = 0
+               MOVE "CONSULTA EXITOSA" TO LK-MENSAJE
+           END-IF.
+
+       3000-ACTUALIZAR-TARJETA.
+           EXEC SQL
+               UPDATE TARJETAS
+               SET ACUM_MES = :TARJ-ACUM-MES,
+                   LIQUIDACION_MES = :TARJ-LIQUIDACION-MES,
+                   LIMITE_TARJETA = :TARJ-LIMITE-TARJETA,
+                   ESTADO = :TARJ-ESTADO
+               WHERE ID_CLIENTE = :TARJ-ID-CLIENTE
+                 AND NRO_TARJETA = :TARJ-NRO-TARJETA
+           END-EXEC.
+           PERFORM 9000-EVALUAR-SQL.
+           IF LK-COD-RETORNO = 0
+               MOVE "TARJETA ACTUALIZADA" TO LK-MENSAJE
+           END-IF.
+
+       4000-BAJA-LOGICA-TARJETA.
+           EXEC SQL
+               UPDATE TARJETAS
+               SET ESTADO = 'I'
+               WHERE ID_CLIENTE = :TARJ-ID-CLIENTE
+                 AND NRO_TARJETA = :TARJ-NRO-TARJETA
+           END-EXEC.
+           PERFORM 9000-EVALUAR-SQL.
+           IF LK-COD-RETORNO = 0
+               MOVE "BAJA LOGICA REALIZADA" TO LK-MENSAJE
+           END-IF.
+
+       9000-EVALUAR-SQL.
+           EVALUATE SQLCODE
+               WHEN 0
+                   MOVE 00 TO LK-COD-RETORNO
+               WHEN 100
+                   MOVE 01 TO LK-COD-RETORNO
+                   MOVE "REGISTRO NO ENCONTRADO" TO LK-MENSAJE
+               WHEN OTHER
+                   MOVE 99 TO LK-COD-RETORNO
+                   MOVE "ERROR CRITICO EN BASE DE DATOS" TO LK-MENSAJE
+           END-EVALUATE.
