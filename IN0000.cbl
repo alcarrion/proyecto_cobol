@@ -1,253 +1,121 @@
        IDENTIFICATION DIVISION.
        PROGRAM-ID. IN0000.
-      *AUTHOR.     CORE-BANCARIO-TEAM.
       *================================================================*
-      * PROGRAMA: MAINLINE CIF (CUSTOMER INFORMATION FACILITY)         *
-      * FUNCION:  Modulo de Depositos / Cuentas Corrientes (CTA.CTE)
-      *           Maneja: Alta, Deposito, Extraccion, Consulta
-      *           de la tabla INVM (Maestro de Cuentas)
-      * REGLA:    Valida que el cliente tenga una cuenta asociada (INVM)*
+      * PROGRAMA: MAINLINE INVM (CUENTAS CORRIENTES)                   *
+      * FUNCION:  Gestiona Depositos, Extracciones y Consultas.        *
+      * REGLA:    No permitir saldo negativo.                          *
       *================================================================*
+ 
        ENVIRONMENT DIVISION.
        DATA DIVISION.
        WORKING-STORAGE SECTION.
-       01 WS-OPTION              PIC 9(01).
-       01 WS-TIPO-MOV-TEXTO      PIC X(12).
-
-      *=================================================================
-      *     AREA DE ENTRADA AL DBIO
-      *=================================================================
-       01 INPUT-AREA.
-           05 OPER                PIC X(01).
-      *        'I' = Movimiento (deposito o retiro)
-      *        'C' = Consulta saldo
-      *        'D' = Extracto detallado
-           05 IN-ID-CLIENTE       PIC 9(08).
-           05 IN-COD-MOV          PIC 9(02).
-      *        2 = Deposito
-      *        3 = Retiro
-           05 IN-FECHA-ULT-MOV   PIC X(08).
-           05 IN-IMPORTE-MOV      PIC S9(10)V99 COMP-3.
-           05 IN-SALDO-ACTUAL     PIC S9(10)V99 COMP-3.
-
-      *=================================================================
-      *     AREA DE SALIDA DEL DBIO
-      *=================================================================
-       01 OUTPUT-AREA.
-           05 COD-ERROR           PIC 9(02).
-           05 MENSAJE-OUTPUT      PIC X(50).
-           05 OUT-ID-CLIENTE      PIC 9(08).
-           05 OUT-COD-MOV         PIC 9(02).
-           05 OUT-FECHA-ULT-MOV  PIC X(08).
-           05 OUT-IMPORTE-MOV     PIC S9(10)V99 COMP-3.
-           05 OUT-SALDO-ACTUAL    PIC S9(10)V99 COMP-3.
-
-      *=================================================================
-      *     VARIABLES DE DISPLAY (FORMATO LEGIBLE PARA PANTALLA)
-      *=================================================================
-       01 WS-SALDO-DISPLAY        PIC Z(10).99.
-       01 WS-IMPORTE-DISPLAY      PIC Z(10).99.
-
-      *=================================================================
-      *     COPYBOOKS
-      *=================================================================
+ 
+       01 WS-OPCION-INVM      PIC 9(01).
+       01 WS-CONTINUAR-INVM   PIC X(01) VALUE 'S'.
+       01 WS-MONTO-TX         PIC 9(10)V99.
+ 
            COPY INVMREC.
-
+       
        LINKAGE SECTION.
            COPY LKCIF.
-
-      ******************************************************************
+ 
+ 
        PROCEDURE DIVISION USING LK-DATOS-TRANSACCION.
-      ******************************************************************
-
+ 
        0000-PRINCIPAL.
-           INITIALIZE INPUT-AREA
-                      OUTPUT-AREA
-           PERFORM 200-PROCESO
+           PERFORM 1000-PROCESAR-OPCIONES
+                   UNTIL WS-CONTINUAR-INVM = 'N' OR 'n'.
            GOBACK.
-
-      *=================================================================
-      *  200-PROCESO: Loop del menu hasta que el usuario elige salir
-      *=================================================================
-       200-PROCESO.
-           PERFORM UNTIL WS-OPTION = 4
-               PERFORM DISPLAY-MENU
-               PERFORM 100-MENU
-           END-PERFORM
-           DISPLAY "========================================"
-           DISPLAY "    VOLVIENDO AL MENU PRINCIPAL..."
+ 
+       1000-PROCESAR-OPCIONES.
            DISPLAY "========================================".
-
-      *=================================================================
-      *  DISPLAY-MENU
-      *=================================================================
-       DISPLAY-MENU.
-           DISPLAY " "
-           DISPLAY "========================================"
-           DISPLAY "    MODULO: CUENTAS CORRIENTES / DEP."
-           DISPLAY "========================================"
-           DISPLAY "  1. Registrar Movimiento"
-           DISPLAY "  2. Consultar Saldo"
-           DISPLAY "  3. Generar Extracto Detallado"
-           DISPLAY "  4. Volver al Menu Principal"
-           DISPLAY "========================================"
-           DISPLAY "  Seleccione opcion (1-4): "
-               WITH NO ADVANCING
-           ACCEPT WS-OPTION.
-
-      *=================================================================
-      *  100-MENU: Dispatcher de opciones
-      *=================================================================
-       100-MENU.
-           EVALUATE WS-OPTION
+           DISPLAY "   MODULO DE CUENTAS CORRIENTES (INVM)  ".
+           DISPLAY "========================================".
+           DISPLAY "1. Consultar Saldo".
+           DISPLAY "2. Realizar Deposito".
+           DISPLAY "3. Realizar Extraccion".
+           DISPLAY "0. Volver al Menu Principal".
+           DISPLAY "========================================".
+           DISPLAY "Seleccione operacion: " 
+           ACCEPT WS-OPCION-INVM.
+ 
+           EVALUATE WS-OPCION-INVM
                WHEN 1
-                   PERFORM 1000-REGISTRAR-MOVIMIENTO
+                   PERFORM 2000-CONSULTA-SALDO
                WHEN 2
-                   PERFORM 2000-CONSULTAR-SALDO
+                   PERFORM 3000-DEPOSITO
                WHEN 3
-                   PERFORM 3000-GENERAR-EXTRACTO
-               WHEN 4
-                   DISPLAY " "
-                   DISPLAY "  Saliendo del modulo..."
+                   PERFORM 4000-EXTRACCION
+               WHEN 0
+                   MOVE 'N' TO WS-CONTINUAR-INVM
                WHEN OTHER
-                   DISPLAY " "
-                   DISPLAY "  ** Opcion invalida. Intente de nuevo."
+                   DISPLAY "Opcion invalida."
            END-EVALUATE.
-
-      *=================================================================
-      *  1000 - REGISTRAR MOVIMIENTO
-      *         Valida tipo en loop, acepta importe, llama DBIOINVM
-      *=================================================================
-       1000-REGISTRAR-MOVIMIENTO.
-           DISPLAY " "
-           DISPLAY "  --- REGISTRAR MOVIMIENTO ---"
-           MOVE 'I'               TO OPER
-
-           DISPLAY "  Ingrese ID Cliente (8 dig): "
-               WITH NO ADVANCING
-           ACCEPT IN-ID-CLIENTE
-
-      *    Validar tipo de movimiento: loop hasta recibir 2 o 3
-           MOVE 0                 TO IN-COD-MOV
-           PERFORM UNTIL IN-COD-MOV = 2 OR IN-COD-MOV = 3
-               DISPLAY "  Tipo de movimiento:"
-               DISPLAY "    2 = Deposito   3 = Retiro"
-               DISPLAY "  Ingrese opcion: " WITH NO ADVANCING
-               ACCEPT IN-COD-MOV
-               IF IN-COD-MOV NOT = 2 AND IN-COD-MOV NOT = 3
-                   DISPLAY "  ** Ingrese una opcion valida (2 o 3)."
+ 
+       2000-CONSULTA-SALDO.
+           DISPLAY "--- CONSULTA DE SALDO ---".
+           MOVE 'C' TO LK-ACCION-DB.
+           DISPLAY "Ingrese ID de Cliente: " 
+           ACCEPT INVM-ID-CLIENTE.
+           
+           CALL 'DBIOINVM' USING REG-INVM, LK-DATOS-TRANSACCION.
+           
+           IF LK-COD-RETORNO = 0
+               DISPLAY "Saldo Actual: " INVM-SALDO-ACTUAL
+           ELSE
+               DISPLAY LK-MENSAJE
+           END-IF.
+ 
+       3000-DEPOSITO.
+           DISPLAY "--- DEPOSITO EN EFECTIVO ---".
+      *    Primero leemos el saldo actual
+           MOVE 'C' TO LK-ACCION-DB.
+           DISPLAY "Ingrese ID de Cliente: " 
+           ACCEPT INVM-ID-CLIENTE.
+           CALL 'DBIOINVM' USING REG-INVM, LK-DATOS-TRANSACCION.
+           
+           IF LK-COD-RETORNO = 0
+               DISPLAY "Ingrese Monto a Depositar: " 
+               ACCEPT WS-MONTO-TX
+               
+               ADD WS-MONTO-TX TO INVM-SALDO-ACTUAL
+               MOVE 2 TO INVM-COD-ULT-MOV  *> 2 = Deposito
+               MOVE WS-MONTO-TX TO INVM-IMPORTE-MOV
+               
+      *        Actualizamos en BD
+               MOVE 'M' TO LK-ACCION-DB
+               CALL 'DBIOINVM' USING REG-INVM, LK-DATOS-TRANSACCION
+               DISPLAY "Deposito realizado. " LK-MENSAJE
+               DISPLAY "Nuevo Saldo: " INVM-SALDO-ACTUAL
+           ELSE
+               DISPLAY LK-MENSAJE
+           END-IF.
+ 
+       4000-EXTRACCION.
+           DISPLAY "--- EXTRACCION DE EFECTIVO ---".
+           MOVE 'C' TO LK-ACCION-DB.
+           DISPLAY "Ingrese ID de Cliente: " 
+           ACCEPT INVM-ID-CLIENTE.
+           CALL 'DBIOINVM' USING REG-INVM, LK-DATOS-TRANSACCION.
+           
+           IF LK-COD-RETORNO = 0
+               DISPLAY "Saldo Disponible: " INVM-SALDO-ACTUAL
+               DISPLAY "Ingrese Monto a Extraer: " 
+               ACCEPT WS-MONTO-TX
+               
+      *        REGLA: Validar saldo negativo
+               IF WS-MONTO-TX > INVM-SALDO-ACTUAL
+                   DISPLAY "FONDOS INSUFICIENTES."
+               ELSE
+                   SUBTRACT WS-MONTO-TX FROM INVM-SALDO-ACTUAL
+                   MOVE 15 TO INVM-COD-ULT-MOV *> Asumiendo un codigo de retiro
+                   COMPUTE INVM-IMPORTE-MOV = WS-MONTO-TX * -1
+                   
+                   MOVE 'M' TO LK-ACCION-DB
+                   CALL 'DBIOINVM' USING REG-INVM, LK-DATOS-TRANSACCION
+                   DISPLAY "Extraccion realizada. " LK-MENSAJE
+                   DISPLAY "Nuevo Saldo: " INVM-SALDO-ACTUAL
                END-IF
-           END-PERFORM
-
-           DISPLAY "  Ingrese importe: " WITH NO ADVANCING
-           ACCEPT IN-IMPORTE-MOV
-
-           CALL 'DBIOINVM' USING INPUT-AREA
-                                 OUTPUT-AREA
-
-           DISPLAY " "
-           DISPLAY "  ----------------------------------------"
-           IF COD-ERROR = 0
-               EVALUATE IN-COD-MOV
-                   WHEN 2  MOVE "Deposito"  TO WS-TIPO-MOV-TEXTO
-                   WHEN 3  MOVE "Retiro"    TO WS-TIPO-MOV-TEXTO
-               END-EVALUATE
-               MOVE OUT-SALDO-ACTUAL        TO WS-SALDO-DISPLAY
-               DISPLAY "  Operacion    : " WS-TIPO-MOV-TEXTO
-               DISPLAY "  Nuevo saldo  : $ " WS-SALDO-DISPLAY
            ELSE
-               DISPLAY "  ERROR: " MENSAJE-OUTPUT
-           END-IF
-           DISPLAY "  ----------------------------------------"
-
-           MOVE COD-ERROR         TO LK-COD-RETORNO
-           MOVE MENSAJE-OUTPUT    TO LK-MENSAJE.
-
-      *=================================================================
-      *  2000 - CONSULTAR SALDO
-      *         Muestra saldo actual y datos del ultimo movimiento
-      *=================================================================
-       2000-CONSULTAR-SALDO.
-           DISPLAY " "
-           DISPLAY "  --- CONSULTA DE SALDO ---"
-           MOVE 'C'               TO OPER
-
-           DISPLAY "  Ingrese ID Cliente (8 dig): "
-               WITH NO ADVANCING
-           ACCEPT IN-ID-CLIENTE
-
-           CALL 'DBIOINVM' USING INPUT-AREA
-                                 OUTPUT-AREA
-
-           DISPLAY " "
-           DISPLAY "  ========================================"
-           IF COD-ERROR = 0
-               MOVE OUT-SALDO-ACTUAL  TO WS-SALDO-DISPLAY
-               MOVE OUT-IMPORTE-MOV   TO WS-IMPORTE-DISPLAY
-               EVALUATE OUT-COD-MOV
-                   WHEN 2  MOVE "Deposito"  TO WS-TIPO-MOV-TEXTO
-                   WHEN 3  MOVE "Retiro"    TO WS-TIPO-MOV-TEXTO
-                   WHEN OTHER
-                           MOVE "Apertura"  TO WS-TIPO-MOV-TEXTO
-               END-EVALUATE
-               DISPLAY "  ESTADO DE CUENTA"
-               DISPLAY "  ========================================"
-               DISPLAY "  Cliente ID     : " OUT-ID-CLIENTE
-               DISPLAY "  Saldo actual   : $ " WS-SALDO-DISPLAY
-               DISPLAY "  Ultimo mov.    : $ " WS-IMPORTE-DISPLAY
-               DISPLAY "  Tipo ult. mov. : "   WS-TIPO-MOV-TEXTO
-               DISPLAY "  Fecha ult. mov.: "   OUT-FECHA-ULT-MOV
-           ELSE
-               DISPLAY "  ERROR: " MENSAJE-OUTPUT
-           END-IF
-           DISPLAY "  ========================================"
-
-           MOVE COD-ERROR         TO LK-COD-RETORNO
-           MOVE MENSAJE-OUTPUT    TO LK-MENSAJE.
-
-      *=================================================================
-      *  3000 - GENERAR EXTRACTO DETALLADO
-      *         Estado completo del registro: saldo + ultimo movimiento
-      *=================================================================
-       3000-GENERAR-EXTRACTO.
-           DISPLAY " "
-           DISPLAY "  --- EXTRACTO DETALLADO ---"
-           MOVE 'D'               TO OPER
-
-           DISPLAY "  Ingrese ID Cliente (8 dig): "
-               WITH NO ADVANCING
-           ACCEPT IN-ID-CLIENTE
-
-           CALL 'DBIOINVM' USING INPUT-AREA
-                                 OUTPUT-AREA
-
-           DISPLAY " "
-           IF COD-ERROR = 0
-               MOVE OUT-SALDO-ACTUAL  TO WS-SALDO-DISPLAY
-               MOVE OUT-IMPORTE-MOV   TO WS-IMPORTE-DISPLAY
-               EVALUATE OUT-COD-MOV
-                   WHEN 2  MOVE "DEPOSITO"  TO WS-TIPO-MOV-TEXTO
-                   WHEN 3  MOVE "RETIRO"    TO WS-TIPO-MOV-TEXTO
-                   WHEN OTHER
-                           MOVE "APERTURA"  TO WS-TIPO-MOV-TEXTO
-               END-EVALUATE
-               DISPLAY "  ========================================"
-               DISPLAY "      EXTRACTO DE CUENTA CORRIENTE"
-               DISPLAY "  ========================================"
-               DISPLAY "  Cliente ID       : " OUT-ID-CLIENTE
-               DISPLAY "  ----------------------------------------"
-               DISPLAY "  ULTIMO MOVIMIENTO"
-               DISPLAY "    Tipo           : " WS-TIPO-MOV-TEXTO
-               DISPLAY "    Importe        : $ " WS-IMPORTE-DISPLAY
-               DISPLAY "    Fecha          : " OUT-FECHA-ULT-MOV
-               DISPLAY "  ----------------------------------------"
-               DISPLAY "  SALDO ACTUAL     : $ " WS-SALDO-DISPLAY
-               DISPLAY "  ========================================"
-           ELSE
-               DISPLAY "  ERROR: " MENSAJE-OUTPUT
-           END-IF
-
-           MOVE COD-ERROR         TO LK-COD-RETORNO
-           MOVE MENSAJE-OUTPUT    TO LK-MENSAJE.
-
-       END PROGRAM IN0000.
+               DISPLAY LK-MENSAJE
+           END-IF.

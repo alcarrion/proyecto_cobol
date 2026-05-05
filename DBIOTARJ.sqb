@@ -2,7 +2,7 @@
       * PROGRAMA: DBIOTARJ.sqb                                         *
       * FUNCION:  CRUD de la tabla TARJETAS (Tarjetas de Credito)      *
       * ARQUITECTURA: Capa de Acceso a Datos (DBIO)                    *
-      * OPERACIONES: INSERT/SELECT/UPDATE + CALCULAR DEUDA             *
+      * OPERACIONES: INSERT/SELECT/UPDATE + BAJA LOGICA                *
       * PK COMPUESTA: (ID_CLIENTE, NRO_TARJETA)                        *
       *================================================================*
        IDENTIFICATION DIVISION.
@@ -11,21 +11,55 @@
        ENVIRONMENT DIVISION.
        DATA DIVISION.
        WORKING-STORAGE SECTION.
+
       *    Area de comunicacion de SQL
            EXEC SQL INCLUDE SQLCA END-EXEC.
 
+      *    Host variables para SQL (deben estar en WORKING-STORAGE)
+           EXEC SQL BEGIN DECLARE SECTION END-EXEC.
+           01  WS-TARJ.
+               05 WS-TARJ-ID-CLIENTE          PIC 9(08).
+               05 WS-TARJ-NRO-TARJETA         PIC X(16).
+               05 WS-TARJ-FECHA-EMISION       PIC X(10).
+               05 WS-TARJ-FECHA-VENCIM        PIC X(10).
+               05 WS-TARJ-LIMITE-TARJETA      PIC S9(10)V99 COMP-3.
+               05 WS-TARJ-ACUM-MES            PIC S9(10)V99 COMP-3.
+               05 WS-TARJ-LIQUIDACION-MES     PIC S9(10)V99 COMP-3.
+               05 WS-TARJ-ESTADO              PIC X(01).
+           01  WS-LK.
+               05 WS-LK-ACCION-DB             PIC X(01).
+               05 WS-LK-ID-CLIENTE            PIC 9(09).
+               05 WS-LK-IMPORTE               PIC S9(13)V99 COMP-3.
+               05 WS-LK-MODO-OPERACION        PIC X(01).
+               05 WS-LK-COD-RETORNO           PIC 9(02).
+               05 WS-LK-MENSAJE               PIC X(50).
+               05 WS-LK-USUARIO-ID            PIC X(08).
+               05 WS-LK-TERMINAL-ID           PIC X(04).
+               05 WS-LK-FECHA-PROCESO         PIC 9(08).
+           EXEC SQL END DECLARE SECTION END-EXEC.
+
        LINKAGE SECTION.
-      *    Recibimos los datos de la tarjeta y el control de transaccion
            COPY TARJREC.
            COPY LKCIF.
 
        PROCEDURE DIVISION USING REG-TARJ, LK-DATOS-TRANSACCION.
 
        0000-PRINCIPAL.
-           MOVE 0 TO LK-COD-RETORNO
-           MOVE SPACES TO LK-MENSAJE
+      *    Copiar datos de LINKAGE a WORKING-STORAGE (host variables)
+           MOVE TARJ-ID-CLIENTE       TO WS-TARJ-ID-CLIENTE
+           MOVE TARJ-NRO-TARJETA      TO WS-TARJ-NRO-TARJETA
+           MOVE TARJ-FECHA-EMISION    TO WS-TARJ-FECHA-EMISION
+           MOVE TARJ-FECHA-VENCIM     TO WS-TARJ-FECHA-VENCIM
+           MOVE TARJ-LIMITE-TARJETA   TO WS-TARJ-LIMITE-TARJETA
+           MOVE TARJ-ACUM-MES         TO WS-TARJ-ACUM-MES
+           MOVE TARJ-LIQUIDACION-MES  TO WS-TARJ-LIQUIDACION-MES
+           MOVE TARJ-ESTADO           TO WS-TARJ-ESTADO
+           MOVE LK-ACCION-DB          TO WS-LK-ACCION-DB
 
-           EVALUATE LK-ACCION-DB
+           MOVE 0      TO WS-LK-COD-RETORNO
+           MOVE SPACES TO WS-LK-MENSAJE
+
+           EVALUATE WS-LK-ACCION-DB
                WHEN 'A'
                    PERFORM 1000-INSERTAR-TARJETA
                WHEN 'C'
@@ -35,9 +69,21 @@
                WHEN 'B'
                    PERFORM 4000-BAJA-LOGICA-TARJETA
                WHEN OTHER
-                   MOVE 98 TO LK-COD-RETORNO
-                   MOVE "ACCION DB NO SOPORTADA" TO LK-MENSAJE
+                   MOVE 98 TO WS-LK-COD-RETORNO
+                   MOVE "ACCION DB NO SOPORTADA" TO WS-LK-MENSAJE
            END-EVALUATE.
+
+      *    Devolver resultados al LINKAGE
+           MOVE WS-LK-COD-RETORNO     TO LK-COD-RETORNO
+           MOVE WS-LK-MENSAJE         TO LK-MENSAJE
+           MOVE WS-TARJ-ID-CLIENTE    TO TARJ-ID-CLIENTE
+           MOVE WS-TARJ-NRO-TARJETA   TO TARJ-NRO-TARJETA
+           MOVE WS-TARJ-FECHA-EMISION TO TARJ-FECHA-EMISION
+           MOVE WS-TARJ-FECHA-VENCIM  TO TARJ-FECHA-VENCIM
+           MOVE WS-TARJ-LIMITE-TARJETA TO TARJ-LIMITE-TARJETA
+           MOVE WS-TARJ-ACUM-MES      TO TARJ-ACUM-MES
+           MOVE WS-TARJ-LIQUIDACION-MES TO TARJ-LIQUIDACION-MES
+           MOVE WS-TARJ-ESTADO        TO TARJ-ESTADO
 
            EXIT PROGRAM.
 
@@ -53,21 +99,19 @@
                    LIQUIDACION_MES,
                    ESTADO
                ) VALUES (
-                   :TARJ-ID-CLIENTE,
-                   :TARJ-NRO-TARJETA,
-                   :TARJ-FECHA-EMISION,
-                   :TARJ-FECHA-VENCIM,
-                   :TARJ-LIMITE-TARJETA,
-                   :TARJ-ACUM-MES,
-                   :TARJ-LIQUIDACION-MES,
-                   :TARJ-ESTADO
+                   :WS-TARJ-ID-CLIENTE,
+                   :WS-TARJ-NRO-TARJETA,
+                   :WS-TARJ-FECHA-EMISION,
+                   :WS-TARJ-FECHA-VENCIM,
+                   :WS-TARJ-LIMITE-TARJETA,
+                   :WS-TARJ-ACUM-MES,
+                   :WS-TARJ-LIQUIDACION-MES,
+                   :WS-TARJ-ESTADO
                )
            END-EXEC.
-
            PERFORM 9000-EVALUAR-SQL.
-
-           IF LK-COD-RETORNO = 0
-               MOVE "TARJETA REGISTRADA CON EXITO" TO LK-MENSAJE
+           IF WS-LK-COD-RETORNO = 0
+               MOVE "TARJETA REGISTRADA CON EXITO" TO WS-LK-MENSAJE
            END-IF.
 
        2000-CONSULTAR-TARJETA.
@@ -76,54 +120,54 @@
                       FECHA_EMISION, FECHA_VENCIMIENTO,
                       LIMITE_TARJETA, ACUM_MES,
                       LIQUIDACION_MES, ESTADO
-               INTO :TARJ-ID-CLIENTE, :TARJ-NRO-TARJETA,
-                    :TARJ-FECHA-EMISION, :TARJ-FECHA-VENCIM,
-                    :TARJ-LIMITE-TARJETA, :TARJ-ACUM-MES,
-                    :TARJ-LIQUIDACION-MES, :TARJ-ESTADO
+               INTO :WS-TARJ-ID-CLIENTE, :WS-TARJ-NRO-TARJETA,
+                    :WS-TARJ-FECHA-EMISION, :WS-TARJ-FECHA-VENCIM,
+                    :WS-TARJ-LIMITE-TARJETA, :WS-TARJ-ACUM-MES,
+                    :WS-TARJ-LIQUIDACION-MES, :WS-TARJ-ESTADO
                FROM TARJETAS
-               WHERE ID_CLIENTE = :TARJ-ID-CLIENTE
-                 AND NRO_TARJETA = :TARJ-NRO-TARJETA
+               WHERE ID_CLIENTE = :WS-TARJ-ID-CLIENTE
+                 AND NRO_TARJETA = :WS-TARJ-NRO-TARJETA
            END-EXEC.
            PERFORM 9000-EVALUAR-SQL.
-           IF LK-COD-RETORNO = 0
-               MOVE "CONSULTA EXITOSA" TO LK-MENSAJE
+           IF WS-LK-COD-RETORNO = 0
+               MOVE "CONSULTA EXITOSA" TO WS-LK-MENSAJE
            END-IF.
 
        3000-ACTUALIZAR-TARJETA.
            EXEC SQL
                UPDATE TARJETAS
-               SET ACUM_MES = :TARJ-ACUM-MES,
-                   LIQUIDACION_MES = :TARJ-LIQUIDACION-MES,
-                   LIMITE_TARJETA = :TARJ-LIMITE-TARJETA,
-                   ESTADO = :TARJ-ESTADO
-               WHERE ID_CLIENTE = :TARJ-ID-CLIENTE
-                 AND NRO_TARJETA = :TARJ-NRO-TARJETA
+               SET ACUM_MES = :WS-TARJ-ACUM-MES,
+                   LIQUIDACION_MES = :WS-TARJ-LIQUIDACION-MES,
+                   LIMITE_TARJETA = :WS-TARJ-LIMITE-TARJETA,
+                   ESTADO = :WS-TARJ-ESTADO
+               WHERE ID_CLIENTE = :WS-TARJ-ID-CLIENTE
+                 AND NRO_TARJETA = :WS-TARJ-NRO-TARJETA
            END-EXEC.
            PERFORM 9000-EVALUAR-SQL.
-           IF LK-COD-RETORNO = 0
-               MOVE "TARJETA ACTUALIZADA" TO LK-MENSAJE
+           IF WS-LK-COD-RETORNO = 0
+               MOVE "TARJETA ACTUALIZADA" TO WS-LK-MENSAJE
            END-IF.
 
        4000-BAJA-LOGICA-TARJETA.
            EXEC SQL
                UPDATE TARJETAS
                SET ESTADO = 'I'
-               WHERE ID_CLIENTE = :TARJ-ID-CLIENTE
-                 AND NRO_TARJETA = :TARJ-NRO-TARJETA
+               WHERE ID_CLIENTE = :WS-TARJ-ID-CLIENTE
+                 AND NRO_TARJETA = :WS-TARJ-NRO-TARJETA
            END-EXEC.
            PERFORM 9000-EVALUAR-SQL.
-           IF LK-COD-RETORNO = 0
-               MOVE "BAJA LOGICA REALIZADA" TO LK-MENSAJE
+           IF WS-LK-COD-RETORNO = 0
+               MOVE "BAJA LOGICA REALIZADA" TO WS-LK-MENSAJE
            END-IF.
 
        9000-EVALUAR-SQL.
            EVALUATE SQLCODE
                WHEN 0
-                   MOVE 00 TO LK-COD-RETORNO
+                   MOVE 00 TO WS-LK-COD-RETORNO
                WHEN 100
-                   MOVE 01 TO LK-COD-RETORNO
-                   MOVE "REGISTRO NO ENCONTRADO" TO LK-MENSAJE
+                   MOVE 01 TO WS-LK-COD-RETORNO
+                   MOVE "REGISTRO NO ENCONTRADO" TO WS-LK-MENSAJE
                WHEN OTHER
-                   MOVE 99 TO LK-COD-RETORNO
-                   MOVE "ERROR CRITICO EN BASE DE DATOS" TO LK-MENSAJE
+                   MOVE 99 TO WS-LK-COD-RETORNO
+                   MOVE "ERROR CRITICO EN BASE DE DATOS" TO WS-LK-MENSAJE
            END-EVALUATE.

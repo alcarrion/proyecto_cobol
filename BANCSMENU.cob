@@ -19,12 +19,12 @@
       **********************************************************************
       *******                EMBEDDED SQL VARIABLES                  *******
        01 SQLV.
-           05 SQL-ARRSZ  PIC S9(9) COMP-5 VALUE 3.
+           05 SQL-ARRSZ  PIC S9(9) COMP-5 VALUE 2.
            05 SQL-COUNT  PIC S9(9) COMP-5 VALUE ZERO.
-           05 SQL-ADDR   POINTER OCCURS 3 TIMES VALUE NULL.
-           05 SQL-LEN    PIC S9(9) COMP-5 OCCURS 3 TIMES VALUE ZERO.
-           05 SQL-TYPE   PIC X OCCURS 3 TIMES.
-           05 SQL-PREC   PIC X OCCURS 3 TIMES.
+           05 SQL-ADDR   POINTER OCCURS 2 TIMES VALUE NULL.
+           05 SQL-LEN    PIC S9(9) COMP-5 OCCURS 2 TIMES VALUE ZERO.
+           05 SQL-TYPE   PIC X OCCURS 2 TIMES.
+           05 SQL-PREC   PIC X OCCURS 2 TIMES.
       **********************************************************************
 
       *    EXEC SQL INCLUDE SQLCA END-EXEC.
@@ -48,9 +48,7 @@
            05 SQL-HCONN USAGE POINTER VALUE NULL.
 
       *    EXEC SQL BEGIN DECLARE SECTION END-EXEC.
-           01 DB-NOMBRE         PIC X(5) VALUE 'banco'.
-           01 DB-USUARIO        PIC X(4) VALUE 'root'.
-           01 DB-PASS           PIC X(4) VALUE 'tata'.
+           01 DB-CONN-STR       PIC X(100) VALUE SPACES.
       *    EXEC SQL END DECLARE SECTION END-EXEC.
 
            01 WS-MENU.
@@ -62,12 +60,27 @@
                05 WS-COD-RETORNO PIC 9(2) VALUE 0.
                05 WS-MENSAJE     PIC X(50).
 
+           01 WS-PROGRAMAS.
+               05 PGM-CI0000     PIC X(8).
+               05 PGM-IN0000     PIC X(8).
+               05 PGM-TC0000     PIC X(8).
+               05 PGM-BR0000     PIC X(8).
+               05 PGM-BAT000     PIC X(8).
+
+
+
            COPY LKCIF.
 
        PROCEDURE DIVISION.
        MAIN-PROCEDURE.
+            MOVE 'CI0000' TO PGM-CI0000.
+            MOVE 'IN0000' TO PGM-IN0000.
+            MOVE 'TC0000' TO PGM-TC0000.
+            MOVE 'BR0000' TO PGM-BR0000.
+            MOVE 'BAT000' TO PGM-BAT000.
+
             PERFORM 8000-CARGAR-CONFIG.
-      *      PERFORM 8100-CONECTAR-BD.
+            PERFORM 8100-CONECTAR-BD.
             IF SQLCODE = 0
                 PERFORM 001-MENU-OPCION
             ELSE
@@ -98,15 +111,15 @@
            EVALUATE WS-OPCION
       *    MAIN-LINE-CLIENTES
                WHEN 1
-                   CALL 'CI0000' USING LK-DATOS-TRANSACCION
+                   CALL PGM-CI0000 USING LK-DATOS-TRANSACCION
                WHEN 2
-                   CALL 'IN0000' USING LK-DATOS-TRANSACCION
+                   CALL PGM-IN0000 USING LK-DATOS-TRANSACCION
                WHEN 3
-                   CALL 'TC0000' USING LK-DATOS-TRANSACCION
+                   CALL PGM-TC0000 USING LK-DATOS-TRANSACCION
                WHEN 4
-                   CALL 'BR0000' USING LK-DATOS-TRANSACCION
+                   CALL PGM-BR0000 USING LK-DATOS-TRANSACCION
                WHEN 5
-                   CALL 'BAT000' USING LK-DATOS-TRANSACCION
+                   CALL PGM-BAT000 USING LK-DATOS-TRANSACCION
                WHEN 0
                    MOVE 'N' TO WS-CONTINUAR
                WHEN OTHER
@@ -123,23 +136,22 @@
                END-IF
            END-PERFORM.
        8000-CARGAR-CONFIG.
-           OPEN INPUT FS-CONFIG-FILE
-
-           READ FS-CONFIG-FILE INTO DB-NOMBRE
-           READ FS-CONFIG-FILE INTO DB-USUARIO
-           READ FS-CONFIG-FILE INTO DB-PASS
-
-           CLOSE FS-CONFIG-FILE.
-           INSPECT DB-NOMBRE  REPLACING TRAILING SPACES BY LOW-VALUES
-           INSPECT DB-USUARIO REPLACING TRAILING SPACES BY LOW-VALUES
-           INSPECT DB-PASS    REPLACING TRAILING SPACES BY LOW-VALUES.
+           MOVE SPACES TO DB-CONN-STR.
+           STRING
+               "DRIVER={MySQL ODBC 8.0 ANSI Driver};"
+               "SERVER=localhost;"
+               "DATABASE=proyecto_cobol;"
+               "UID=root;PWD=12345;"
+               DELIMITED BY SIZE INTO DB-CONN-STR
+           END-STRING.
+           INSPECT DB-CONN-STR REPLACING TRAILING SPACES BY LOW-VALUES.
        8100-CONECTAR-BD.
-           DISPLAY "CONECTANDO A LA BASE: " DB-NOMBRE
+           DISPLAY "CONECTANDO A LA BASE..."
       *    EXEC SQL
-      *        CONNECT TO :DB-NOMBRE USER :DB-USUARIO USING :DB-PASS
+      *        CONNECT TO :DB-CONN-STR
       *    END-EXEC.
-           MOVE 5 TO SQL-LEN(1)
-           CALL 'OCSQL'    USING DB-NOMBRE
+           MOVE 100 TO SQL-LEN(1)
+           CALL 'OCSQL'    USING DB-CONN-STR
                                SQL-LEN(1)
                                SQLCA
            END-CALL
@@ -155,7 +167,5 @@
       *  : ESQL for GnuCOBOL/OpenCOBOL Version 3 (2024.04.30) Build May 10 2024
 
       *******               EMBEDDED SQL VARIABLES USAGE             *******
-      *  DB-NOMBRE                IN USE CHAR(5)
-      *  DB-PASS              NOT IN USE
-      *  DB-USUARIO           NOT IN USE
+      *  DB-CONN-STR              IN USE CHAR(100)
       **********************************************************************
