@@ -1,0 +1,70 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. RP0000.
+      *================================================================*
+      * MODULO: Reportes Gerenciales (Consolidado Banco)               *
+      *================================================================*
+       ENVIRONMENT DIVISION.
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+           EXEC SQL INCLUDE SQLCA END-EXEC.
+           
+           EXEC SQL BEGIN DECLARE SECTION END-EXEC.
+       01  WS-CTACTES       PIC S9(13)V99.
+       01  WS-TARJ      PIC S9(13)V99.
+       01  WS-HIPOT     PIC S9(13)V99.
+       01  WS-C-HIP     PIC 9(05).
+           EXEC SQL END DECLARE SECTION END-EXEC.
+
+       LINKAGE SECTION.
+       COPY LKCIF.
+
+       PROCEDURE DIVISION USING LK-DATOS-TRANSACCION.
+
+       0000-PRINCIPAL.
+           DISPLAY " "
+           DISPLAY "=================================================="
+           DISPLAY "          REPORTE GERENCIAL CONSOLIDADO           "
+           DISPLAY "=================================================="
+           
+           MOVE 0 TO WS-CTACTES.
+           MOVE 0 TO WS-TARJ.
+           MOVE 0 TO WS-HIPOT.
+           MOVE 0 TO WS-C-HIP.
+
+      *    1. Total Saldo Cuentas Corrientes (Pasivo del Banco)
+           EXEC SQL
+               SELECT COALESCE(SUM(SALDO_ACTUAL), 0)
+               INTO :WS-CTACTES
+               FROM ctactes
+           END-EXEC.
+
+      *    2. Total Deuda Tarjetas (Activo del Banco)
+           EXEC SQL
+               SELECT COALESCE(SUM(LIQUIDACION_MES + ACUM_MES), 0)
+               INTO :WS-TARJ
+               FROM TARJETAS
+               WHERE ESTADO = 'A' OR ESTADO = 'B'
+           END-EXEC.
+
+      *    3. Total Hipotecas Activas (Activo del Banco)
+           EXEC SQL
+               SELECT COALESCE(COUNT(*), 0), 
+                      COALESCE(SUM(SALDO_ACTUAL), 0)
+               INTO :WS-C-HIP, 
+                    :WS-HIPOT
+               FROM HIPOTECAS
+               WHERE ESTADO = 'Activa'
+           END-EXEC.
+
+           DISPLAY "Saldo Cta.Cte: $" WS-CTACTES
+           DISPLAY "Deuda Tarjetas: $" WS-TARJ
+           DISPLAY "Deuda Hipotecas: $" WS-HIPOT
+           DISPLAY "Cant. Hipotecas: " WS-C-HIP
+           DISPLAY " "
+           DISPLAY "=================================================="
+           
+           MOVE 0 TO LK-COD-RETORNO.
+           MOVE "REPORTE GENERADO EXITOSAMENTE" TO LK-MENSAJE.
+
+           GOBACK.
+       END PROGRAM RP0000.

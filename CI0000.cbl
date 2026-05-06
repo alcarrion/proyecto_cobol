@@ -13,6 +13,10 @@
        01 WS-CONTINUAR-CIF    PIC X(01) VALUE 'S'.
        01 WS-TIENE-CUENTA     PIC X(01) VALUE 'N'.
 
+       01 WS-PROGRAMAS.
+           05 WS-PGM-DBIOCUSM    PIC X(8) VALUE 'DBIOCUSM'.
+           05 WS-PGM-DBIOINVM    PIC X(8) VALUE 'DBIOINVM'.
+
       * COPY de la tabla maestra de Clientes (CUSM)
            COPY CUSMREC.
       * COPY de la tabla maestra de Cuentas (INVM)
@@ -98,7 +102,7 @@
                MOVE '9999-12-31' TO CUSM-FECHA-CIERRE
                MOVE 0 TO CUSM-SALDO-CLIENTE
                
-               CALL 'DBIOCUSM' USING REG-CUSM, LK-DATOS-TRANSACCION
+               CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION
 
                IF LK-COD-RETORNO = 0
                    DISPLAY LK-MENSAJE
@@ -113,7 +117,7 @@
                    MOVE 0 TO INVM-SALDO-ACTUAL
 
                    MOVE 'A' TO LK-ACCION-DB
-                   CALL 'DBIOINVM' USING REG-INVM, LK-DATOS-TRANSACCION
+                   CALL WS-PGM-DBIOINVM USING REG-INVM, LK-DATOS-TRANSACCION
 
                    DISPLAY LK-MENSAJE
                ELSE
@@ -133,7 +137,7 @@
                
            ACCEPT CUSM-ID-CLIENTE.
 
-           CALL 'DBIOCUSM' USING REG-CUSM, LK-DATOS-TRANSACCION.
+           CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
 
            IF LK-COD-RETORNO = 0
                DISPLAY "-----------------------------------"
@@ -154,7 +158,7 @@
            DISPLAY "Ingrese ID de Cliente a modificar: "
                
            ACCEPT CUSM-ID-CLIENTE.
-           CALL 'DBIOCUSM' USING REG-CUSM, LK-DATOS-TRANSACCION.
+           CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
 
            IF LK-COD-RETORNO = 0
                DISPLAY "Cliente encontrado: " CUSM-NOMBRE
@@ -164,7 +168,7 @@
                ACCEPT CUSM-TELEFONO
 
                MOVE 'M' TO LK-ACCION-DB
-               CALL 'DBIOCUSM' USING REG-CUSM, LK-DATOS-TRANSACCION
+               CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION
                DISPLAY LK-MENSAJE
            ELSE
                DISPLAY "Cliente no encontrado."
@@ -176,5 +180,5 @@
            DISPLAY "Ingrese ID de Cliente a dar de baja: "
                
            ACCEPT CUSM-ID-CLIENTE.
-           CALL 'DBIOCUSM' USING REG-CUSM, LK-DATOS-TRANSACCION.
+           CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
            DISPLAY LK-MENSAJE.

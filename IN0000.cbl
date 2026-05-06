@@ -13,7 +13,10 @@
        01 WS-OPCION-INVM      PIC 9(01).
        01 WS-CONTINUAR-INVM   PIC X(01) VALUE 'S'.
        01 WS-MONTO-TX         PIC 9(10)V99.
- 
+
+       01 WS-PROGRAMAS.
+           05 WS-PGM-DBIOINVM    PIC X(8) VALUE 'DBIOINVM'.
+
            COPY INVMREC.
        
        LINKAGE SECTION.
@@ -58,7 +61,7 @@
            DISPLAY "Ingrese ID de Cliente: " 
            ACCEPT INVM-ID-CLIENTE.
            
-           CALL 'DBIOINVM' USING REG-INVM, LK-DATOS-TRANSACCION.
+           CALL WS-PGM-DBIOINVM USING REG-INVM, LK-DATOS-TRANSACCION.
            
            IF LK-COD-RETORNO = 0
                DISPLAY "Saldo Actual: " INVM-SALDO-ACTUAL
@@ -72,7 +75,7 @@
            MOVE 'C' TO LK-ACCION-DB.
            DISPLAY "Ingrese ID de Cliente: " 
            ACCEPT INVM-ID-CLIENTE.
-           CALL 'DBIOINVM' USING REG-INVM, LK-DATOS-TRANSACCION.
+           CALL WS-PGM-DBIOINVM USING REG-INVM, LK-DATOS-TRANSACCION.
            
            IF LK-COD-RETORNO = 0
                DISPLAY "Ingrese Monto a Depositar: " 
@@ -84,7 +87,7 @@
                
       *        Actualizamos en BD
                MOVE 'M' TO LK-ACCION-DB
-               CALL 'DBIOINVM' USING REG-INVM, LK-DATOS-TRANSACCION
+               CALL WS-PGM-DBIOINVM USING REG-INVM, LK-DATOS-TRANSACCION
                DISPLAY "Deposito realizado. " LK-MENSAJE
                DISPLAY "Nuevo Saldo: " INVM-SALDO-ACTUAL
            ELSE
@@ -96,7 +99,7 @@
            MOVE 'C' TO LK-ACCION-DB.
            DISPLAY "Ingrese ID de Cliente: " 
            ACCEPT INVM-ID-CLIENTE.
-           CALL 'DBIOINVM' USING REG-INVM, LK-DATOS-TRANSACCION.
+           CALL WS-PGM-DBIOINVM USING REG-INVM, LK-DATOS-TRANSACCION.
            
            IF LK-COD-RETORNO = 0
                DISPLAY "Saldo Disponible: " INVM-SALDO-ACTUAL
@@ -112,7 +115,7 @@
                    COMPUTE INVM-IMPORTE-MOV = WS-MONTO-TX * -1
                    
                    MOVE 'M' TO LK-ACCION-DB
-                   CALL 'DBIOINVM' USING REG-INVM, LK-DATOS-TRANSACCION
+                   CALL WS-PGM-DBIOINVM USING REG-INVM, LK-DATOS-TRANSACCION
                    DISPLAY "Extraccion realizada. " LK-MENSAJE
                    DISPLAY "Nuevo Saldo: " INVM-SALDO-ACTUAL
                END-IF

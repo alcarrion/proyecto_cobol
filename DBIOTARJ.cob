@@ -58,9 +58,9 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 2.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 73.
-           05 SQL-STMT   PIC X(73) VALUE 'UPDATE TARJETAS SET ESTADO = '
-      -    ''I'' WHERE ID_CLIENTE = ? AND NRO_TARJETA = ?'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 71.
+           05 SQL-STMT   PIC X(71) VALUE 'UPDATE TARJETAS SET ESTADO=''I
+      -    ''' WHERE ID_CLIENTE = ? AND NRO_TARJETA = ?'.
       **********************************************************************
       *******          PRECOMPILER-GENERATED VARIABLES               *******
        01 SQLV-GEN-VARS.
@@ -388,7 +388,7 @@
        4000-BAJA-LOGICA-TARJETA.
       *    EXEC SQL
       *        UPDATE TARJETAS
-      *        SET ESTADO = 'I'
+      *        SET ESTADO='I'
       *        WHERE ID_CLIENTE = :WS-TARJ-ID-CLIENTE
       *          AND NRO_TARJETA = :WS-TARJ-NRO-TARJETA
       *    END-EXEC.
@@ -427,7 +427,7 @@
                    MOVE "REGISTRO NO ENCONTRADO" TO WS-LK-MENSAJE
                WHEN OTHER
                    MOVE 99 TO WS-LK-COD-RETORNO
-                   MOVE "ERROR CRITICO EN BASE DE DATOS" TO WS-LK-MENSAJ
+                   MOVE "ERROR CRITICO" TO LK-MENSAJE
            END-EVALUATE.
       **********************************************************************
       *  : ESQL for GnuCOBOL/OpenCOBOL Version 3 (2024.04.30) Build May 10 2024

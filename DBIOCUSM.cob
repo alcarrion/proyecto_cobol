@@ -255,8 +255,6 @@
            PERFORM 9000-EVALUAR-SQL.
 
            IF LK-COD-RETORNO = 0
-      *        EXEC SQL COMMIT END-EXEC
-           CALL 'OCSQLCMT' USING SQLCA END-CALL
                MOVE "CLIENTE REGISTRADO CON EXITO" TO LK-MENSAJE
            END-IF.
 
@@ -450,8 +448,6 @@
                    .
            PERFORM 9000-EVALUAR-SQL.
            IF LK-COD-RETORNO = 0
-      *        EXEC SQL COMMIT END-EXEC
-           CALL 'OCSQLCMT' USING SQLCA END-CALL
                MOVE "CLIENTE ACTUALIZADO" TO LK-MENSAJE
            END-IF.
 

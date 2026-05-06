@@ -151,7 +151,7 @@
        4000-BAJA-LOGICA-TARJETA.
            EXEC SQL
                UPDATE TARJETAS
-               SET ESTADO = 'I'
+               SET ESTADO='I'
                WHERE ID_CLIENTE = :WS-TARJ-ID-CLIENTE
                  AND NRO_TARJETA = :WS-TARJ-NRO-TARJETA
            END-EXEC.
@@ -169,5 +169,5 @@
                    MOVE "REGISTRO NO ENCONTRADO" TO WS-LK-MENSAJE
                WHEN OTHER
                    MOVE 99 TO WS-LK-COD-RETORNO
-                   MOVE "ERROR CRITICO EN BASE DE DATOS" TO WS-LK-MENSAJE
+                   MOVE "ERROR CRITICO" TO LK-MENSAJE
            END-EVALUATE.

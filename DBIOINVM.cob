@@ -167,9 +167,7 @@
                    .
            PERFORM 9000-EVALUAR-SQL.
            IF LK-COD-RETORNO = 0
-      *        EXEC SQL COMMIT END-EXEC
-           CALL 'OCSQLCMT' USING SQLCA END-CALL
-               MOVE "CUENTA CORRIENTE REGISTRADA CON EXITO" TO LK-MENSAJ
+               MOVE "EXITO" TO LK-MENSAJE
            END-IF.
 
        2000-CONSULTAR-CUENTA.
@@ -223,8 +221,6 @@
                    .
            PERFORM 9000-EVALUAR-SQL.
            IF LK-COD-RETORNO = 0
-      *        EXEC SQL COMMIT END-EXEC
-           CALL 'OCSQLCMT' USING SQLCA END-CALL
                MOVE "CONSULTA EXITOSA" TO LK-MENSAJE
            END-IF.
 
@@ -281,8 +277,6 @@
                    .
            PERFORM 9000-EVALUAR-SQL.
            IF LK-COD-RETORNO = 0
-      *        EXEC SQL COMMIT END-EXEC
-           CALL 'OCSQLCMT' USING SQLCA END-CALL
                MOVE "SALDO ACTUALIZADO" TO LK-MENSAJE
            END-IF.
 

@@ -28,6 +28,10 @@
            01 WS-DEUDA-TOTAL       PIC S9(10)V99 VALUE ZERO.
            01 WS-CONFIRMA          PIC X(01) VALUE SPACES.
 
+       01 WS-PROGRAMAS.
+           05 WS-PGM-DBIOCUSM    PIC X(8) VALUE 'DBIOCUSM'.
+           05 WS-PGM-DBIOTARJ    PIC X(8) VALUE 'DBIOTARJ'.
+
        LINKAGE SECTION.
            COPY LKCIF.
 
@@ -51,7 +55,7 @@
            DISPLAY "7. Baja (Cancelacion) de Tarjeta".
            DISPLAY "0. Volver al Menu Principal".
            DISPLAY "========================================".
-           DISPLAY "Seleccione operacion: " WITH NO ADVANCING.
+           DISPLAY "Seleccione operacion: ".
            ACCEPT WS-OPCION-TARJ.
 
            EVALUATE WS-OPCION-TARJ
@@ -80,37 +84,37 @@
 
       *    Validar que el cliente exista y este activo
            DISPLAY "Ingrese ID de Cliente (8 digitos): "
-               WITH NO ADVANCING.
+.
            ACCEPT TARJ-ID-CLIENTE.
 
            MOVE TARJ-ID-CLIENTE TO CUSM-ID-CLIENTE.
            MOVE 'C' TO LK-ACCION-DB.
-           CALL 'DBIOCUSM' USING REG-CUSM, LK-DATOS-TRANSACCION.
+           CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION
 
            IF LK-COD-RETORNO NOT = 0
                DISPLAY "ERROR: Cliente no encontrado."
                DISPLAY LK-MENSAJE
            ELSE
-               IF CUSM-ESTADO NOT = 'A'
+               IF CUSM-CTA-ACTIVA NOT = 'A'
                    DISPLAY "ERROR: El cliente no esta activo."
                ELSE
       *            Cliente valido, proceder con la emision
                    MOVE 'A' TO LK-ACCION-DB
 
                    DISPLAY "Ingrese Numero de Tarjeta (16 digitos): "
-                       WITH NO ADVANCING
+
                    ACCEPT TARJ-NRO-TARJETA
 
                    DISPLAY "Ingrese Fecha Emision (YYYY-MM-DD): "
-                       WITH NO ADVANCING
+
                    ACCEPT TARJ-FECHA-EMISION
 
                    DISPLAY "Ingrese Fecha Vencimiento (YYYY-MM-DD): "
-                       WITH NO ADVANCING
+
                    ACCEPT TARJ-FECHA-VENCIM
 
                    DISPLAY "Ingrese Limite de Credito: "
-                       WITH NO ADVANCING
+
                    ACCEPT TARJ-LIMITE-TARJETA
 
                    MOVE ZERO TO TARJ-ACUM-MES
@@ -118,10 +122,10 @@
                    MOVE 'A'  TO TARJ-ESTADO
 
       *            Activar flag de tarjeta en cliente si no lo tiene
-                   IF CUSM-FLG-TARJETA = 0
-                       MOVE 1 TO CUSM-FLG-TARJETA
+                   IF CUSM-TARJETA = 0
+                       MOVE 1 TO CUSM-TARJETA
                        MOVE 'M' TO LK-ACCION-DB
-                       CALL 'DBIOCUSM' USING REG-CUSM,
+                       CALL WS-PGM-DBIOCUSM USING REG-CUSM,
                            LK-DATOS-TRANSACCION
                        MOVE 'A' TO LK-ACCION-DB
                    END-IF
@@ -142,12 +146,12 @@
            DISPLAY "--- CONSULTA DE TARJETA ---".
            MOVE 'C' TO LK-ACCION-DB.
 
-           DISPLAY "Ingrese ID de Cliente: " WITH NO ADVANCING.
+           DISPLAY "Ingrese ID de Cliente: ".
            ACCEPT TARJ-ID-CLIENTE.
-           DISPLAY "Ingrese Numero de Tarjeta: " WITH NO ADVANCING.
+           DISPLAY "Ingrese Numero de Tarjeta: ".
            ACCEPT TARJ-NRO-TARJETA.
 
-           CALL 'DBIOTARJ' USING REG-TARJ, LK-DATOS-TRANSACCION.
+           CALL WS-PGM-DBIOTARJ USING REG-TARJ, LK-DATOS-TRANSACCION.
 
            IF LK-COD-RETORNO = 0
                DISPLAY "Datos de la Tarjeta: "
@@ -169,14 +173,14 @@
        4000-CARGO-TARJETA.
            DISPLAY "--- CARGO A TARJETA (CONSUMO) ---".
 
-           DISPLAY "Ingrese ID de Cliente: " WITH NO ADVANCING.
+           DISPLAY "Ingrese ID de Cliente: ".
            ACCEPT TARJ-ID-CLIENTE.
-           DISPLAY "Ingrese Numero de Tarjeta: " WITH NO ADVANCING.
+           DISPLAY "Ingrese Numero de Tarjeta: ".
            ACCEPT TARJ-NRO-TARJETA.
 
       *    Consultar la tarjeta para validar
            MOVE 'C' TO LK-ACCION-DB.
-           CALL 'DBIOTARJ' USING REG-TARJ, LK-DATOS-TRANSACCION.
+           CALL WS-PGM-DBIOTARJ USING REG-TARJ, LK-DATOS-TRANSACCION.
 
            IF LK-COD-RETORNO NOT = 0
                DISPLAY "Error: " LK-MENSAJE
@@ -187,7 +191,7 @@
                    DISPLAY "Estado actual: " TARJ-ESTADO
                ELSE
                    DISPLAY "Ingrese monto del cargo: "
-                       WITH NO ADVANCING
+
                    ACCEPT WS-MONTO-CARGO
 
       *            Validar que no exceda el limite de credito
@@ -201,7 +205,7 @@
                    ELSE
                        ADD WS-MONTO-CARGO TO TARJ-ACUM-MES
                        MOVE 'M' TO LK-ACCION-DB
-                       CALL 'DBIOTARJ' USING REG-TARJ,
+                       CALL WS-PGM-DBIOTARJ USING REG-TARJ,
                            LK-DATOS-TRANSACCION
                        IF LK-COD-RETORNO = 0
                            DISPLAY "Cargo realizado exitosamente."
@@ -221,14 +225,14 @@
        5000-PAGO-TARJETA.
            DISPLAY "--- PAGO DE TARJETA ---".
 
-           DISPLAY "Ingrese ID de Cliente: " WITH NO ADVANCING.
+           DISPLAY "Ingrese ID de Cliente: ".
            ACCEPT TARJ-ID-CLIENTE.
-           DISPLAY "Ingrese Numero de Tarjeta: " WITH NO ADVANCING.
+           DISPLAY "Ingrese Numero de Tarjeta: ".
            ACCEPT TARJ-NRO-TARJETA.
 
       *    Consultar tarjeta
            MOVE 'C' TO LK-ACCION-DB.
-           CALL 'DBIOTARJ' USING REG-TARJ, LK-DATOS-TRANSACCION.
+           CALL WS-PGM-DBIOTARJ USING REG-TARJ, LK-DATOS-TRANSACCION.
 
            IF LK-COD-RETORNO NOT = 0
                DISPLAY "Error: " LK-MENSAJE
@@ -244,7 +248,7 @@
                        TARJ-ACUM-MES + TARJ-LIQUIDACION-MES
                    DISPLAY "Deuda total:           " WS-DEUDA-TOTAL
                    DISPLAY "Ingrese monto del pago: "
-                       WITH NO ADVANCING
+
                    ACCEPT WS-MONTO-PAGO
 
       *            El pago reduce primero la liquidacion pendiente
@@ -282,13 +286,13 @@
        6000-CONSULTA-DEUDA.
            DISPLAY "--- CONSULTA DE DEUDA ---".
 
-           DISPLAY "Ingrese ID de Cliente: " WITH NO ADVANCING.
+           DISPLAY "Ingrese ID de Cliente: ".
            ACCEPT TARJ-ID-CLIENTE.
-           DISPLAY "Ingrese Numero de Tarjeta: " WITH NO ADVANCING.
+           DISPLAY "Ingrese Numero de Tarjeta: ".
            ACCEPT TARJ-NRO-TARJETA.
 
            MOVE 'C' TO LK-ACCION-DB.
-           CALL 'DBIOTARJ' USING REG-TARJ, LK-DATOS-TRANSACCION.
+           CALL WS-PGM-DBIOTARJ USING REG-TARJ, LK-DATOS-TRANSACCION.
 
            IF LK-COD-RETORNO NOT = 0
                DISPLAY "Error: " LK-MENSAJE
@@ -319,14 +323,14 @@
        7000-BLOQUEO-TARJETA.
            DISPLAY "--- BLOQUEO DE TARJETA ---".
 
-           DISPLAY "Ingrese ID de Cliente: " WITH NO ADVANCING.
+           DISPLAY "Ingrese ID de Cliente: ".
            ACCEPT TARJ-ID-CLIENTE.
-           DISPLAY "Ingrese Numero de Tarjeta: " WITH NO ADVANCING.
+           DISPLAY "Ingrese Numero de Tarjeta: ".
            ACCEPT TARJ-NRO-TARJETA.
 
       *    Consultar tarjeta
            MOVE 'C' TO LK-ACCION-DB.
-           CALL 'DBIOTARJ' USING REG-TARJ, LK-DATOS-TRANSACCION.
+           CALL WS-PGM-DBIOTARJ USING REG-TARJ, LK-DATOS-TRANSACCION.
 
            IF LK-COD-RETORNO NOT = 0
                DISPLAY "Error: " LK-MENSAJE
@@ -336,23 +340,23 @@
                ELSE IF TARJ-ESTADO = 'B'
                    DISPLAY "La tarjeta ya esta bloqueada."
                    DISPLAY "Desea desbloquear? (S/N): "
-                       WITH NO ADVANCING
+
                    ACCEPT WS-CONFIRMA
                    IF WS-CONFIRMA = 'S' OR 's'
                        MOVE 'A' TO TARJ-ESTADO
                        MOVE 'M' TO LK-ACCION-DB
-                       CALL 'DBIOTARJ' USING REG-TARJ,
+                       CALL WS-PGM-DBIOTARJ USING REG-TARJ,
                            LK-DATOS-TRANSACCION
                        DISPLAY "Tarjeta desbloqueada exitosamente."
                    END-IF
                ELSE
                    DISPLAY "Confirma bloqueo? (S/N): "
-                       WITH NO ADVANCING
+
                    ACCEPT WS-CONFIRMA
                    IF WS-CONFIRMA = 'S' OR 's'
                        MOVE 'B' TO TARJ-ESTADO
                        MOVE 'M' TO LK-ACCION-DB
-                       CALL 'DBIOTARJ' USING REG-TARJ,
+                       CALL WS-PGM-DBIOTARJ USING REG-TARJ,
                            LK-DATOS-TRANSACCION
                        DISPLAY "Tarjeta bloqueada exitosamente."
                        DISPLAY "El cliente puede pagar pero no"
@@ -364,14 +368,14 @@
        8000-BAJA-TARJETA.
            DISPLAY "--- BAJA (CANCELACION) DE TARJETA ---".
 
-           DISPLAY "Ingrese ID de Cliente: " WITH NO ADVANCING.
+           DISPLAY "Ingrese ID de Cliente: ".
            ACCEPT TARJ-ID-CLIENTE.
-           DISPLAY "Ingrese Numero de Tarjeta: " WITH NO ADVANCING.
+           DISPLAY "Ingrese Numero de Tarjeta: ".
            ACCEPT TARJ-NRO-TARJETA.
 
       *    Consultar primero para validar
            MOVE 'C' TO LK-ACCION-DB.
-           CALL 'DBIOTARJ' USING REG-TARJ, LK-DATOS-TRANSACCION.
+           CALL WS-PGM-DBIOTARJ USING REG-TARJ, LK-DATOS-TRANSACCION.
 
            IF LK-COD-RETORNO NOT = 0
                DISPLAY "Error: " LK-MENSAJE
@@ -388,7 +392,7 @@
                        DISPLAY "Deuda total: " WS-DEUDA-TOTAL
                    ELSE
                        DISPLAY "Confirma cancelacion? (S/N): "
-                           WITH NO ADVANCING
+
                        ACCEPT WS-CONFIRMA
                        IF WS-CONFIRMA = 'S' OR 's'
                            MOVE 'B' TO LK-ACCION-DB

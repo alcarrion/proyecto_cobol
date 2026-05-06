@@ -1,0 +1,47 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. BAT000.
+      *================================================================*
+      * MODULO: Cierre Mensual Batch                                   *
+      *================================================================*
+       ENVIRONMENT DIVISION.
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+           EXEC SQL INCLUDE SQLCA END-EXEC.
+           
+           EXEC SQL BEGIN DECLARE SECTION END-EXEC.
+       01  WS-TARJETAS-PROCESADAS PIC 9(05).
+           EXEC SQL END DECLARE SECTION END-EXEC.
+
+       LINKAGE SECTION.
+       COPY LKCIF.
+
+       PROCEDURE DIVISION USING LK-DATOS-TRANSACCION.
+
+       0000-PRINCIPAL.
+           DISPLAY "========================================".
+           DISPLAY "    INICIANDO PROCESO BATCH (CIERRE)    ".
+           DISPLAY "========================================".
+
+           EXEC SQL
+               UPDATE TARJETAS
+               SET LIQUIDACION_MES = LIQUIDACION_MES + ACUM_MES,
+                   ACUM_MES = 0
+               WHERE ESTADO = 'A' OR ESTADO = 'B'
+           END-EXEC.
+
+           IF SQLCODE = 0 OR SQLCODE = 100
+               DISPLAY "CIERRE DE TARJETAS COMPLETADO EXITOSAMENTE."
+               MOVE 0 TO LK-COD-RETORNO
+               MOVE "CIERRE BATCH EJECUTADO" TO LK-MENSAJE
+           ELSE
+               DISPLAY "ERROR EN CIERRE DE TARJETAS. SQLCODE: " SQLCODE
+               MOVE 99 TO LK-COD-RETORNO
+               MOVE "ERROR EN BATCH" TO LK-MENSAJE
+           END-IF.
+
+           DISPLAY "========================================".
+           DISPLAY "         FIN DE PROCESO BATCH           ".
+           DISPLAY "========================================".
+
+           GOBACK.
+       END PROGRAM BAT000.

@@ -66,8 +66,7 @@
                05 PGM-TC0000     PIC X(8).
                05 PGM-BR0000     PIC X(8).
                05 PGM-BAT000     PIC X(8).
-
-
+               05 PGM-RP0000     PIC X(8).
 
            COPY LKCIF.
 
@@ -78,6 +77,7 @@
             MOVE 'TC0000' TO PGM-TC0000.
             MOVE 'BR0000' TO PGM-BR0000.
             MOVE 'BAT000' TO PGM-BAT000.
+             MOVE 'RP0000' TO PGM-RP0000.
 
             PERFORM 8000-CARGAR-CONFIG.
             PERFORM 8100-CONECTAR-BD.
@@ -120,6 +120,8 @@
                    CALL PGM-BR0000 USING LK-DATOS-TRANSACCION
                WHEN 5
                    CALL PGM-BAT000 USING LK-DATOS-TRANSACCION
+               WHEN 6
+                   CALL PGM-RP0000 USING LK-DATOS-TRANSACCION
                WHEN 0
                    MOVE 'N' TO WS-CONTINUAR
                WHEN OTHER

@@ -59,7 +59,7 @@
            END-EXEC.
            PERFORM 9000-EVALUAR-SQL.
            IF LK-COD-RETORNO = 0
-               MOVE "CUENTA CORRIENTE REGISTRADA CON EXITO" TO LK-MENSAJE
+               MOVE "EXITO" TO LK-MENSAJE
            END-IF.
        
        2000-CONSULTAR-CUENTA.
