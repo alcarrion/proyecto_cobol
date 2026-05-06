@@ -10,14 +10,15 @@
        DATA DIVISION.
        WORKING-STORAGE SECTION.
 
-       01 WS-OPCION-INVM      PIC 9(01).
-       01 WS-CONTINUAR-INVM   PIC X(01) VALUE 'S'.
-       01 WS-MONTO-TX         PIC 9(10)V99.
+       01  WS-OPCION-INVM      PIC 9(01).
+       01  WS-CONTINUAR-INVM   PIC X(01) VALUE 'S'.
+       01  WS-MONTO-TX         PIC 9(10)V99.
 
-       01 WS-PROGRAMAS.
+       01  WS-PROGRAMAS.
            05 WS-PGM-DBIOINVM    PIC X(8) VALUE 'DBIOINVM'.
-
+           05 WS-PGM-DBIOCUSM    PIC X(08) VALUE 'DBIOCUSM'.
            COPY INVMREC.
+           COPY CUSMREC.
 
        LINKAGE SECTION.
            COPY LKCIF.
@@ -57,69 +58,98 @@
 
        2000-CONSULTA-SALDO.
            DISPLAY "--- CONSULTA DE SALDO ---".
-           MOVE 'C' TO LK-ACCION-DB.
-           DISPLAY "Ingrese ID de Cliente: "
-           ACCEPT INVM-ID-CLIENTE.
-
-           CALL WS-PGM-DBIOINVM USING REG-INVM, LK-DATOS-TRANSACCION.
+           PERFORM 9000-BUSCAR-CLIENTE-Y-CUENTA.
 
            IF LK-COD-RETORNO = 0
-               DISPLAY "Saldo Actual: " INVM-SALDO-ACTUAL
+               DISPLAY "CLIENTE: " CUSM-NOMBRE " " CUSM-APELLIDOS
+               DISPLAY "SALDO ACTUAL: " INVM-SALDO-ACTUAL
            ELSE
-               DISPLAY LK-MENSAJE
+               DISPLAY "ERROR: " LK-MENSAJE
            END-IF.
 
        3000-DEPOSITO.
            DISPLAY "--- DEPOSITO EN EFECTIVO ---".
-      *    Primero leemos el saldo actual
-           MOVE 'C' TO LK-ACCION-DB.
-           DISPLAY "Ingrese ID de Cliente: "
-           ACCEPT INVM-ID-CLIENTE.
-           CALL WS-PGM-DBIOINVM USING REG-INVM, LK-DATOS-TRANSACCION.
-
+           PERFORM 9000-BUSCAR-CLIENTE-Y-CUENTA.
            IF LK-COD-RETORNO = 0
-               DISPLAY "Ingrese Monto a Depositar: "
+               DISPLAY "INGRESE MONTO A DEPOSITAR: "
                ACCEPT WS-MONTO-TX
 
-               ADD WS-MONTO-TX TO INVM-SALDO-ACTUAL
-               MOVE 2 TO INVM-COD-ULT-MOV  *> 2 = Deposito
-               MOVE WS-MONTO-TX TO INVM-IMPORTE-MOV
+               IF WS-MONTO-TX > 0
+                   ADD WS-MONTO-TX TO INVM-SALDO-ACTUAL
+                   MOVE 2            TO INVM-COD-ULT-MOV
+                   MOVE WS-MONTO-TX  TO INVM-IMPORTE-MOV
 
-      *        Actualizamos en BD
-               MOVE 'M' TO LK-ACCION-DB
-               CALL WS-PGM-DBIOINVM USING REG-INVM, LK-DATOS-TRANSACCION
-               DISPLAY "Deposito realizado. " LK-MENSAJE
-               DISPLAY "Nuevo Saldo: " INVM-SALDO-ACTUAL
+                   MOVE 'M' TO LK-ACCION-DB
+                   CALL WS-PGM-DBIOINVM
+                   USING REG-INVM, LK-DATOS-TRANSACCION
+
+                   IF LK-COD-RETORNO = 0
+                       CALL 'DBIOTRAN' USING 'C'
+                       DISPLAY "DEPOSITO EXITOSO. NUEVO SALDO: "
+                               INVM-SALDO-ACTUAL
+                   ELSE
+                       CALL 'DBIOTRAN' USING 'R'
+                       DISPLAY "ERROR AL REGISTRAR MOVIMIENTO."
+                   END-IF
+               ELSE
+                   DISPLAY "ERROR: EL MONTO DEBE SER MAYOR A CERO."
+               END-IF
            ELSE
-               DISPLAY LK-MENSAJE
+               DISPLAY "ERROR: " LK-MENSAJE
            END-IF.
 
        4000-EXTRACCION.
            DISPLAY "--- EXTRACCION DE EFECTIVO ---".
-           MOVE 'C' TO LK-ACCION-DB.
-           DISPLAY "Ingrese ID de Cliente: "
-           ACCEPT INVM-ID-CLIENTE.
-           CALL WS-PGM-DBIOINVM USING REG-INVM, LK-DATOS-TRANSACCION.
+           PERFORM 9000-BUSCAR-CLIENTE-Y-CUENTA.
 
            IF LK-COD-RETORNO = 0
-               DISPLAY "Saldo Disponible: " INVM-SALDO-ACTUAL
-               DISPLAY "Ingrese Monto a Extraer: "
+               DISPLAY "SALDO DISPONIBLE: " INVM-SALDO-ACTUAL
+               DISPLAY "INGRESE MONTO A EXTRAER: "
                ACCEPT WS-MONTO-TX
 
-      *        REGLA: Validar saldo negativo
-               IF WS-MONTO-TX > INVM-SALDO-ACTUAL
-                   DISPLAY "FONDOS INSUFICIENTES."
+               IF WS-MONTO-TX <= 0
+                   DISPLAY "ERROR: EL MONTO DEBE SER MAYOR A CERO."
                ELSE
-                   SUBTRACT WS-MONTO-TX FROM INVM-SALDO-ACTUAL
-                   MOVE 15 TO INVM-COD-ULT-MOV *> Asumiendo un codigo de retiro
-                   COMPUTE INVM-IMPORTE-MOV = WS-MONTO-TX * -1
+                   IF WS-MONTO-TX > INVM-SALDO-ACTUAL
+                       DISPLAY "FONDOS INSUFICIENTES."
+                   ELSE
+                       SUBTRACT WS-MONTO-TX FROM INVM-SALDO-ACTUAL
+                       MOVE 3            TO INVM-COD-ULT-MOV *> Codigo Retiro
+                       COMPUTE INVM-IMPORTE-MOV = WS-MONTO-TX * -1
 
-                   MOVE 'M' TO LK-ACCION-DB
-                   CALL WS-PGM-DBIOINVM USING REG-INVM,
-                   LK-DATOS-TRANSACCION
-                   DISPLAY "Extraccion realizada. " LK-MENSAJE
-                   DISPLAY "Nuevo Saldo: " INVM-SALDO-ACTUAL
+                       MOVE 'M' TO LK-ACCION-DB
+                       CALL WS-PGM-DBIOINVM USING REG-INVM,
+                                                  LK-DATOS-TRANSACCION
+
+                       IF LK-COD-RETORNO = 0
+                           CALL 'DBIOTRAN' USING 'C'
+                           DISPLAY "RETIRO EXITOSO. NUEVO SALDO: "
+                                   INVM-SALDO-ACTUAL
+                       ELSE
+                           CALL 'DBIOTRAN' USING 'R'
+                           DISPLAY "ERROR AL PROCESAR RETIRO."
+                       END-IF
+                   END-IF
                END-IF
            ELSE
-               DISPLAY LK-MENSAJE
+               DISPLAY "ERROR: " LK-MENSAJE
+           END-IF.
+
+       9000-BUSCAR-CLIENTE-Y-CUENTA.
+      *    Busca primero al cliente para obtener el ID interno via Cedula
+           INITIALIZE REG-CUSM.
+           DISPLAY "INGRESE DOC DEL CLIENTE: "
+           ACCEPT CUSM-DOC-CLIENTE.
+
+           MOVE 'C' TO LK-ACCION-DB.
+           CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
+
+           IF LK-COD-RETORNO = 0
+      *        Si el cliente existe, usamos su ID para buscar la cuenta
+               MOVE CUSM-ID-CLIENTE TO INVM-ID-CLIENTE
+               MOVE 'C' TO LK-ACCION-DB
+               CALL WS-PGM-DBIOINVM USING REG-INVM, LK-DATOS-TRANSACCION
+           ELSE
+               MOVE "CLIENTE NO ENCONTRADO" TO LK-MENSAJE
+               MOVE 01 TO LK-COD-RETORNO
            END-IF.

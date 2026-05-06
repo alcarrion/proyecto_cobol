@@ -5,7 +5,7 @@
       *================================================================*
        IDENTIFICATION DIVISION.
        PROGRAM-ID. DBIOINVM.
-       
+
        ENVIRONMENT DIVISION.
        DATA DIVISION.
        WORKING-STORAGE SECTION.
@@ -20,13 +20,13 @@
            05 INVM-SALDO-ACTUAL    PIC S9(10)V99.
            COPY LKCIF.
            EXEC SQL END DECLARE SECTION END-EXEC.
-       
+
        PROCEDURE DIVISION USING REG-INVM, LK-DATOS-TRANSACCION.
-       
+
        0000-PRINCIPAL.
            MOVE 0 TO LK-COD-RETORNO
            MOVE SPACES TO LK-MENSAJE
-       
+
            EVALUATE LK-ACCION-DB
                WHEN 'A'
                    PERFORM 1000-INSERTAR-CUENTA
@@ -38,9 +38,9 @@
                    MOVE 98 TO LK-COD-RETORNO
                    MOVE "ACCION DB NO SOPORTADA" TO LK-MENSAJE
            END-EVALUATE.
-       
+
            EXIT PROGRAM.
-       
+
        1000-INSERTAR-CUENTA.
            EXEC SQL
                INSERT INTO ctactes (
@@ -61,14 +61,14 @@
            IF LK-COD-RETORNO = 0
                MOVE "EXITO" TO LK-MENSAJE
            END-IF.
-       
+
        2000-CONSULTAR-CUENTA.
            EXEC SQL
-               SELECT COD_ULT_MOV, FECHA_ULT_MOV, 
+               SELECT COD_ULT_MOV, FECHA_ULT_MOV,
                       IMPORTE_MOV, SALDO_ACTUAL
-               INTO :INVM-COD-ULT-MOV, 
-                    :INVM-FECHA-ULT-MOV, 
-                    :INVM-IMPORTE-MOV, 
+               INTO :INVM-COD-ULT-MOV,
+                    :INVM-FECHA-ULT-MOV,
+                    :INVM-IMPORTE-MOV,
                     :INVM-SALDO-ACTUAL
                FROM ctactes
                WHERE ID_CLIENTE = :INVM-ID-CLIENTE
@@ -77,12 +77,12 @@
            IF LK-COD-RETORNO = 0
                MOVE "CONSULTA EXITOSA" TO LK-MENSAJE
            END-IF.
-       
+
        3000-ACTUALIZAR-SALDO.
            EXEC SQL
                UPDATE ctactes
                SET COD_ULT_MOV = :INVM-COD-ULT-MOV,
-                   FECHA_ULT_MOV = :INVM-FECHA-ULT-MOV,
+                   FECHA_ULT_MOV = CURDATE(),
                    IMPORTE_MOV = :INVM-IMPORTE-MOV,
                    SALDO_ACTUAL = :INVM-SALDO-ACTUAL
                WHERE ID_CLIENTE = :INVM-ID-CLIENTE
@@ -91,11 +91,14 @@
            IF LK-COD-RETORNO = 0
                MOVE "SALDO ACTUALIZADO" TO LK-MENSAJE
            END-IF.
-       
+
        9000-EVALUAR-SQL.
            EVALUATE SQLCODE
                WHEN 0
                    MOVE 00 TO LK-COD-RETORNO
+                   IF LK-MENSAJE = SPACES
+                      MOVE "OPERACION EXITOSA" TO LK-MENSAJE
+                   END-IF
                WHEN 100
                    MOVE 01 TO LK-COD-RETORNO
                    MOVE "CUENTA NO ENCONTRADA" TO LK-MENSAJE
