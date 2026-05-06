@@ -23,45 +23,52 @@
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
-           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 15.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 246.
-           05 SQL-STMT   PIC X(246) VALUE 'INSERT INTO clientes (ID_CLIE
-      -    'NTE,TIPO_DOC,DOC_CLIENTE,FECHA_ALTA,NOMBRE_CLIENTE,APELLIDOS
-      -    '_CLIENTE,DIRECCION_CLIENTE,TELEF_CLIENTE,EMAIL_CLIENTE,TARJE
-      -    'TA,CREDITO,HIPOTECA,CTA_ACTIVA,FECHA_CIERRE,SALDO_CLIENTE) V
-      -    'ALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 14.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 233.
+           05 SQL-STMT   PIC X(233) VALUE 'INSERT INTO clientes (TIPO_DO
+      -    'C,DOC_CLIENTE,FECHA_ALTA,NOMBRE_CLIENTE,APELLIDOS_CLIENTE,DI
+      -    'RECCION_CLIENTE,TELEF_CLIENTE,EMAIL_CLIENTE,TARJETA,CREDITO,
+      -    'HIPOTECA,CTA_ACTIVA,FECHA_CIERRE,SALDO_CLIENTE) VALUES (?,?,
+      -    '?,?,?,?,?,?,?,?,?,?,?,?)'.
       **********************************************************************
        01 SQL-STMT-1.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
-           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 215.
-           05 SQL-STMT   PIC X(215) VALUE 'SELECT TIPO_DOC,DOC_CLIENTE,F
-      -    'ECHA_ALTA,NOMBRE_CLIENTE,APELLIDOS_CLIENTE,DIRECCION_CLIENTE
-      -    ',TELEF_CLIENTE,EMAIL_CLIENTE,TARJETA,CREDITO,HIPOTECA,CTA_AC
-      -    'TIVA,FECHA_CIERRE,SALDO_CLIENTE FROM clientes WHERE ID_CLIEN
-      -    'TE = ?'.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 0.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 23.
+           05 SQL-STMT   PIC X(23) VALUE 'SELECT LAST_INSERT_ID()'.
       **********************************************************************
        01 SQL-STMT-2.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
-           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 9.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 168.
-           05 SQL-STMT   PIC X(168) VALUE 'UPDATE clientes SET DIRECCION
-      -    '_CLIENTE = ?,TELEF_CLIENTE = ?,EMAIL_CLIENTE = ?,TARJETA = ?
-      -    ',CREDITO = ?,HIPOTECA = ?,CTA_ACTIVA = ?,SALDO_CLIENTE = ? W
-      -    'HERE ID_CLIENTE = ?'.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 215.
+           05 SQL-STMT   PIC X(215) VALUE 'SELECT ID_CLIENTE,TIPO_DOC,FE
+      -    'CHA_ALTA,NOMBRE_CLIENTE,APELLIDOS_CLIENTE,DIRECCION_CLIENTE,
+      -    'TELEF_CLIENTE,EMAIL_CLIENTE,TARJETA,CREDITO,HIPOTECA,CTA_ACT
+      -    'IVA,FECHA_CIERRE,SALDO_CLIENTE FROM clientes WHERE DOC_CLIEN
+      -    'TE = ?'.
       **********************************************************************
        01 SQL-STMT-3.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 4.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 99.
+           05 SQL-STMT   PIC X(99) VALUE 'UPDATE clientes SET DIRECCION_
+      -    'CLIENTE = ?,TELEF_CLIENTE = ?,EMAIL_CLIENTE = ?,WHERE DOC_CL
+      -    'IENTE = ?'.
+      **********************************************************************
+       01 SQL-STMT-4.
+           05 SQL-IPTR   POINTER VALUE NULL.
+           05 SQL-PREP   PIC X VALUE 'N'.
+           05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 55.
-           05 SQL-STMT   PIC X(55) VALUE 'UPDATE clientes SET CTA_ACTIVA
-      -    ' = 0 WHERE ID_CLIENTE = ?'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 81.
+           05 SQL-STMT   PIC X(81) VALUE 'UPDATE clientes SET CTA_ACTIVA
+      -    ' = 0,FECHA_CIERRE = CURDATE() WHERE DOC_CLIENTE = ?'.
       **********************************************************************
       *******          PRECOMPILER-GENERATED VARIABLES               *******
        01 SQLV-GEN-VARS.
@@ -93,6 +100,8 @@
            05 SQLERRD OCCURS 6 TIMES PIC S9(9) COMP-5 VALUE ZERO.
            05 FILLER   PIC X(4).
            05 SQL-HCONN USAGE POINTER VALUE NULL.
+       01  WS-ULTIMO-ID            PIC 9(08).
+
        LINKAGE SECTION.
       *    Recibimos los datos del cliente y el control de transaccion
       *    EXEC SQL BEGIN DECLARE SECTION END-EXEC.
@@ -140,13 +149,12 @@
        1000-INSERTAR-CLIENTE.
       *    EXEC SQL
       *        INSERT INTO clientes (
-      *            ID_CLIENTE, TIPO_DOC, DOC_CLIENTE,
+      *            TIPO_DOC, DOC_CLIENTE,
       *            FECHA_ALTA, NOMBRE_CLIENTE, APELLIDOS_CLIENTE,
       *            DIRECCION_CLIENTE, TELEF_CLIENTE, EMAIL_CLIENTE,
       *            TARJETA, CREDITO, HIPOTECA, CTA_ACTIVA,
       *            FECHA_CIERRE, SALDO_CLIENTE
       *        ) VALUES (
-      *            :CUSM-ID-CLIENTE,
       *            :CUSM-TIPO-DOC,
       *            :CUSM-DOC-CLIENTE,
       *            :CUSM-FECHA-ALTA,
@@ -164,125 +172,6 @@
       *        )
       *    END-EXEC.
            IF SQL-PREP OF SQL-STMT-0 = 'N'
-               SET SQL-ADDR(1) TO ADDRESS OF
-                 SQL-VAR-0001
-               MOVE '3' TO SQL-TYPE(1)
-               MOVE 5 TO SQL-LEN(1)
-               MOVE X'00' TO SQL-PREC(1)
-               SET SQL-ADDR(2) TO ADDRESS OF
-                 CUSM-TIPO-DOC
-               MOVE 'X' TO SQL-TYPE(2)
-               MOVE 3 TO SQL-LEN(2)
-               SET SQL-ADDR(3) TO ADDRESS OF
-                 CUSM-DOC-CLIENTE
-               MOVE 'X' TO SQL-TYPE(3)
-               MOVE 12 TO SQL-LEN(3)
-               SET SQL-ADDR(4) TO ADDRESS OF
-                 CUSM-FECHA-ALTA
-               MOVE 'X' TO SQL-TYPE(4)
-               MOVE 10 TO SQL-LEN(4)
-               SET SQL-ADDR(5) TO ADDRESS OF
-                 CUSM-NOMBRE
-               MOVE 'X' TO SQL-TYPE(5)
-               MOVE 25 TO SQL-LEN(5)
-               SET SQL-ADDR(6) TO ADDRESS OF
-                 CUSM-APELLIDOS
-               MOVE 'X' TO SQL-TYPE(6)
-               MOVE 25 TO SQL-LEN(6)
-               SET SQL-ADDR(7) TO ADDRESS OF
-                 CUSM-DIRECCION
-               MOVE 'X' TO SQL-TYPE(7)
-               MOVE 45 TO SQL-LEN(7)
-               SET SQL-ADDR(8) TO ADDRESS OF
-                 CUSM-TELEFONO
-               MOVE 'X' TO SQL-TYPE(8)
-               MOVE 12 TO SQL-LEN(8)
-               SET SQL-ADDR(9) TO ADDRESS OF
-                 CUSM-EMAIL
-               MOVE 'X' TO SQL-TYPE(9)
-               MOVE 40 TO SQL-LEN(9)
-               SET SQL-ADDR(10) TO ADDRESS OF
-                 SQL-VAR-0002
-               MOVE '3' TO SQL-TYPE(10)
-               MOVE 1 TO SQL-LEN(10)
-               MOVE X'00' TO SQL-PREC(10)
-               SET SQL-ADDR(11) TO ADDRESS OF
-                 SQL-VAR-0003
-               MOVE '3' TO SQL-TYPE(11)
-               MOVE 1 TO SQL-LEN(11)
-               MOVE X'00' TO SQL-PREC(11)
-               SET SQL-ADDR(12) TO ADDRESS OF
-                 SQL-VAR-0004
-               MOVE '3' TO SQL-TYPE(12)
-               MOVE 1 TO SQL-LEN(12)
-               MOVE X'00' TO SQL-PREC(12)
-               SET SQL-ADDR(13) TO ADDRESS OF
-                 SQL-VAR-0005
-               MOVE '3' TO SQL-TYPE(13)
-               MOVE 1 TO SQL-LEN(13)
-               MOVE X'00' TO SQL-PREC(13)
-               SET SQL-ADDR(14) TO ADDRESS OF
-                 CUSM-FECHA-CIERRE
-               MOVE 'X' TO SQL-TYPE(14)
-               MOVE 10 TO SQL-LEN(14)
-               SET SQL-ADDR(15) TO ADDRESS OF
-                 SQL-VAR-0006
-               MOVE '3' TO SQL-TYPE(15)
-               MOVE 7 TO SQL-LEN(15)
-               MOVE X'02' TO SQL-PREC(15)
-               MOVE 15 TO SQL-COUNT
-               CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-0
-                                   SQLCA
-               SET SQL-HCONN OF SQLCA TO NULL
-           END-IF
-           MOVE CUSM-ID-CLIENTE
-             TO SQL-VAR-0001
-           MOVE CUSM-TARJETA
-             TO SQL-VAR-0002
-           MOVE CUSM-CREDITO
-             TO SQL-VAR-0003
-           MOVE CUSM-HIPOTECA
-             TO SQL-VAR-0004
-           MOVE CUSM-CTA-ACTIVA
-             TO SQL-VAR-0005
-           MOVE CUSM-SALDO-CLIENTE
-             TO SQL-VAR-0006
-           CALL 'OCSQLEXE' USING SQL-STMT-0
-                               SQLCA
-                   .
-
-           PERFORM 9000-EVALUAR-SQL.
-
-           IF LK-COD-RETORNO = 0
-               MOVE "CLIENTE REGISTRADO CON EXITO" TO LK-MENSAJE
-           END-IF.
-
-       2000-CONSULTAR-CLIENTE.
-      *    EXEC SQL
-      *        SELECT TIPO_DOC, DOC_CLIENTE, FECHA_ALTA,
-      *               NOMBRE_CLIENTE, APELLIDOS_CLIENTE,
-      *               DIRECCION_CLIENTE, TELEF_CLIENTE, EMAIL_CLIENTE,
-      *               TARJETA, CREDITO, HIPOTECA, CTA_ACTIVA,
-      *               FECHA_CIERRE, SALDO_CLIENTE
-      *        INTO :CUSM-TIPO-DOC,
-      *             :CUSM-DOC-CLIENTE,
-      *             :CUSM-FECHA-ALTA,
-      *             :CUSM-NOMBRE,
-      *             :CUSM-APELLIDOS,
-      *             :CUSM-DIRECCION,
-      *             :CUSM-TELEFONO,
-      *             :CUSM-EMAIL,
-      *             :CUSM-TARJETA,
-      *             :CUSM-CREDITO,
-      *             :CUSM-HIPOTECA,
-      *             :CUSM-CTA-ACTIVA,
-      *             :CUSM-FECHA-CIERRE,
-      *             :CUSM-SALDO-CLIENTE
-      *        FROM clientes
-      *        WHERE ID_CLIENTE = :CUSM-ID-CLIENTE
-      *    END-EXEC.
-           IF SQL-PREP OF SQL-STMT-1 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  CUSM-TIPO-DOC
                MOVE 'X' TO SQL-TYPE(1)
@@ -344,20 +233,150 @@
                MOVE '3' TO SQL-TYPE(14)
                MOVE 7 TO SQL-LEN(14)
                MOVE X'02' TO SQL-PREC(14)
-               SET SQL-ADDR(15) TO ADDRESS OF
+               MOVE 14 TO SQL-COUNT
+               CALL 'OCSQLPRE' USING SQLV
+                                   SQL-STMT-0
+                                   SQLCA
+               SET SQL-HCONN OF SQLCA TO NULL
+           END-IF
+           MOVE CUSM-TARJETA
+             TO SQL-VAR-0002
+           MOVE CUSM-CREDITO
+             TO SQL-VAR-0003
+           MOVE CUSM-HIPOTECA
+             TO SQL-VAR-0004
+           MOVE CUSM-CTA-ACTIVA
+             TO SQL-VAR-0005
+           MOVE CUSM-SALDO-CLIENTE
+             TO SQL-VAR-0006
+           CALL 'OCSQLEXE' USING SQL-STMT-0
+                               SQLCA
+                   .
+
+           PERFORM 9000-EVALUAR-SQL.
+
+           IF LK-COD-RETORNO = 0
+      *        EXEC SQL
+      *            SELECT LAST_INSERT_ID() INTO :CUSM-ID-CLIENTE
+      *        END-EXEC
+           IF SQL-PREP OF SQL-STMT-1 = 'N'
+               SET SQL-ADDR(1) TO ADDRESS OF
                  SQL-VAR-0001
-               MOVE '3' TO SQL-TYPE(15)
-               MOVE 5 TO SQL-LEN(15)
-               MOVE X'00' TO SQL-PREC(15)
-               MOVE 15 TO SQL-COUNT
+               MOVE '3' TO SQL-TYPE(1)
+               MOVE 5 TO SQL-LEN(1)
+               MOVE X'00' TO SQL-PREC(1)
+               MOVE 1 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
                                    SQL-STMT-1
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
-           MOVE CUSM-ID-CLIENTE TO SQL-VAR-0001
            CALL 'OCSQLEXE' USING SQL-STMT-1
                                SQLCA
+           MOVE SQL-VAR-0001 TO CUSM-ID-CLIENTE
+               MOVE "CLIENTE REGISTRADO CON EXITO" TO LK-MENSAJE
+           END-IF.
+
+       2000-CONSULTAR-CLIENTE.
+      *    EXEC SQL
+      *        SELECT ID_CLIENTE, TIPO_DOC, FECHA_ALTA,
+      *               NOMBRE_CLIENTE, APELLIDOS_CLIENTE,
+      *               DIRECCION_CLIENTE, TELEF_CLIENTE, EMAIL_CLIENTE,
+      *               TARJETA, CREDITO, HIPOTECA, CTA_ACTIVA,
+      *               FECHA_CIERRE, SALDO_CLIENTE
+      *        INTO :CUSM-ID-CLIENTE,
+      *             :CUSM-TIPO-DOC,
+      *             :CUSM-FECHA-ALTA,
+      *             :CUSM-NOMBRE,
+      *             :CUSM-APELLIDOS,
+      *             :CUSM-DIRECCION,
+      *             :CUSM-TELEFONO,
+      *             :CUSM-EMAIL,
+      *             :CUSM-TARJETA,
+      *             :CUSM-CREDITO,
+      *             :CUSM-HIPOTECA,
+      *             :CUSM-CTA-ACTIVA,
+      *             :CUSM-FECHA-CIERRE,
+      *             :CUSM-SALDO-CLIENTE
+      *        FROM clientes
+      *        WHERE DOC_CLIENTE = :CUSM-DOC-CLIENTE
+      *    END-EXEC.
+           IF SQL-PREP OF SQL-STMT-2 = 'N'
+               SET SQL-ADDR(1) TO ADDRESS OF
+                 SQL-VAR-0001
+               MOVE '3' TO SQL-TYPE(1)
+               MOVE 5 TO SQL-LEN(1)
+               MOVE X'00' TO SQL-PREC(1)
+               SET SQL-ADDR(2) TO ADDRESS OF
+                 CUSM-TIPO-DOC
+               MOVE 'X' TO SQL-TYPE(2)
+               MOVE 3 TO SQL-LEN(2)
+               SET SQL-ADDR(3) TO ADDRESS OF
+                 CUSM-FECHA-ALTA
+               MOVE 'X' TO SQL-TYPE(3)
+               MOVE 10 TO SQL-LEN(3)
+               SET SQL-ADDR(4) TO ADDRESS OF
+                 CUSM-NOMBRE
+               MOVE 'X' TO SQL-TYPE(4)
+               MOVE 25 TO SQL-LEN(4)
+               SET SQL-ADDR(5) TO ADDRESS OF
+                 CUSM-APELLIDOS
+               MOVE 'X' TO SQL-TYPE(5)
+               MOVE 25 TO SQL-LEN(5)
+               SET SQL-ADDR(6) TO ADDRESS OF
+                 CUSM-DIRECCION
+               MOVE 'X' TO SQL-TYPE(6)
+               MOVE 45 TO SQL-LEN(6)
+               SET SQL-ADDR(7) TO ADDRESS OF
+                 CUSM-TELEFONO
+               MOVE 'X' TO SQL-TYPE(7)
+               MOVE 12 TO SQL-LEN(7)
+               SET SQL-ADDR(8) TO ADDRESS OF
+                 CUSM-EMAIL
+               MOVE 'X' TO SQL-TYPE(8)
+               MOVE 40 TO SQL-LEN(8)
+               SET SQL-ADDR(9) TO ADDRESS OF
+                 SQL-VAR-0002
+               MOVE '3' TO SQL-TYPE(9)
+               MOVE 1 TO SQL-LEN(9)
+               MOVE X'00' TO SQL-PREC(9)
+               SET SQL-ADDR(10) TO ADDRESS OF
+                 SQL-VAR-0003
+               MOVE '3' TO SQL-TYPE(10)
+               MOVE 1 TO SQL-LEN(10)
+               MOVE X'00' TO SQL-PREC(10)
+               SET SQL-ADDR(11) TO ADDRESS OF
+                 SQL-VAR-0004
+               MOVE '3' TO SQL-TYPE(11)
+               MOVE 1 TO SQL-LEN(11)
+               MOVE X'00' TO SQL-PREC(11)
+               SET SQL-ADDR(12) TO ADDRESS OF
+                 SQL-VAR-0005
+               MOVE '3' TO SQL-TYPE(12)
+               MOVE 1 TO SQL-LEN(12)
+               MOVE X'00' TO SQL-PREC(12)
+               SET SQL-ADDR(13) TO ADDRESS OF
+                 CUSM-FECHA-CIERRE
+               MOVE 'X' TO SQL-TYPE(13)
+               MOVE 10 TO SQL-LEN(13)
+               SET SQL-ADDR(14) TO ADDRESS OF
+                 SQL-VAR-0006
+               MOVE '3' TO SQL-TYPE(14)
+               MOVE 7 TO SQL-LEN(14)
+               MOVE X'02' TO SQL-PREC(14)
+               SET SQL-ADDR(15) TO ADDRESS OF
+                 CUSM-DOC-CLIENTE
+               MOVE 'X' TO SQL-TYPE(15)
+               MOVE 12 TO SQL-LEN(15)
+               MOVE 15 TO SQL-COUNT
+               CALL 'OCSQLPRE' USING SQLV
+                                   SQL-STMT-2
+                                   SQLCA
+               SET SQL-HCONN OF SQLCA TO NULL
+           END-IF
+           CALL 'OCSQLEXE' USING SQL-STMT-2
+                               SQLCA
+           MOVE SQL-VAR-0001 TO CUSM-ID-CLIENTE
            MOVE SQL-VAR-0002 TO CUSM-TARJETA
            MOVE SQL-VAR-0003 TO CUSM-CREDITO
            MOVE SQL-VAR-0004 TO CUSM-HIPOTECA
@@ -375,14 +394,14 @@
       *        SET DIRECCION_CLIENTE = :CUSM-DIRECCION,
       *            TELEF_CLIENTE = :CUSM-TELEFONO,
       *            EMAIL_CLIENTE = :CUSM-EMAIL,
-      *            TARJETA = :CUSM-TARJETA,
-      *            CREDITO = :CUSM-CREDITO,
-      *            HIPOTECA = :CUSM-HIPOTECA,
-      *            CTA_ACTIVA = :CUSM-CTA-ACTIVA,
-      *            SALDO_CLIENTE = :CUSM-SALDO-CLIENTE
-      *        WHERE ID_CLIENTE = :CUSM-ID-CLIENTE
+      *             TARJETA = :CUSM-TARJETA,
+      *             CREDITO = :CUSM-CREDITO,
+      *             HIPOTECA = :CUSM-HIPOTECA,
+      *             CTA_ACTIVA = :CUSM-CTA-ACTIVA,
+      *             SALDO_CLIENTE = :CUSM-SALDO-CLIENTE
+      *        WHERE DOC_CLIENTE = :CUSM-DOC-CLIENTE
       *    END-EXEC.
-           IF SQL-PREP OF SQL-STMT-2 = 'N'
+           IF SQL-PREP OF SQL-STMT-3 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  CUSM-DIRECCION
                MOVE 'X' TO SQL-TYPE(1)
@@ -396,54 +415,16 @@
                MOVE 'X' TO SQL-TYPE(3)
                MOVE 40 TO SQL-LEN(3)
                SET SQL-ADDR(4) TO ADDRESS OF
-                 SQL-VAR-0002
-               MOVE '3' TO SQL-TYPE(4)
-               MOVE 1 TO SQL-LEN(4)
-               MOVE X'00' TO SQL-PREC(4)
-               SET SQL-ADDR(5) TO ADDRESS OF
-                 SQL-VAR-0003
-               MOVE '3' TO SQL-TYPE(5)
-               MOVE 1 TO SQL-LEN(5)
-               MOVE X'00' TO SQL-PREC(5)
-               SET SQL-ADDR(6) TO ADDRESS OF
-                 SQL-VAR-0004
-               MOVE '3' TO SQL-TYPE(6)
-               MOVE 1 TO SQL-LEN(6)
-               MOVE X'00' TO SQL-PREC(6)
-               SET SQL-ADDR(7) TO ADDRESS OF
-                 SQL-VAR-0005
-               MOVE '3' TO SQL-TYPE(7)
-               MOVE 1 TO SQL-LEN(7)
-               MOVE X'00' TO SQL-PREC(7)
-               SET SQL-ADDR(8) TO ADDRESS OF
-                 SQL-VAR-0006
-               MOVE '3' TO SQL-TYPE(8)
-               MOVE 7 TO SQL-LEN(8)
-               MOVE X'02' TO SQL-PREC(8)
-               SET SQL-ADDR(9) TO ADDRESS OF
-                 SQL-VAR-0001
-               MOVE '3' TO SQL-TYPE(9)
-               MOVE 5 TO SQL-LEN(9)
-               MOVE X'00' TO SQL-PREC(9)
-               MOVE 9 TO SQL-COUNT
+                 CUSM-DOC-CLIENTE
+               MOVE 'X' TO SQL-TYPE(4)
+               MOVE 12 TO SQL-LEN(4)
+               MOVE 4 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-2
+                                   SQL-STMT-3
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
-           MOVE CUSM-TARJETA
-             TO SQL-VAR-0002
-           MOVE CUSM-CREDITO
-             TO SQL-VAR-0003
-           MOVE CUSM-HIPOTECA
-             TO SQL-VAR-0004
-           MOVE CUSM-CTA-ACTIVA
-             TO SQL-VAR-0005
-           MOVE CUSM-SALDO-CLIENTE
-             TO SQL-VAR-0006
-           MOVE CUSM-ID-CLIENTE
-             TO SQL-VAR-0001
-           CALL 'OCSQLEXE' USING SQL-STMT-2
+           CALL 'OCSQLEXE' USING SQL-STMT-3
                                SQLCA
                    .
            PERFORM 9000-EVALUAR-SQL.
@@ -455,24 +436,22 @@
       *    La tabla no tiene ESTADO. La baja se considera desactivar la
       *    EXEC SQL
       *        UPDATE clientes
-      *        SET CTA_ACTIVA = 0
-      *        WHERE ID_CLIENTE = :CUSM-ID-CLIENTE
+      *        SET CTA_ACTIVA = 0,
+      *            FECHA_CIERRE = CURDATE()
+      *        WHERE DOC_CLIENTE = :CUSM-DOC-CLIENTE
       *    END-EXEC.
-           IF SQL-PREP OF SQL-STMT-3 = 'N'
+           IF SQL-PREP OF SQL-STMT-4 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
-                 SQL-VAR-0001
-               MOVE '3' TO SQL-TYPE(1)
-               MOVE 5 TO SQL-LEN(1)
-               MOVE X'00' TO SQL-PREC(1)
+                 CUSM-DOC-CLIENTE
+               MOVE 'X' TO SQL-TYPE(1)
+               MOVE 12 TO SQL-LEN(1)
                MOVE 1 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-3
+                                   SQL-STMT-4
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
-           MOVE CUSM-ID-CLIENTE
-             TO SQL-VAR-0001
-           CALL 'OCSQLEXE' USING SQL-STMT-3
+           CALL 'OCSQLEXE' USING SQL-STMT-4
                                SQLCA
                    .
            PERFORM 9000-EVALUAR-SQL.
@@ -484,12 +463,15 @@
            EVALUATE SQLCODE
                WHEN 0
                    MOVE 00 TO LK-COD-RETORNO
+                   IF LK-MENSAJE = SPACES
+                       MOVE "OPERACION EXITOSA" TO LK-MENSAJE
+                   END-IF
                WHEN 100
                    MOVE 01 TO LK-COD-RETORNO
-                   MOVE "REGISTRO NO ENCONTRADO" TO LK-MENSAJE
+                   MOVE "CLIENTE NO ENCONTRADO" TO LK-MENSAJE
                WHEN OTHER
                    MOVE 99 TO LK-COD-RETORNO
-                   MOVE "ERROR CRITICO EN BASE DE DATOS" TO LK-MENSAJE
+                   MOVE "ERROR TECNICO EN DB" TO LK-MENSAJE
            END-EVALUATE.
       **********************************************************************
       *  : ESQL for GnuCOBOL/OpenCOBOL Version 3 (2024.04.30) Build May 10 2024

@@ -9,14 +9,18 @@
        DATA DIVISION.
        WORKING-STORAGE SECTION.
 
-       01 WS-OPCION-CIF       PIC 9(01).
-       01 WS-CONTINUAR-CIF    PIC X(01) VALUE 'S'.
-       01 WS-TIENE-CUENTA     PIC X(01) VALUE 'N'.
+       01  WS-OPCION-CIF       PIC 9(01).
+       01  WS-CONTINUAR-CIF    PIC X(01) VALUE 'S'.
+      * 01 WS-TIENE-CUENTA     PIC X(01) VALUE 'N'.
 
-       01 WS-PROGRAMAS.
+       01  WS-PROGRAMAS.
            05 WS-PGM-DBIOCUSM    PIC X(8) VALUE 'DBIOCUSM'.
            05 WS-PGM-DBIOINVM    PIC X(8) VALUE 'DBIOINVM'.
-
+       01  WS-FECHA-SISTEMA.
+           05 WS-ANIO         PIC 9(04).
+           05 WS-MES          PIC 9(02).
+           05 WS-DIA          PIC 9(02).
+       01  WS-FECHA-ISO        PIC X(10).
       * COPY de la tabla maestra de Clientes (CUSM)
            COPY CUSMREC.
       * COPY de la tabla maestra de Cuentas (INVM)
@@ -64,88 +68,82 @@
 
        2000-ALTA-CLIENTE.
            DISPLAY "--- ALTA DE CLIENTE ---".
-           MOVE 'A' TO LK-ACCION-DB.
            INITIALIZE REG-CUSM.
 
-           DISPLAY "Ingrese ID de Cliente (8 digitos): "
+           DISPLAY "Tipo de Documento (CED/PAS): "
+           ACCEPT CUSM-TIPO-DOC.
+           DISPLAY "Numero de Documento        : "
+           ACCEPT CUSM-DOC-CLIENTE.
+      *    Validacion de cuenta existente
+           MOVE 'C' TO LK-ACCION-DB.
+           CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
 
-           ACCEPT CUSM-ID-CLIENTE.
+           IF LK-COD-RETORNO = 0
+               DISPLAY "Alert: EL DOCUMENTO YA EXISTE EN EL SISTEMA."
+           ELSE
+               DISPLAY "Nombre(s)    : " ACCEPT CUSM-NOMBRE
+               DISPLAY "Apellido(s)  : " ACCEPT CUSM-APELLIDOS
+               DISPLAY "Direccion    : " ACCEPT CUSM-DIRECCION
+               DISPLAY "Telefono     : " ACCEPT CUSM-TELEFONO
+               DISPLAY "E-mail       : " ACCEPT CUSM-EMAIL
 
-           DISPLAY "Ingrese Nombre Completo: "
-           ACCEPT CUSM-NOMBRE.
+               MOVE 'A' TO LK-ACCION-DB
+               CALL 'DBIOCUSM' USING REG-CUSM, LK-DATOS-TRANSACCION
 
-           DISPLAY "Ingrese Apellidos: "
-           ACCEPT CUSM-APELLIDOS.
 
-           DISPLAY "Ingrese Direccion: "
-           ACCEPT CUSM-DIRECCION.
-
-           DISPLAY "Ingrese Telefono: "
-           ACCEPT CUSM-TELEFONO.
-
-           DISPLAY "Asignar Cuenta Corriente Inicial (S/N)?: "
-
-           ACCEPT WS-TIENE-CUENTA.
-
-      *    REGLA DE NEGOCIO: Un cliente no puede existir sin cuenta cte
-           IF WS-TIENE-CUENTA = 'S' OR 's'
-               MOVE 1 TO CUSM-CTA-ACTIVA
-
-      *        1. Insertamos el Cliente
-               MOVE 'CI' TO CUSM-TIPO-DOC
-               MOVE CUSM-ID-CLIENTE TO CUSM-DOC-CLIENTE
-               MOVE '2024-05-05' TO CUSM-FECHA-ALTA
-               MOVE 'correo@banco.com' TO CUSM-EMAIL
-               MOVE 0 TO CUSM-TARJETA
-               MOVE 0 TO CUSM-CREDITO
-               MOVE 0 TO CUSM-HIPOTECA
-               MOVE '9999-12-31' TO CUSM-FECHA-CIERRE
+           MOVE 1 TO CUSM-CTA-ACTIVA
                MOVE 0 TO CUSM-SALDO-CLIENTE
+               ACCEPT WS-FECHA-SISTEMA FROM DATE YYYYMMDD
+               STRING WS-ANIO "-" WS-MES "-" WS-DIA INTO
+               CUSM-FECHA-ALTA
+               MOVE '9999-12-31' TO CUSM-FECHA-CIERRE
 
-               CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION
+      *    PASO 1: INSERTAR CLIENTE (Capa de Acceso a Datos)
+               MOVE 'A' TO LK-ACCION-DB
+               CALL 'DBIOCUSM' USING REG-CUSM, LK-DATOS-TRANSACCION
 
                IF LK-COD-RETORNO = 0
-                   DISPLAY LK-MENSAJE
-                   DISPLAY "Creando cuenta corriente asociada..."
-
-      *            2. Creamos la cuenta en DBIOINVM
+      *            5. PASO 2: CREAR CUENTA CORRIENTE (Usa el ID generado)
                    INITIALIZE REG-INVM
                    MOVE CUSM-ID-CLIENTE TO INVM-ID-CLIENTE
-                   MOVE 0 TO INVM-COD-ULT-MOV
-                   MOVE '2023-01-01' TO INVM-FECHA-ULT-MOV
-                   MOVE 0 TO INVM-IMPORTE-MOV
                    MOVE 0 TO INVM-SALDO-ACTUAL
+                   MOVE CUSM-FECHA-ALTA TO INVM-FECHA-ULT-MOV
 
                    MOVE 'A' TO LK-ACCION-DB
-                   CALL WS-PGM-DBIOINVM USING REG-INVM,
-                   LK-DATOS-TRANSACCION
+                   CALL 'DBIOINVM' USING REG-INVM, LK-DATOS-TRANSACCION
 
-                   DISPLAY LK-MENSAJE
+                   IF LK-COD-RETORNO = 0
+      *                EXITO TOTAL: LLAMAMOS AL COMMIT
+                   CALL 'DBIOTRAN' USING 'C'
+                   DISPLAY "ALTA EXITOSA. ID ASIGNADO: " CUSM-ID-CLIENTE
+                   ELSE
+      *                FALLO LA CUENTA: ROLLBACK
+                       CALL 'DBIOTRAN' USING 'R'
+                   DISPLAY "ERROR EN CUENTA CORRIENTE. NADA SE GUARDO."
+                   END-IF
                ELSE
-                   DISPLAY "Error al crear cliente: " LK-MENSAJE
+      *            FALLO EL CLIENTE: ROLLBACK
+                   CALL 'DBIOTRAN' USING 'R'
+                   DISPLAY "FALLO EN ALTA DE CLIENTE: " LK-MENSAJE
                END-IF
-           ELSE
-               DISPLAY "ERROR: REGLA DE NEGOCIO."
-               DISPLAY "El cliente DEBE tener una cuenta corriente."
-               DISPLAY "Alta cancelada."
            END-IF.
 
        3000-CONSULTA-CLIENTE.
            DISPLAY "--- CONSULTA DE CLIENTE ---".
+           INITIALIZE REG-CUSM.
+
+           DISPLAY "Ingrese Documento: " ACCEPT CUSM-DOC-CLIENTE.
+
            MOVE 'C' TO LK-ACCION-DB.
-
-           DISPLAY "Ingrese ID de Cliente a consultar: "
-
-           ACCEPT CUSM-ID-CLIENTE.
-
            CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
 
            IF LK-COD-RETORNO = 0
                DISPLAY "-----------------------------------"
-               DISPLAY "Nombre: " CUSM-NOMBRE
-               DISPLAY "Apellidos: " CUSM-APELLIDOS
-               DISPLAY "Direccion: " CUSM-DIRECCION
-               DISPLAY "Telefono: " CUSM-TELEFONO
+               DISPLAY "DOCUMENTO :" CUSM-DOC-CLIENTE
+               DISPLAY "CLIENTE   : " CUSM-NOMBRE " " CUSM-APELLIDOS
+               DISPLAY "SALDO CT  : " CUSM-SALDO-CLIENTE
+               DISPLAY "Direccion : " CUSM-DIRECCION
+               DISPLAY "Telefono  : " CUSM-TELEFONO
                DISPLAY "Cuenta Activa: " CUSM-CTA-ACTIVA
                DISPLAY "-----------------------------------"
            ELSE
@@ -155,31 +153,28 @@
        4000-MODIFICA-CLIENTE.
            DISPLAY "--- MODIFICACION DE CLIENTE ---".
       *    Primero consultamos para verificar que existe
-           MOVE 'C' TO LK-ACCION-DB.
-           DISPLAY "Ingrese ID de Cliente a modificar: "
+           DISPLAY "Ingrese Documento del Cliente: "
+           ACCEPT CUSM-DOC-CLIENTE.
 
-           ACCEPT CUSM-ID-CLIENTE.
+           MOVE 'C' TO LK-ACCION-DB.
            CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
 
            IF LK-COD-RETORNO = 0
-               DISPLAY "Cliente encontrado: " CUSM-NOMBRE
-               DISPLAY "Nueva Direccion: "
-               ACCEPT CUSM-DIRECCION
-               DISPLAY "Nuevo Telefono: "
-               ACCEPT CUSM-TELEFONO
+               DISPLAY "Dato Actual - Direccion: " CUSM-DIRECCION
+               DISPLAY "Nueva Direccion: "        ACCEPT CUSM-DIRECCION
+               DISPLAY "Dato Actual - Telefono : " CUSM-TELEFONO
+               DISPLAY "Nuevo Telefono : "        ACCEPT CUSM-TELEFONO
 
                MOVE 'M' TO LK-ACCION-DB
                CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION
-               DISPLAY LK-MENSAJE
+               DISPLAY "ACTUALIZACION COMPLETADA."
            ELSE
-               DISPLAY "Cliente no encontrado."
+               DISPLAY "CLIENTE NO EXISTE."
            END-IF.
 
        5000-BAJA-CLIENTE.
            DISPLAY "--- BAJA LOGICA DE CLIENTE ---".
-           MOVE 'B' TO LK-ACCION-DB.
-           DISPLAY "Ingrese ID de Cliente a dar de baja: "
+           DISPLAY "Ingrese Documento: " ACCEPT CUSM-DOC-CLIENTE.
 
-           ACCEPT CUSM-ID-CLIENTE.
            CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
            DISPLAY LK-MENSAJE.
