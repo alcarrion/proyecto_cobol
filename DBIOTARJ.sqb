@@ -1,9 +1,7 @@
       *================================================================*
       * PROGRAMA: DBIOTARJ.sqb                                         *
-      * FUNCION:  CRUD de la tabla TARJETAS (Tarjetas de Credito)      *
+      * FUNCION:  Capa de Acceso a Datos - Tarjetas de Crédito         *
       * ARQUITECTURA: Capa de Acceso a Datos (DBIO)                    *
-      * OPERACIONES: INSERT/SELECT/UPDATE + BAJA LOGICA                *
-      * PK COMPUESTA: (ID_CLIENTE, NRO_TARJETA)                        *
       *================================================================*
        IDENTIFICATION DIVISION.
        PROGRAM-ID. DBIOTARJ.
@@ -11,163 +9,115 @@
        ENVIRONMENT DIVISION.
        DATA DIVISION.
        WORKING-STORAGE SECTION.
-
-      *    Area de comunicacion de SQL
            EXEC SQL INCLUDE SQLCA END-EXEC.
 
-      *    Host variables para SQL (deben estar en WORKING-STORAGE)
-           EXEC SQL BEGIN DECLARE SECTION END-EXEC.
-           01  WS-TARJ.
-               05 WS-TARJ-ID-CLIENTE          PIC 9(08).
-               05 WS-TARJ-NRO-TARJETA         PIC X(16).
-               05 WS-TARJ-FECHA-EMISION       PIC X(10).
-               05 WS-TARJ-FECHA-VENCIM        PIC X(10).
-               05 WS-TARJ-LIMITE-TARJETA      PIC S9(10)V99 COMP-3.
-               05 WS-TARJ-ACUM-MES            PIC S9(10)V99 COMP-3.
-               05 WS-TARJ-LIQUIDACION-MES     PIC S9(10)V99 COMP-3.
-               05 WS-TARJ-ESTADO              PIC X(01).
-           01  WS-LK.
-               05 WS-LK-ACCION-DB             PIC X(01).
-               05 WS-LK-ID-CLIENTE            PIC 9(09).
-               05 WS-LK-IMPORTE               PIC S9(13)V99 COMP-3.
-               05 WS-LK-MODO-OPERACION        PIC X(01).
-               05 WS-LK-COD-RETORNO           PIC 9(02).
-               05 WS-LK-MENSAJE               PIC X(50).
-               05 WS-LK-USUARIO-ID            PIC X(08).
-               05 WS-LK-TERMINAL-ID           PIC X(04).
-               05 WS-LK-FECHA-PROCESO         PIC 9(08).
-           EXEC SQL END DECLARE SECTION END-EXEC.
-
        LINKAGE SECTION.
-           COPY TARJREC.
+           EXEC SQL BEGIN DECLARE SECTION END-EXEC.
+       01  REG-TARJ.
+           05 TARJ-ID-CLIENTE          PIC 9(08).
+           05 TARJ-NRO-TARJETA         PIC X(16).
+           05 TARJ-FECHA-EMISION       PIC X(10).
+           05 TARJ-FECHA-VENCIM        PIC X(10).
+           05 TARJ-LIMITE-TARJETA      PIC S9(10)V99.
+           05 TARJ-ACUM-MES            PIC S9(10)V99.
+           05 TARJ-LIQUIDACION-MES     PIC S9(10)V99.
+           05 TARJ-ESTADO              PIC X(01).
+           05 TARJ-IMPORTE-MOV         PIC S9(10)V99.
+
            COPY LKCIF.
+           EXEC SQL END DECLARE SECTION END-EXEC.
 
        PROCEDURE DIVISION USING REG-TARJ, LK-DATOS-TRANSACCION.
 
        0000-PRINCIPAL.
-      *    Copiar datos de LINKAGE a WORKING-STORAGE (host variables)
-           MOVE TARJ-ID-CLIENTE       TO WS-TARJ-ID-CLIENTE
-           MOVE TARJ-NRO-TARJETA      TO WS-TARJ-NRO-TARJETA
-           MOVE TARJ-FECHA-EMISION    TO WS-TARJ-FECHA-EMISION
-           MOVE TARJ-FECHA-VENCIM     TO WS-TARJ-FECHA-VENCIM
-           MOVE TARJ-LIMITE-TARJETA   TO WS-TARJ-LIMITE-TARJETA
-           MOVE TARJ-ACUM-MES         TO WS-TARJ-ACUM-MES
-           MOVE TARJ-LIQUIDACION-MES  TO WS-TARJ-LIQUIDACION-MES
-           MOVE TARJ-ESTADO           TO WS-TARJ-ESTADO
-           MOVE LK-ACCION-DB          TO WS-LK-ACCION-DB
-
-           MOVE 0      TO WS-LK-COD-RETORNO
-           MOVE SPACES TO WS-LK-MENSAJE
-
-           EVALUATE WS-LK-ACCION-DB
-               WHEN 'A'
-                   PERFORM 1000-INSERTAR-TARJETA
-               WHEN 'C'
-                   PERFORM 2000-CONSULTAR-TARJETA
-               WHEN 'M'
-                   PERFORM 3000-ACTUALIZAR-TARJETA
-               WHEN 'B'
-                   PERFORM 4000-BAJA-LOGICA-TARJETA
+           MOVE 0 TO LK-COD-RETORNO
+           MOVE SPACES TO LK-MENSAJE
+           DISPLAY "DEPURACION ID: " TARJ-ID-CLIENTE.
+           DISPLAY "DEPURACION NRO: " TARJ-NRO-TARJETA.
+           EVALUATE LK-ACCION-DB
+               WHEN 'A' PERFORM 1000-INSERTAR-TARJETA
+               WHEN 'C' PERFORM 2000-CONSULTAR-TARJETA
+               WHEN 'M' PERFORM 3000-ACTUALIZAR-TARJETA
+               WHEN 'B' PERFORM 4000-CANCELAR-TARJETA
                WHEN OTHER
-                   MOVE 98 TO WS-LK-COD-RETORNO
-                   MOVE "ACCION DB NO SOPORTADA" TO WS-LK-MENSAJE
+                   MOVE 98 TO LK-COD-RETORNO
+                   MOVE "ACCION DB NO SOPORTADA" TO LK-MENSAJE
            END-EVALUATE.
-
-      *    Devolver resultados al LINKAGE
-           MOVE WS-LK-COD-RETORNO     TO LK-COD-RETORNO
-           MOVE WS-LK-MENSAJE         TO LK-MENSAJE
-           MOVE WS-TARJ-ID-CLIENTE    TO TARJ-ID-CLIENTE
-           MOVE WS-TARJ-NRO-TARJETA   TO TARJ-NRO-TARJETA
-           MOVE WS-TARJ-FECHA-EMISION TO TARJ-FECHA-EMISION
-           MOVE WS-TARJ-FECHA-VENCIM  TO TARJ-FECHA-VENCIM
-           MOVE WS-TARJ-LIMITE-TARJETA TO TARJ-LIMITE-TARJETA
-           MOVE WS-TARJ-ACUM-MES      TO TARJ-ACUM-MES
-           MOVE WS-TARJ-LIQUIDACION-MES TO TARJ-LIQUIDACION-MES
-           MOVE WS-TARJ-ESTADO        TO TARJ-ESTADO
 
            EXIT PROGRAM.
 
        1000-INSERTAR-TARJETA.
+      * Inserta el nuevo contrato generado en TC0000
            EXEC SQL
                INSERT INTO TARJETAS (
-                   ID_CLIENTE,
-                   NRO_TARJETA,
-                   FECHA_EMISION,
-                   FECHA_VENCIMIENTO,
-                   LIMITE_TARJETA,
-                   ACUM_MES,
-                   LIQUIDACION_MES,
-                   ESTADO
+                   ID_CLIENTE, NRO_TARJETA, FECHA_EMISION,
+                   FECHA_VENCIMIENTO, LIMITE_TARJETA, ACUM_MES,
+                   LIQUIDACION_MES, ESTADO
                ) VALUES (
-                   :WS-TARJ-ID-CLIENTE,
-                   :WS-TARJ-NRO-TARJETA,
-                   :WS-TARJ-FECHA-EMISION,
-                   :WS-TARJ-FECHA-VENCIM,
-                   :WS-TARJ-LIMITE-TARJETA,
-                   :WS-TARJ-ACUM-MES,
-                   :WS-TARJ-LIQUIDACION-MES,
-                   :WS-TARJ-ESTADO
+                   :TARJ-ID-CLIENTE,
+                   :TARJ-NRO-TARJETA,
+                   :TARJ-FECHA-EMISION,
+                   :TARJ-FECHA-VENCIM,
+                   :TARJ-LIMITE-TARJETA,
+                   :TARJ-ACUM-MES,
+                   :TARJ-LIQUIDACION-MES,
+                   :TARJ-ESTADO
                )
            END-EXEC.
            PERFORM 9000-EVALUAR-SQL.
-           IF WS-LK-COD-RETORNO = 0
-               MOVE "TARJETA REGISTRADA CON EXITO" TO WS-LK-MENSAJE
-           END-IF.
 
        2000-CONSULTAR-TARJETA.
+      * Búsqueda directa por Número de Tarjeta (ID de Cuenta)
            EXEC SQL
-               SELECT ID_CLIENTE, NRO_TARJETA,
-                      FECHA_EMISION, FECHA_VENCIMIENTO,
-                      LIMITE_TARJETA, ACUM_MES,
-                      LIQUIDACION_MES, ESTADO
-               INTO :WS-TARJ-ID-CLIENTE, :WS-TARJ-NRO-TARJETA,
-                    :WS-TARJ-FECHA-EMISION, :WS-TARJ-FECHA-VENCIM,
-                    :WS-TARJ-LIMITE-TARJETA, :WS-TARJ-ACUM-MES,
-                    :WS-TARJ-LIQUIDACION-MES, :WS-TARJ-ESTADO
+               SELECT ID_CLIENTE, FECHA_EMISION, FECHA_VENCIMIENTO,
+                      LIMITE_TARJETA, ACUM_MES, LIQUIDACION_MES, ESTADO
+               INTO :TARJ-ID-CLIENTE,
+                    :TARJ-FECHA-EMISION,
+                    :TARJ-FECHA-VENCIM,
+                    :TARJ-LIMITE-TARJETA,
+                    :TARJ-ACUM-MES,
+                    :TARJ-LIQUIDACION-MES,
+                    :TARJ-ESTADO
                FROM TARJETAS
-               WHERE ID_CLIENTE = :WS-TARJ-ID-CLIENTE
-                 AND NRO_TARJETA = :WS-TARJ-NRO-TARJETA
+               WHERE NRO_TARJETA = :TARJ-NRO-TARJETA
            END-EXEC.
            PERFORM 9000-EVALUAR-SQL.
-           IF WS-LK-COD-RETORNO = 0
-               MOVE "CONSULTA EXITOSA" TO WS-LK-MENSAJE
-           END-IF.
 
        3000-ACTUALIZAR-TARJETA.
+      * Se usa para Cargos (Consumos), Pagos o Bloqueos
            EXEC SQL
                UPDATE TARJETAS
-               SET ACUM_MES = :WS-TARJ-ACUM-MES,
-                   LIQUIDACION_MES = :WS-TARJ-LIQUIDACION-MES,
-                   LIMITE_TARJETA = :WS-TARJ-LIMITE-TARJETA,
-                   ESTADO = :WS-TARJ-ESTADO
-               WHERE ID_CLIENTE = :WS-TARJ-ID-CLIENTE
-                 AND NRO_TARJETA = :WS-TARJ-NRO-TARJETA
+               SET ACUM_MES = :TARJ-ACUM-MES,
+                   LIQUIDACION_MES = :TARJ-LIQUIDACION-MES,
+                   ESTADO = :TARJ-ESTADO
+               WHERE NRO_TARJETA = :TARJ-NRO-TARJETA
            END-EXEC.
            PERFORM 9000-EVALUAR-SQL.
-           IF WS-LK-COD-RETORNO = 0
-               MOVE "TARJETA ACTUALIZADA" TO WS-LK-MENSAJE
-           END-IF.
 
-       4000-BAJA-LOGICA-TARJETA.
+       4000-CANCELAR-TARJETA.
+      * Baja definitiva (Estado 'I' = Inactiva)
            EXEC SQL
                UPDATE TARJETAS
-               SET ESTADO='I'
-               WHERE ID_CLIENTE = :WS-TARJ-ID-CLIENTE
-                 AND NRO_TARJETA = :WS-TARJ-NRO-TARJETA
+               SET ESTADO = 'I'
+               WHERE NRO_TARJETA = :TARJ-NRO-TARJETA
            END-EXEC.
            PERFORM 9000-EVALUAR-SQL.
-           IF WS-LK-COD-RETORNO = 0
-               MOVE "BAJA LOGICA REALIZADA" TO WS-LK-MENSAJE
-           END-IF.
 
        9000-EVALUAR-SQL.
            EVALUATE SQLCODE
                WHEN 0
-                   MOVE 00 TO WS-LK-COD-RETORNO
+                   MOVE 00 TO LK-COD-RETORNO
+                   IF LK-MENSAJE = SPACES
+                       MOVE "OPERACION EXITOSA" TO LK-MENSAJE
+                   END-IF
                WHEN 100
-                   MOVE 01 TO WS-LK-COD-RETORNO
-                   MOVE "REGISTRO NO ENCONTRADO" TO WS-LK-MENSAJE
+                   MOVE 01 TO LK-COD-RETORNO
+                   MOVE "TARJETA NO ENCONTRADA" TO LK-MENSAJE
+               WHEN -803  *> Violación de índice UNIQUE (NRO_TARJETA)
+                   MOVE 02 TO LK-COD-RETORNO
+                   MOVE "ERROR: NUMERO DE TARJETA DUPLICADO"
+                   TO LK-MENSAJE
                WHEN OTHER
-                   MOVE 99 TO WS-LK-COD-RETORNO
-                   MOVE "ERROR CRITICO" TO LK-MENSAJE
+                   MOVE 99 TO LK-COD-RETORNO
+                   MOVE "ERROR TECNICO EN DB TARJETAS" TO LK-MENSAJE
            END-EVALUATE.
