@@ -31,7 +31,7 @@
            01 WS-DATOS-TRANSACCIONALES.
                05 WS-COD-RETORNO PIC 9(2) VALUE 0.
                05 WS-MENSAJE     PIC X(50).
-               
+
            01 WS-PROGRAMAS.
                05 PGM-CI0000     PIC X(8).
                05 PGM-IN0000     PIC X(8).
@@ -50,7 +50,7 @@
             MOVE 'BR0000' TO PGM-BR0000.
             MOVE 'BAT000' TO PGM-BAT000.
              MOVE 'RP0000' TO PGM-RP0000.
-            
+
             PERFORM 8000-CARGAR-CONFIG.
             PERFORM 8100-CONECTAR-BD.
             IF SQLCODE = 0
@@ -109,11 +109,11 @@
            END-PERFORM.
        8000-CARGAR-CONFIG.
            MOVE SPACES TO DB-CONN-STR.
-           STRING 
+           STRING
                "DRIVER={MySQL ODBC 8.0 ANSI Driver};"
                "SERVER=localhost;"
                "DATABASE=proyecto_cobol;"
-               "UID=root;PWD=12345;"
+               "UID=root;PWD=tata;"
                DELIMITED BY SIZE INTO DB-CONN-STR
            END-STRING.
            INSPECT DB-CONN-STR REPLACING TRAILING SPACES BY LOW-VALUES.

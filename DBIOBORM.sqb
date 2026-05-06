@@ -1,144 +1,149 @@
        IDENTIFICATION DIVISION.
        PROGRAM-ID. DBIOBORM.
       *================================================================*
-      * MODULO: DBIOBORM (Embedded SQL para Hipotecas)                 *
+      * PROYECTO      : proyecto_cobol                                 *
+      * MODULO        : CAPA DE ACCESO A DATOS (DBIO) - HIPOTECAS      *
+      * DESCRIPCION   : Ejecuta operaciones CRUD en la tabla HIPOTECAS *
+      *                 utilizando SQL embebido para MySQL.            *
       *================================================================*
 
-       ENVIRONMENT DIVISION.
        DATA DIVISION.
        WORKING-STORAGE SECTION.
+      *=================================================================
+      * SQL COMMUNICATION AREA: Captura errores y estados de MySQL
+      *=================================================================
            EXEC SQL INCLUDE SQLCA END-EXEC.
 
+       LINKAGE SECTION.
+      *=================================================================
+      * BLOQUE DE DECLARACION PARA EL PRE-COMPILADOR (esqlOC)
+      *=================================================================
            EXEC SQL BEGIN DECLARE SECTION END-EXEC.
-       01  WS-BORM.
-           05 WS-ID-HIPOTECA       PIC 9(09).
-           05 WS-ID-CLIENTE        PIC 9(09).
-           05 WS-FECHA-INICIO      PIC X(10).
-           05 WS-MONTO-ORIGINAL    PIC S9(13)V99.
-           05 WS-TASA-INTERES      PIC S9(03)V9999.
-           05 WS-SALDO-ACTUAL      PIC S9(13)V99.
-           05 WS-FECHA-VENCTO      PIC X(10).
-           05 WS-DIA-PAGO          PIC 9(02).
-           05 WS-ESTADO            PIC X(20).
 
-           05 WS-PAGO-M            PIC S9(13)V99.
+      * Se expande BORM-REGISTRO para asegurar visibilidad en esqlOC
+       01  BORM-REGISTRO.
+           05 BORM-ID-HIPOTECA      PIC 9(09)  COMP-5.
+           05 BORM-ID-CLIENTE       PIC 9(08)  COMP-5.
+           05 BORM-FECHA-INICIO     PIC X(10).
+           05 BORM-MONTO-ORIGINAL   PIC S9(13)V99 COMP-3.
+           05 BORM-TASA-INTERES     PIC S9(03)V9999 COMP-3.
+           05 BORM-SALDO-ACTUAL     PIC S9(13)V99 COMP-3.
+           05 BORM-FECHA-VENCTO     PIC X(10).
+           05 BORM-DIA-PAGO         PIC 9(02).
+           05 BORM-ESTADO           PIC X(20).
+
+      * Sincronizado con el COPY LKCIF del BANCSMENU y BR0000
+       01  LK-DATOS-TRANSACCION.
+           05 LK-ACCION-DB             PIC X(01).
+           05 LK-ID-CLIENTE            PIC 9(09).
+           05 LK-IMPORTE-TRANSACCION   PIC S9(13)V99 COMP-3.
+           05 LK-MODO-OPERACION        PIC X(01).
+           05 LK-COD-RETORNO           PIC 9(02).
+           05 LK-MENSAJE               PIC X(50).
+           05 LK-USUARIO-ID            PIC X(08).
+           05 LK-TERMINAL-ID           PIC X(04).
+           05 LK-FECHA-PROCESO         PIC 9(08).
+
            EXEC SQL END DECLARE SECTION END-EXEC.
 
-       LINKAGE SECTION.
-       01  LK-BORM-REGISTRO.
-           05 LK-BORM-ID-HIPOTECA       PIC 9(09).
-           05 LK-BORM-ID-CLIENTE        PIC 9(09).
-           05 LK-BORM-FECHA-INICIO      PIC X(10).
-           05 LK-BORM-MONTO-ORIGINAL    PIC 9(13)V99.
-           05 LK-BORM-TASA-INTERES      PIC 9(03)V9999.
-           05 LK-BORM-SALDO-ACTUAL      PIC 9(13)V99.
-           05 LK-BORM-FECHA-VENCTO      PIC X(10).
-           05 LK-BORM-DIA-PAGO          PIC 9(02).
-           05 LK-BORM-ESTADO            PIC X(20).
+       PROCEDURE DIVISION USING LK-DATOS-TRANSACCION BORM-REGISTRO.
+       0000-MAIN-DBIO.
+           INITIALIZE LK-COD-RETORNO
 
-       COPY LKCIF.
-
-       PROCEDURE DIVISION USING LK-BORM-REGISTRO, LK-DATOS-TRANSACCION.
-
-       0000-PRINCIPAL.
-           MOVE 0 TO LK-COD-RETORNO.
-           MOVE SPACES TO LK-MENSAJE.
-
-           EVALUATE LK-MODO-OPERACION
-               WHEN 'A'
-                   PERFORM 1000-INSERTAR
+           EVALUATE LK-ACCION-DB
+               WHEN 'I'
+                   PERFORM 1000-INSERTAR-HIPOTECA
                WHEN 'C'
-                   PERFORM 2000-CONSULTAR
+                   PERFORM 2000-CONSULTAR-HIPOTECA
                WHEN 'U'
-                   PERFORM 3000-ACTUALIZAR-PAGO
+                   PERFORM 3000-ACTUALIZAR-HIPOTECA
+               WHEN 'D'
+                   PERFORM 4000-ELIMINAR-HIPOTECA
                WHEN OTHER
-                   MOVE 99 TO LK-COD-RETORNO
-                   MOVE "OPERACION NO VALIDA PARA BORM" TO LK-MENSAJE
-           END-EVALUATE.
+                   MOVE 01 TO LK-COD-RETORNO *> Código de error de acción
+           END-EVALUATE
+
+           *> Mapeo de SQLCODE al estándar de retorno del core bancario
+           IF SQLCODE = 0
+               MOVE 00 TO LK-COD-RETORNO
+           ELSE
+               *> 99 indica error crítico de base de datos
+               MOVE 99 TO LK-COD-RETORNO
+           END-IF
 
            GOBACK.
 
-       1000-INSERTAR.
-      *    Generar un ID de Hipoteca simple usando la hora o algo fijo (en un banco real es auto_increment, 
-      *    pero COBOL debe pasarlo si no lo lee despues). Asumiremos que el cliente ya proporciono todo excepto ID.
-           MOVE 9999 TO WS-ID-HIPOTECA.  
-           MOVE LK-BORM-ID-CLIENTE     TO WS-ID-CLIENTE.
-           MOVE LK-BORM-FECHA-INICIO   TO WS-FECHA-INICIO.
-           MOVE LK-BORM-MONTO-ORIGINAL TO WS-MONTO-ORIGINAL.
-           MOVE LK-BORM-TASA-INTERES   TO WS-TASA-INTERES.
-           MOVE LK-BORM-SALDO-ACTUAL   TO WS-SALDO-ACTUAL.
-           MOVE LK-BORM-FECHA-VENCTO   TO WS-FECHA-VENCTO.
-           MOVE LK-BORM-DIA-PAGO       TO WS-DIA-PAGO.
-           MOVE LK-BORM-ESTADO         TO WS-ESTADO.
-
-            EXEC SQL
-                INSERT INTO HIPOTECAS (
-                    ID_CLIENTE, FECHA_INICIO, MONTO_ORIGINAL,
-                    TASA_INTERES, SALDO_ACTUAL, FECHA_VENCTO,
-                    DIA_PAGO, ESTADO
-                ) VALUES (
-                    :WS-ID-CLIENTE, :WS-FECHA-INICIO,
-                    :WS-MONTO-ORIGINAL, :WS-TASA-INTERES,
-                    :WS-SALDO-ACTUAL, :WS-FECHA-VENCTO,
-                    :WS-DIA-PAGO, :WS-ESTADO
-                )
+      *----------------------------------------------------------------*
+      * 1000-INSERTAR-HIPOTECA: Alta de nuevo préstamo                 *
+      *----------------------------------------------------------------*
+       1000-INSERTAR-HIPOTECA.
+           EXEC SQL
+               INSERT INTO HIPOTECAS (
+                   ID_HIPOTECA,
+                   ID_CLIENTE,
+                   FECHA_INICIO,
+                   MONTO_ORIGINAL,
+                   TASA_INTERES,
+                   SALDO_ACTUAL,
+                   FECHA_VENCTO,
+                   DIA_PAGO,
+                   ESTADO
+               ) VALUES (
+                   :BORM-ID-HIPOTECA,
+                   :BORM-ID-CLIENTE,
+                   :BORM-FECHA-INICIO,
+                   :BORM-MONTO-ORIGINAL,
+                   :BORM-TASA-INTERES,
+                   :BORM-SALDO-ACTUAL,
+                   :BORM-FECHA-VENCTO,
+                   :BORM-DIA-PAGO,
+                   :BORM-ESTADO
+               )
            END-EXEC.
 
-           IF SQLCODE = 0
-               MOVE "HIPOTECA CREADA EXITOSAMENTE EN BD" TO LK-MENSAJE
-           ELSE
-               MOVE 99 TO LK-COD-RETORNO
-               STRING "ERROR INSERT HIPOTECA: SQLCODE=" SQLCODE
-                   DELIMITED BY SIZE INTO LK-MENSAJE
-           END-IF.
-
-       2000-CONSULTAR.
-           MOVE LK-BORM-ID-CLIENTE TO WS-ID-CLIENTE.
-
-            EXEC SQL
-                SELECT ID_HIPOTECA, FECHA_INICIO, MONTO_ORIGINAL,
-                       TASA_INTERES, SALDO_ACTUAL, FECHA_VENCTO,
-                       DIA_PAGO, ESTADO
-                INTO :WS-ID-HIPOTECA, :WS-FECHA-INICIO,
-                     :WS-MONTO-ORIGINAL, :WS-TASA-INTERES,
-                     :WS-SALDO-ACTUAL, :WS-FECHA-VENCTO,
-                     :WS-DIA-PAGO, :WS-ESTADO
-                FROM HIPOTECAS
-               WHERE ID_CLIENTE = :WS-ID-CLIENTE
-               LIMIT 1
+      *----------------------------------------------------------------*
+      * 2000-CONSULTAR-HIPOTECA: Recupera datos por ID_HIPOTECA        *
+      *----------------------------------------------------------------*
+       2000-CONSULTAR-HIPOTECA.
+           EXEC SQL
+               SELECT
+                   ID_CLIENTE,
+                   FECHA_INICIO,
+                   MONTO_ORIGINAL,
+                   TASA_INTERES,
+                   SALDO_ACTUAL,
+                   FECHA_VENCTO,
+                   DIA_PAGO,
+                   ESTADO
+               INTO
+                   :BORM-ID-CLIENTE,
+                   :BORM-FECHA-INICIO,
+                   :BORM-MONTO-ORIGINAL,
+                   :BORM-TASA-INTERES,
+                   :BORM-SALDO-ACTUAL,
+                   :BORM-FECHA-VENCTO,
+                   :BORM-DIA-PAGO,
+                   :BORM-ESTADO
+               FROM HIPOTECAS
+               WHERE ID_HIPOTECA = :BORM-ID-HIPOTECA
            END-EXEC.
 
-           IF SQLCODE = 0
-               MOVE WS-ID-HIPOTECA     TO LK-BORM-ID-HIPOTECA
-               MOVE WS-FECHA-INICIO    TO LK-BORM-FECHA-INICIO
-               MOVE WS-MONTO-ORIGINAL  TO LK-BORM-MONTO-ORIGINAL
-               MOVE WS-TASA-INTERES    TO LK-BORM-TASA-INTERES
-               MOVE WS-SALDO-ACTUAL    TO LK-BORM-SALDO-ACTUAL
-               MOVE WS-FECHA-VENCTO    TO LK-BORM-FECHA-VENCTO
-               MOVE WS-DIA-PAGO        TO LK-BORM-DIA-PAGO
-               MOVE WS-ESTADO          TO LK-BORM-ESTADO
-               MOVE "HIPOTECA ENCONTRADA" TO LK-MENSAJE
-           ELSE
-               MOVE 1 TO LK-COD-RETORNO
-               MOVE "HIPOTECA NO ENCONTRADA" TO LK-MENSAJE
-           END-IF.
-
-       3000-ACTUALIZAR-PAGO.
-           MOVE LK-BORM-ID-CLIENTE TO WS-ID-CLIENTE.
-           MOVE LK-IMPORTE-TRANSACCION TO WS-PAGO-M.
-
+      *----------------------------------------------------------------*
+      * 3000-ACTUALIZAR-HIPOTECA: Modifica saldo y estado              *
+      *----------------------------------------------------------------*
+       3000-ACTUALIZAR-HIPOTECA.
            EXEC SQL
                UPDATE HIPOTECAS
-               SET SALDO_ACTUAL = SALDO_ACTUAL - :WS-PAGO-M
-               WHERE ID_CLIENTE = :WS-ID-CLIENTE
+               SET SALDO_ACTUAL = :BORM-SALDO-ACTUAL,
+                   ESTADO       = :BORM-ESTADO
+               WHERE ID_HIPOTECA = :BORM-ID-HIPOTECA
            END-EXEC.
 
-           IF SQLCODE = 0
-               MOVE "PAGO REGISTRADO, SALDO ACTUALIZADO" TO LK-MENSAJE
-           ELSE
-               MOVE 99 TO LK-COD-RETORNO
-               STRING "ERROR UPDATE HIPOTECA: SQLCODE=" SQLCODE
-                   DELIMITED BY SIZE INTO LK-MENSAJE
-           END-IF.
-
-       END PROGRAM DBIOBORM.
+      *----------------------------------------------------------------*
+      * 4000-ELIMINAR-HIPOTECA: Baja física                            *
+      *----------------------------------------------------------------*
+       4000-ELIMINAR-HIPOTECA.
+           EXEC SQL
+               DELETE FROM HIPOTECAS
+               WHERE ID_HIPOTECA = :BORM-ID-HIPOTECA
+           END-EXEC.

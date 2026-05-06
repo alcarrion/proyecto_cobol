@@ -1,0 +1,110 @@
+-- ================================================================
+-- SCRIPT COMPLETO DE BASE DE DATOS: proyecto_cobol
+-- Generado con integridad referencial basada en el Diagrama ER
+-- ================================================================
+
+CREATE DATABASE IF NOT EXISTS proyecto_cobol;
+USE proyecto_cobol;
+
+-- 1. TABLA: INDICADORES (Mapeo de tabla SYSC en el diagrama)
+-- Es una tabla independiente de configuración.
+CREATE TABLE IF NOT EXISTS INDICADORES (
+    CODIGO VARCHAR(10) PRIMARY KEY,
+    VALOR DECIMAL(10,4),
+    DESCRIPCION VARCHAR(50)
+);
+
+-- 2. TABLA: COD_MOVIMIENTOS (Mapeo de tabla ED1P en el diagrama)
+-- Catálogo de tipos de movimientos (+ o -).
+CREATE TABLE IF NOT EXISTS COD_MOVIMIENTOS (
+    CODIGO INT(2) PRIMARY KEY,
+    DESCRIPCION VARCHAR(30),
+    TIPO_AFECTACION CHAR(1) -- '+' o '-'
+);
+
+-- 3. TABLA: clientes (Mapeo de tabla CUSM en el diagrama)
+-- Tabla principal de la cual dependen las demás.
+CREATE TABLE IF NOT EXISTS clientes (
+    ID_CLIENTE INT(8) PRIMARY KEY,
+    TIPO_DOC VARCHAR(3),
+    DOC_CLIENTE VARCHAR(12),
+    FECHA_ALTA DATE,
+    NOMBRE_CLIENTE VARCHAR(25),
+    APELLIDOS_CLIENTE VARCHAR(25),
+    DIRECCION_CLIENTE VARCHAR(45),
+    TELEF_CLIENTE VARCHAR(12),
+    EMAIL_CLIENTE VARCHAR(40),
+    TARJETA TINYINT(1),
+    CREDITO TINYINT(1),
+    HIPOTECA TINYINT(1),
+    CTA_ACTIVA TINYINT(1),
+    FECHA_CIERRE DATE,
+    SALDO_CLIENTE DECIMAL(12,2)
+);
+
+-- 4. TABLA: TARJETAS (Mapeo de tabla TARJ en el diagrama)
+-- Relación Posee (1:N) -> Un cliente puede tener varias tarjetas.
+CREATE TABLE IF NOT EXISTS TARJETAS (
+    ID_CLIENTE INT(8),
+    NRO_TARJETA VARCHAR(16),
+    FECHA_EMISION DATE,
+    FECHA_VENCIMIENTO DATE,
+    LIMITE_TARJETA DECIMAL(12,2),
+    ACUM_MES DECIMAL(12,2),
+    LIQUIDACION_MES DECIMAL(12,2),
+    ESTADO CHAR(1),
+    PRIMARY KEY (ID_CLIENTE, NRO_TARJETA),
+    CONSTRAINT FK_TARJETAS_CLIENTE FOREIGN KEY (ID_CLIENTE) 
+        REFERENCES clientes(ID_CLIENTE) ON DELETE CASCADE
+);
+
+-- 5. TABLA: ctactes (Mapeo de tabla INVM en el diagrama)
+-- Relación Tiene (1:1 Obligatorio) -> Un registro por cliente.
+-- Relación Registra Tipo (N:1) -> Apunta al catálogo de movimientos.
+CREATE TABLE IF NOT EXISTS ctactes (
+    ID_CLIENTE INT(8) PRIMARY KEY,
+    COD_ULT_MOV INT(2),
+    FECHA_ULT_MOV DATE,
+    IMPORTE_MOV DECIMAL(12,2),
+    SALDO_ACTUAL DECIMAL(12,2),
+    CONSTRAINT FK_CTACTES_CLIENTE FOREIGN KEY (ID_CLIENTE) 
+        REFERENCES clientes(ID_CLIENTE) ON DELETE CASCADE,
+    CONSTRAINT FK_CTACTES_MOVIMIENTO FOREIGN KEY (COD_ULT_MOV) 
+        REFERENCES COD_MOVIMIENTOS(CODIGO)
+);
+
+-- 6. TABLA: HIPOTECAS (Mapeo de tabla BORM en el diagrama)
+-- Relación Mantiene (1:N) -> Un cliente puede tener múltiples préstamos hipotecarios.
+CREATE TABLE IF NOT EXISTS HIPOTECAS (
+    ID_HIPOTECA INT(9) PRIMARY KEY,
+    ID_CLIENTE INT(8), -- Cambiado a INT(8) para coincidir con el PK de Clientes
+    FECHA_INICIO DATE,
+    MONTO_ORIGINAL DECIMAL(15,2),
+    TASA_INTERES DECIMAL(7,4),
+    SALDO_ACTUAL DECIMAL(15,2),
+    FECHA_VENCTO DATE,
+    DIA_PAGO INT(2),
+    ESTADO VARCHAR(20),
+    CONSTRAINT FK_HIPOTECAS_CLIENTE FOREIGN KEY (ID_CLIENTE) 
+        REFERENCES clientes(ID_CLIENTE) ON DELETE CASCADE
+);
+
+
+USE proyecto_cobol;
+
+-- Insertar códigos básicos de movimiento
+-- Es probable que tu programa COBOL esté enviando el código 0 o 1 al iniciar.
+INSERT INTO COD_MOVIMIENTOS (CODIGO, DESCRIPCION, TIPO_AFECTACION) 
+VALUES (0, 'APERTURA DE CUENTA', '+');
+
+INSERT INTO COD_MOVIMIENTOS (CODIGO, DESCRIPCION, TIPO_AFECTACION) 
+VALUES (1, 'DEPOSITO INICIAL', '+');
+
+INSERT INTO clientes (ID_CLIENTE, NOMBRE_CLIENTE, APELLIDOS_CLIENTE, FECHA_ALTA, SALDO_CLIENTE)
+VALUES (22345678, 'USUARIO', 'DE PRUEBA', CURDATE(), 0.00);
+INSERT IGNORE INTO COD_MOVIMIENTOS (CODIGO, DESCRIPCION, TIPO_AFECTACION) 
+VALUES (3, 'DESEMBOLSO HIPOTECA', '+');
+INSERT INTO clientes (ID_CLIENTE, NOMBRE_CLIENTE, SALDO_CLIENTE) VALUES (12345678, 'LUIS', 0);
+
+INSERT INTO HIPOTECAS (ID_HIPOTECA, ID_CLIENTE, MONTO_ORIGINAL, SALDO_ACTUAL, ESTADO) 
+VALUES (10000000, 12345678, 50000.00, 50000.00, 'ACTIVO');

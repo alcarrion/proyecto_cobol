@@ -44,7 +44,7 @@
            DISPLAY "4. Baja (Logica) de Cliente".
            DISPLAY "0. Volver al Menu Principal".
            DISPLAY "========================================".
-           DISPLAY "Seleccione operacion: " 
+           DISPLAY "Seleccione operacion: "
            ACCEPT WS-OPCION-CIF.
 
            EVALUATE WS-OPCION-CIF
@@ -68,23 +68,23 @@
            INITIALIZE REG-CUSM.
 
            DISPLAY "Ingrese ID de Cliente (8 digitos): "
-               
+
            ACCEPT CUSM-ID-CLIENTE.
 
-           DISPLAY "Ingrese Nombre Completo: " 
+           DISPLAY "Ingrese Nombre Completo: "
            ACCEPT CUSM-NOMBRE.
 
-           DISPLAY "Ingrese Apellidos: " 
+           DISPLAY "Ingrese Apellidos: "
            ACCEPT CUSM-APELLIDOS.
 
-           DISPLAY "Ingrese Direccion: " 
+           DISPLAY "Ingrese Direccion: "
            ACCEPT CUSM-DIRECCION.
 
-           DISPLAY "Ingrese Telefono: " 
+           DISPLAY "Ingrese Telefono: "
            ACCEPT CUSM-TELEFONO.
 
            DISPLAY "Asignar Cuenta Corriente Inicial (S/N)?: "
-                   
+
            ACCEPT WS-TIENE-CUENTA.
 
       *    REGLA DE NEGOCIO: Un cliente no puede existir sin cuenta cte
@@ -101,7 +101,7 @@
                MOVE 0 TO CUSM-HIPOTECA
                MOVE '9999-12-31' TO CUSM-FECHA-CIERRE
                MOVE 0 TO CUSM-SALDO-CLIENTE
-               
+
                CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION
 
                IF LK-COD-RETORNO = 0
@@ -117,7 +117,8 @@
                    MOVE 0 TO INVM-SALDO-ACTUAL
 
                    MOVE 'A' TO LK-ACCION-DB
-                   CALL WS-PGM-DBIOINVM USING REG-INVM, LK-DATOS-TRANSACCION
+                   CALL WS-PGM-DBIOINVM USING REG-INVM,
+                   LK-DATOS-TRANSACCION
 
                    DISPLAY LK-MENSAJE
                ELSE
@@ -134,7 +135,7 @@
            MOVE 'C' TO LK-ACCION-DB.
 
            DISPLAY "Ingrese ID de Cliente a consultar: "
-               
+
            ACCEPT CUSM-ID-CLIENTE.
 
            CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
@@ -156,15 +157,15 @@
       *    Primero consultamos para verificar que existe
            MOVE 'C' TO LK-ACCION-DB.
            DISPLAY "Ingrese ID de Cliente a modificar: "
-               
+
            ACCEPT CUSM-ID-CLIENTE.
            CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
 
            IF LK-COD-RETORNO = 0
                DISPLAY "Cliente encontrado: " CUSM-NOMBRE
-               DISPLAY "Nueva Direccion: " 
+               DISPLAY "Nueva Direccion: "
                ACCEPT CUSM-DIRECCION
-               DISPLAY "Nuevo Telefono: " 
+               DISPLAY "Nuevo Telefono: "
                ACCEPT CUSM-TELEFONO
 
                MOVE 'M' TO LK-ACCION-DB
@@ -178,7 +179,7 @@
            DISPLAY "--- BAJA LOGICA DE CLIENTE ---".
            MOVE 'B' TO LK-ACCION-DB.
            DISPLAY "Ingrese ID de Cliente a dar de baja: "
-               
+
            ACCEPT CUSM-ID-CLIENTE.
            CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
            DISPLAY LK-MENSAJE.
