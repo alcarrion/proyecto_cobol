@@ -193,12 +193,8 @@
       *================================================================*
       *    EXEC SQL BEGIN DECLARE SECTION END-EXEC.
 
-      *    Control de periodo
        01  WS-PERIODO              PIC X(6).
        01  WS-PERIODO-DEF          PIC X(6).
-
-      *    Filtro LIKE para clientes nuevos (YYYY-MM-%)
-      *    DEBE estar aqui para ser reconocida como variable host
        01  WS-ANIO-MES-LIKE        PIC X(10).
 
       *    Variables host - AUDIT_MAESTRA
@@ -242,15 +238,12 @@
            05 HV-GEN-NRO-TARJ      PIC X(16).
            05 HV-GEN-ACUM-MES      PIC S9(10)V99.
            05 HV-GEN-SALDO-HIPO    PIC S9(13)V99.
-      *    Indicadores NULL para LEFT JOINs
            05 HV-IND-NRO-TARJ      PIC S9(4) COMP-5.
            05 HV-IND-ACUM-MES      PIC S9(4) COMP-5.
            05 HV-IND-SALDO-HIPO    PIC S9(4) COMP-5.
 
-      *    Indicadores clave calculados
-       01  WS-INDICADORES.
-           05 HV-IND-COUNT         PIC 9(9).
-           05 HV-IND-SUMA          PIC S9(13)V99.
+      *    Verificacion de periodo
+       01  HV-IND-COUNT            PIC 9(9).
 
       *    EXEC SQL END DECLARE SECTION END-EXEC.
 
@@ -349,6 +342,29 @@
            05 WS-FIN-CURSOR        PIC X VALUE 'N'.
            05 WS-ABORT             PIC X VALUE 'N'.
 
+      *    Para detectar cambio de cliente en reporte general
+       01  WS-ULTIMO-ID-CLI        PIC 9(8) VALUE 0.
+
+      *================================================================*
+      *   CONTADORES POR REPORTE                                       *
+      *================================================================*
+       01  WS-CONTADORES.
+      *    Clientes nuevos
+           05 WS-CTR-CLIENTES-NVO  PIC 9(6) VALUE 0.
+      *    Hipotecas
+           05 WS-CTR-HIPOTECAS     PIC 9(6) VALUE 0.
+           05 WS-SUM-SALDO-HIPO    PIC S9(13)V99 VALUE 0.
+      *    Tarjetas
+           05 WS-CTR-TARJETAS      PIC 9(6) VALUE 0.
+           05 WS-SUM-ACUM-TARJ     PIC S9(10)V99 VALUE 0.
+      *    Cuentas corrientes
+           05 WS-CTR-CUENTAS       PIC 9(6) VALUE 0.
+           05 WS-SUM-SALDO-CTA     PIC S9(10)V99 VALUE 0.
+      *    General
+           05 WS-CTR-GEN-CLIENTES  PIC 9(6) VALUE 0.
+           05 WS-CTR-GEN-TARJETAS  PIC 9(6) VALUE 0.
+           05 WS-CTR-GEN-HIPOTECAS PIC 9(6) VALUE 0.
+
       *    Nombres dinamicos de archivos .DAT
        01  WS-NOM-CLIENTES         PIC X(30).
        01  WS-NOM-HIPOTECAS        PIC X(30).
@@ -357,7 +373,7 @@
        01  WS-NOM-GENERAL          PIC X(30).
 
       *================================================================*
-      *   LINEAS DE REPORTE - FORMATO POSICIONAL 132 CARACTERES       *
+      *   FORMATO DE REPORTE - ESTRUCTURA COMPARTIDA                   *
       *================================================================*
        01  RP-FORMAT.
            05  RP-TITULO.
@@ -369,7 +385,7 @@
            05  RP-BLANK            PIC X(132) VALUE SPACES.
            05  RP-INDIC            PIC X(132).
 
-      *    Detalle clientes
+      *    Detalle clientes nuevos
        01  WS-DET-CLIENTES.
            05 WS-DC-ID             PIC 9(8).
            05 FILLER               PIC X VALUE SPACE.
@@ -474,7 +490,7 @@
            EXIT PROGRAM.
 
       *================================================================*
-      *   1000 - INICIALIZAR: OBTENER ULTIMO PERIODO DISPONIBLE       *
+      *   1000 - INICIALIZAR                                           *
       *================================================================*
        1000-INICIALIZAR.
            MOVE FUNCTION CURRENT-DATE TO WS-FECHA-SISTEMA
@@ -502,20 +518,20 @@
                MOVE '000000' TO WS-PERIODO-DEF
            END-IF
 
-           DISPLAY '================================================'
+           DISPLAY '================================'
            DISPLAY ' RP0000 - REPORTES GERENCIALES'
-           DISPLAY '================================================'
-           DISPLAY ' ULTIMO PERIODO DISPONIBLE: ' WS-PERIODO-DEF
-           DISPLAY ' INGRESE PERIODO (YYYYMM) O ENTER PARA DEFAULT: '
+           DISPLAY '================================'
+           DISPLAY ' ULTIMO PERIODO: ' WS-PERIODO-DEF
+           DISPLAY ' INGRESE PERIODO (YYYYMM)'
+           DISPLAY ' O ENTER PARA USAR EL DEFAULT: '
            ACCEPT WS-PERIODO
 
            IF WS-PERIODO = SPACES
                MOVE WS-PERIODO-DEF TO WS-PERIODO
            END-IF
 
-           DISPLAY ' PERIODO SELECCIONADO: ' WS-PERIODO
+           DISPLAY ' PERIODO: ' WS-PERIODO
 
-      *    Armar filtro LIKE para clientes nuevos (YYYY-MM-%)
            STRING WS-PERIODO(1:4) DELIMITED SIZE
                   '-'             DELIMITED SIZE
                   WS-PERIODO(5:2) DELIMITED SIZE
@@ -524,7 +540,7 @@
            END-STRING.
 
       *================================================================*
-      *   2000 - VALIDAR QUE EL PERIODO EXISTE EN AUDITORIA           *
+      *   2000 - VALIDAR PERIODO                                       *
       *================================================================*
        2000-VALIDAR-PERIODO.
            MOVE 0 TO HV-IND-COUNT
@@ -562,7 +578,7 @@
                MOVE 'S' TO WS-ABORT
            ELSE
                IF HV-IND-COUNT = 0
-                   DISPLAY 'ERROR: PERIODO ' WS-PERIODO
+                   DISPLAY 'PERIODO ' WS-PERIODO
                            ' NO EXISTE EN AUDITORIA.'
                    DISPLAY 'EJECUTE PRIMERO EL CIERRE MENSUAL.'
                    MOVE 11 TO LK-COD-RETORNO
@@ -573,21 +589,21 @@
            END-IF.
 
       *================================================================*
-      *   3000 - MENU DE REPORTES                                     *
+      *   3000 - MENU DE REPORTES                                      *
       *================================================================*
        3000-MENU-REPORTES.
            PERFORM UNTIL WS-CONTINUAR = 'N'
 
-               DISPLAY '==============================================='
-               DISPLAY ' REPORTES GERENCIALES - PERIODO: ' WS-PERIODO
-               DISPLAY '==============================================='
+               DISPLAY '================================'
+               DISPLAY ' REPORTES - PERIODO: ' WS-PERIODO
+               DISPLAY '================================'
                DISPLAY '1. Reporte Clientes Nuevos'
                DISPLAY '2. Reporte Hipotecas'
                DISPLAY '3. Reporte Tarjetas'
                DISPLAY '4. Reporte Cuentas Corrientes'
                DISPLAY '5. Reporte General'
                DISPLAY '0. Volver al Menu Principal'
-               DISPLAY '==============================================='
+               DISPLAY '================================'
                ACCEPT WS-OPCION
 
                EVALUATE WS-OPCION
@@ -604,15 +620,18 @@
                    WHEN 0
                        MOVE 'N' TO WS-CONTINUAR
                    WHEN OTHER
-                       DISPLAY 'OPCION INVALIDA. INTENTE DE NUEVO.'
+                       DISPLAY 'OPCION INVALIDA.'
                END-EVALUATE
 
            END-PERFORM.
 
       *================================================================*
       *   4000 - REPORTE CLIENTES NUEVOS                              *
+      *   INDICADOR: Total clientes nuevos del periodo                 *
       *================================================================*
        4000-RPT-CLIENTES.
+           MOVE ZERO TO WS-CTR-CLIENTES-NVO
+
            STRING 'RPT_CLIENTES_' DELIMITED SIZE
                   WS-PERIODO      DELIMITED SIZE
                   '.DAT'          DELIMITED SIZE
@@ -621,12 +640,13 @@
 
            OPEN OUTPUT FS-CLIENTES
 
-           MOVE 'REPORTE CLIENTES NUEVOS - PERIODO: ' TO RP-TIT-TEXT
+           MOVE 'REPORTE CLIENTES NUEVOS - PERIODO: '
+               TO RP-TIT-TEXT
            WRITE FS-REG-CLIENTES FROM RP-TITULO
            WRITE FS-REG-CLIENTES FROM RP-BLANK
 
-           MOVE 'ID       NOMBRE                    APELLIDO'
-             & '                  FECHA-ALTA SALDO'
+           MOVE 'ID       NOMBRE                   '
+             & 'APELLIDO                  FECHA-ALTA SALDO'
                TO RP-HEADER
            WRITE FS-REG-CLIENTES FROM RP-HEADER
            WRITE FS-REG-CLIENTES FROM RP-SEPAR
@@ -656,9 +676,7 @@
                EXIT PARAGRAPH
            END-IF
 
-           MOVE 'N'  TO WS-FIN-CURSOR
-           MOVE ZERO TO HV-IND-COUNT
-           MOVE ZERO TO HV-IND-SUMA
+           MOVE 'N' TO WS-FIN-CURSOR
 
            PERFORM UNTIL WS-FIN-CURSOR = 'S'
       *        EXEC SQL
@@ -707,8 +725,7 @@
                        MOVE HV-SALDO-CLI    TO WS-DC-SALDO
                        MOVE WS-DET-CLIENTES TO FS-REG-CLIENTES
                        WRITE FS-REG-CLIENTES
-                       ADD 1            TO HV-IND-COUNT
-                       ADD HV-SALDO-CLI TO HV-IND-SUMA
+                       ADD 1 TO WS-CTR-CLIENTES-NVO
                    WHEN 100
                        MOVE 'S' TO WS-FIN-CURSOR
                    WHEN OTHER
@@ -722,24 +739,28 @@
                                SQLCA
 
            WRITE FS-REG-CLIENTES FROM RP-SEPAR
-           STRING '  TOTAL CLIENTES NUEVOS: ' DELIMITED SIZE
-                  HV-IND-COUNT               DELIMITED SIZE
-                  '   SALDO TOTAL: '         DELIMITED SIZE
-                  HV-IND-SUMA                DELIMITED SIZE
+           MOVE SPACES TO RP-INDIC
+           STRING '  CLIENTES NUEVOS DEL PERIODO: '
+                  DELIMITED SIZE
+                  WS-CTR-CLIENTES-NVO DELIMITED SIZE
                   INTO RP-INDIC
            END-STRING
            WRITE FS-REG-CLIENTES FROM RP-INDIC
 
            CLOSE FS-CLIENTES
            DISPLAY ' REPORTE GENERADO: ' WS-NOM-CLIENTES
-           MOVE 0  TO LK-COD-RETORNO
+           MOVE 0 TO LK-COD-RETORNO
            MOVE 'REPORTE CLIENTES GENERADO EXITOSAMENTE'
                TO LK-MENSAJE.
 
       *================================================================*
-      *   5000 - REPORTE HIPOTECAS                                    *
+      *   5000 - REPORTE HIPOTECAS                                     *
+      *   INDICADORES: Total hipotecas / Saldo total                   *
       *================================================================*
        5000-RPT-HIPOTECAS.
+           MOVE ZERO TO WS-CTR-HIPOTECAS
+           MOVE ZERO TO WS-SUM-SALDO-HIPO
+
            STRING 'RPT_HIPOTECAS_' DELIMITED SIZE
                   WS-PERIODO       DELIMITED SIZE
                   '.DAT'           DELIMITED SIZE
@@ -748,12 +769,13 @@
 
            OPEN OUTPUT FS-HIPOTECAS
 
-           MOVE 'REPORTE HIPOTECAS - PERIODO: ' TO RP-TIT-TEXT
+           MOVE 'REPORTE HIPOTECAS - PERIODO: '
+               TO RP-TIT-TEXT
            WRITE FS-REG-HIPOTECAS FROM RP-TITULO
            WRITE FS-REG-HIPOTECAS FROM RP-BLANK
 
-           MOVE 'ID-HIPOT  ID-CLI   NOMBRE                    '
-             & 'MONTO-ORIG        SALDO-ACT         TASA     ESTADO'
+           MOVE 'ID-HIPOT  ID-CLI   NOMBRE                   '
+             & 'MONTO-ORIG       SALDO-ACT        TASA    ESTADO'
                TO RP-HEADER
            WRITE FS-REG-HIPOTECAS FROM RP-HEADER
            WRITE FS-REG-HIPOTECAS FROM RP-SEPAR
@@ -779,9 +801,7 @@
                EXIT PARAGRAPH
            END-IF
 
-           MOVE 'N'  TO WS-FIN-CURSOR
-           MOVE ZERO TO HV-IND-COUNT
-           MOVE ZERO TO HV-IND-SUMA
+           MOVE 'N' TO WS-FIN-CURSOR
 
            PERFORM UNTIL WS-FIN-CURSOR = 'S'
       *        EXEC SQL
@@ -848,8 +868,8 @@
                        MOVE HV-HIPO-ESTADO     TO WS-DH-ESTADO
                        MOVE WS-DET-HIPOTECAS   TO FS-REG-HIPOTECAS
                        WRITE FS-REG-HIPOTECAS
-                       ADD 1             TO HV-IND-COUNT
-                       ADD HV-HIPO-SALDO TO HV-IND-SUMA
+                       ADD 1               TO WS-CTR-HIPOTECAS
+                       ADD HV-HIPO-SALDO   TO WS-SUM-SALDO-HIPO
                    WHEN 100
                        MOVE 'S' TO WS-FIN-CURSOR
                    WHEN OTHER
@@ -863,24 +883,29 @@
                                SQLCA
 
            WRITE FS-REG-HIPOTECAS FROM RP-SEPAR
-           STRING '  HIPOTECAS: '      DELIMITED SIZE
-                  HV-IND-COUNT         DELIMITED SIZE
-                  '   SALDO TOTAL: '   DELIMITED SIZE
-                  HV-IND-SUMA          DELIMITED SIZE
+           MOVE SPACES TO RP-INDIC
+           STRING '  TOTAL HIPOTECAS: '  DELIMITED SIZE
+                  WS-CTR-HIPOTECAS       DELIMITED SIZE
+                  '  SALDO TOTAL: '      DELIMITED SIZE
+                  WS-SUM-SALDO-HIPO      DELIMITED SIZE
                   INTO RP-INDIC
            END-STRING
            WRITE FS-REG-HIPOTECAS FROM RP-INDIC
 
            CLOSE FS-HIPOTECAS
            DISPLAY ' REPORTE GENERADO: ' WS-NOM-HIPOTECAS
-           MOVE 0  TO LK-COD-RETORNO
+           MOVE 0 TO LK-COD-RETORNO
            MOVE 'REPORTE HIPOTECAS GENERADO EXITOSAMENTE'
                TO LK-MENSAJE.
 
       *================================================================*
-      *   6000 - REPORTE TARJETAS                                     *
+      *   6000 - REPORTE TARJETAS                                      *
+      *   INDICADORES: Total tarjetas / Acumulado total del mes        *
       *================================================================*
        6000-RPT-TARJETAS.
+           MOVE ZERO TO WS-CTR-TARJETAS
+           MOVE ZERO TO WS-SUM-ACUM-TARJ
+
            STRING 'RPT_TARJETAS_' DELIMITED SIZE
                   WS-PERIODO      DELIMITED SIZE
                   '.DAT'          DELIMITED SIZE
@@ -889,12 +914,13 @@
 
            OPEN OUTPUT FS-TARJETAS
 
-           MOVE 'REPORTE TARJETAS - PERIODO: ' TO RP-TIT-TEXT
+           MOVE 'REPORTE TARJETAS - PERIODO: '
+               TO RP-TIT-TEXT
            WRITE FS-REG-TARJETAS FROM RP-TITULO
            WRITE FS-REG-TARJETAS FROM RP-BLANK
 
-           MOVE 'ID-CLI   NOMBRE                    NRO-TARJETA'
-             & '      LIMITE        ACUM-MES      LIQUIDACION   E'
+           MOVE 'ID-CLI   NOMBRE                   NRO-TARJETA'
+             & '     LIMITE       ACUM-MES     LIQUIDACION  E'
                TO RP-HEADER
            WRITE FS-REG-TARJETAS FROM RP-HEADER
            WRITE FS-REG-TARJETAS FROM RP-SEPAR
@@ -920,9 +946,7 @@
                EXIT PARAGRAPH
            END-IF
 
-           MOVE 'N'  TO WS-FIN-CURSOR
-           MOVE ZERO TO HV-IND-COUNT
-           MOVE ZERO TO HV-IND-SUMA
+           MOVE 'N' TO WS-FIN-CURSOR
 
            PERFORM UNTIL WS-FIN-CURSOR = 'S'
       *        EXEC SQL
@@ -987,8 +1011,8 @@
                        MOVE HV-TARJ-ESTADO  TO WS-DT-ESTADO
                        MOVE WS-DET-TARJETAS TO FS-REG-TARJETAS
                        WRITE FS-REG-TARJETAS
-                       ADD 1            TO HV-IND-COUNT
-                       ADD HV-TARJ-ACUM TO HV-IND-SUMA
+                       ADD 1            TO WS-CTR-TARJETAS
+                       ADD HV-TARJ-ACUM TO WS-SUM-ACUM-TARJ
                    WHEN 100
                        MOVE 'S' TO WS-FIN-CURSOR
                    WHEN OTHER
@@ -1002,24 +1026,29 @@
                                SQLCA
 
            WRITE FS-REG-TARJETAS FROM RP-SEPAR
+           MOVE SPACES TO RP-INDIC
            STRING '  TOTAL TARJETAS: '   DELIMITED SIZE
-                  HV-IND-COUNT           DELIMITED SIZE
-                  '   ACUMULADO TOTAL: ' DELIMITED SIZE
-                  HV-IND-SUMA            DELIMITED SIZE
+                  WS-CTR-TARJETAS        DELIMITED SIZE
+                  '  ACUMULADO TOTAL: '  DELIMITED SIZE
+                  WS-SUM-ACUM-TARJ       DELIMITED SIZE
                   INTO RP-INDIC
            END-STRING
            WRITE FS-REG-TARJETAS FROM RP-INDIC
 
            CLOSE FS-TARJETAS
            DISPLAY ' REPORTE GENERADO: ' WS-NOM-TARJETAS
-           MOVE 0  TO LK-COD-RETORNO
+           MOVE 0 TO LK-COD-RETORNO
            MOVE 'REPORTE TARJETAS GENERADO EXITOSAMENTE'
                TO LK-MENSAJE.
 
       *================================================================*
-      *   7000 - REPORTE CUENTAS CORRIENTES                           *
+      *   7000 - REPORTE CUENTAS CORRIENTES                            *
+      *   INDICADORES: Cuentas activas / Saldo total                   *
       *================================================================*
        7000-RPT-CUENTAS.
+           MOVE ZERO TO WS-CTR-CUENTAS
+           MOVE ZERO TO WS-SUM-SALDO-CTA
+
            STRING 'RPT_CUENTAS_' DELIMITED SIZE
                   WS-PERIODO     DELIMITED SIZE
                   '.DAT'         DELIMITED SIZE
@@ -1028,12 +1057,13 @@
 
            OPEN OUTPUT FS-CUENTAS
 
-           MOVE 'REPORTE CUENTAS CORRIENTES - PERIODO: ' TO RP-TIT-TEXT
+           MOVE 'REPORTE CUENTAS CORRIENTES - PERIODO: '
+               TO RP-TIT-TEXT
            WRITE FS-REG-CUENTAS FROM RP-TITULO
            WRITE FS-REG-CUENTAS FROM RP-BLANK
 
-           MOVE 'ID-CLI   NOMBRE                    APELLIDO'
-             & '                  SALDO-CTA     COD IMPORTE-MOV'
+           MOVE 'ID-CLI   NOMBRE                   APELLIDO'
+             & '                 SALDO-CTA    COD IMPORTE-MOV'
                TO RP-HEADER
            WRITE FS-REG-CUENTAS FROM RP-HEADER
            WRITE FS-REG-CUENTAS FROM RP-SEPAR
@@ -1059,9 +1089,7 @@
                EXIT PARAGRAPH
            END-IF
 
-           MOVE 'N'  TO WS-FIN-CURSOR
-           MOVE ZERO TO HV-IND-COUNT
-           MOVE ZERO TO HV-IND-SUMA
+           MOVE 'N' TO WS-FIN-CURSOR
 
            PERFORM UNTIL WS-FIN-CURSOR = 'S'
       *        EXEC SQL
@@ -1120,8 +1148,8 @@
                        MOVE HV-IMPORTE-MOV  TO WS-DCU-IMPORTE
                        MOVE WS-DET-CUENTAS  TO FS-REG-CUENTAS
                        WRITE FS-REG-CUENTAS
-                       ADD 1            TO HV-IND-COUNT
-                       ADD HV-SALDO-CTA TO HV-IND-SUMA
+                       ADD 1            TO WS-CTR-CUENTAS
+                       ADD HV-SALDO-CTA TO WS-SUM-SALDO-CTA
                    WHEN 100
                        MOVE 'S' TO WS-FIN-CURSOR
                    WHEN OTHER
@@ -1135,24 +1163,34 @@
                                SQLCA
 
            WRITE FS-REG-CUENTAS FROM RP-SEPAR
-           STRING '  CUENTAS ACTIVAS: ' DELIMITED SIZE
-                  HV-IND-COUNT          DELIMITED SIZE
-                  '   SALDO TOTAL: '    DELIMITED SIZE
-                  HV-IND-SUMA           DELIMITED SIZE
+           MOVE SPACES TO RP-INDIC
+           STRING '  CUENTAS ACTIVAS: '  DELIMITED SIZE
+                  WS-CTR-CUENTAS         DELIMITED SIZE
+                  '  SALDO TOTAL: '      DELIMITED SIZE
+                  WS-SUM-SALDO-CTA       DELIMITED SIZE
                   INTO RP-INDIC
            END-STRING
            WRITE FS-REG-CUENTAS FROM RP-INDIC
 
            CLOSE FS-CUENTAS
            DISPLAY ' REPORTE GENERADO: ' WS-NOM-CUENTAS
-           MOVE 0  TO LK-COD-RETORNO
+           MOVE 0 TO LK-COD-RETORNO
            MOVE 'REPORTE CUENTAS GENERADO EXITOSAMENTE'
                TO LK-MENSAJE.
 
       *================================================================*
-      *   8000 - REPORTE GENERAL                                      *
+      *   8000 - REPORTE GENERAL                                       *
+      *   INDICADORES: Clientes / Tarjetas / Hipotecas                 *
+      *   LOGICA: Un cliente puede tener N tarjetas e N hipotecas.     *
+      *   WS-ULTIMO-ID-CLI detecta cambio de cliente para no           *
+      *   contar el mismo cliente multiples veces.                     *
       *================================================================*
        8000-RPT-GENERAL.
+           MOVE ZERO TO WS-CTR-GEN-CLIENTES
+           MOVE ZERO TO WS-CTR-GEN-TARJETAS
+           MOVE ZERO TO WS-CTR-GEN-HIPOTECAS
+           MOVE ZERO TO WS-ULTIMO-ID-CLI
+
            STRING 'RPT_GENERAL_' DELIMITED SIZE
                   WS-PERIODO     DELIMITED SIZE
                   '.DAT'         DELIMITED SIZE
@@ -1161,13 +1199,14 @@
 
            OPEN OUTPUT FS-GENERAL
 
-           MOVE 'REPORTE GENERAL - PERIODO: ' TO RP-TIT-TEXT
+           MOVE 'REPORTE GENERAL - PERIODO: '
+               TO RP-TIT-TEXT
            WRITE FS-REG-GENERAL FROM RP-TITULO
            WRITE FS-REG-GENERAL FROM RP-BLANK
 
-           MOVE 'ID-CLI   NOMBRE                    APELLIDO'
-             & '                  SALDO-CTA     NRO-TARJETA'
-             & '      ACUM-MES      SALDO-HIPOT'
+           MOVE 'ID-CLI   NOMBRE                   APELLIDO'
+             & '                 SALDO-CTA    NRO-TARJETA'
+             & '     ACUM-MES    SALDO-HIPOT'
                TO RP-HEADER
            WRITE FS-REG-GENERAL FROM RP-HEADER
            WRITE FS-REG-GENERAL FROM RP-SEPAR
@@ -1193,8 +1232,7 @@
                EXIT PARAGRAPH
            END-IF
 
-           MOVE 'N'  TO WS-FIN-CURSOR
-           MOVE ZERO TO HV-IND-COUNT
+           MOVE 'N' TO WS-FIN-CURSOR
 
            PERFORM UNTIL WS-FIN-CURSOR = 'S'
       *        EXEC SQL
@@ -1270,6 +1308,22 @@
                            MOVE ZERO TO HV-GEN-SALDO-HIPO
                        END-IF
 
+      *                Contar cliente solo cuando cambia el ID
+                       IF HV-GEN-ID-CLI NOT = WS-ULTIMO-ID-CLI
+                           ADD 1 TO WS-CTR-GEN-CLIENTES
+                           MOVE HV-GEN-ID-CLI TO WS-ULTIMO-ID-CLI
+                       END-IF
+
+      *                Contar tarjeta solo si tiene una asignada
+                       IF HV-IND-NRO-TARJ >= 0
+                           ADD 1 TO WS-CTR-GEN-TARJETAS
+                       END-IF
+
+      *                Contar hipoteca solo si tiene una asignada
+                       IF HV-IND-SALDO-HIPO >= 0
+                           ADD 1 TO WS-CTR-GEN-HIPOTECAS
+                       END-IF
+
                        MOVE HV-GEN-ID-CLI     TO WS-DG-ID-CLI
                        MOVE HV-GEN-NOMBRE     TO WS-DG-NOMBRE
                        MOVE HV-GEN-APELLIDOS  TO WS-DG-APELLIDOS
@@ -1279,7 +1333,7 @@
                        MOVE HV-GEN-SALDO-HIPO TO WS-DG-SALDO-HIPO
                        MOVE WS-DET-GENERAL    TO FS-REG-GENERAL
                        WRITE FS-REG-GENERAL
-                       ADD 1 TO HV-IND-COUNT
+
                    WHEN 100
                        MOVE 'S' TO WS-FIN-CURSOR
                    WHEN OTHER
@@ -1293,15 +1347,20 @@
                                SQLCA
 
            WRITE FS-REG-GENERAL FROM RP-SEPAR
-           STRING '  TOTAL CLIENTES EN REPORTE: ' DELIMITED SIZE
-                  HV-IND-COUNT                    DELIMITED SIZE
+           MOVE SPACES TO RP-INDIC
+           STRING '  CLIENTES: '         DELIMITED SIZE
+                  WS-CTR-GEN-CLIENTES    DELIMITED SIZE
+                  '  TARJETAS: '         DELIMITED SIZE
+                  WS-CTR-GEN-TARJETAS    DELIMITED SIZE
+                  '  HIPOTECAS: '        DELIMITED SIZE
+                  WS-CTR-GEN-HIPOTECAS   DELIMITED SIZE
                   INTO RP-INDIC
            END-STRING
            WRITE FS-REG-GENERAL FROM RP-INDIC
 
            CLOSE FS-GENERAL
            DISPLAY ' REPORTE GENERADO: ' WS-NOM-GENERAL
-           MOVE 0  TO LK-COD-RETORNO
+           MOVE 0 TO LK-COD-RETORNO
            MOVE 'REPORTE GENERAL GENERADO EXITOSAMENTE'
                TO LK-MENSAJE.
 
@@ -1355,7 +1414,6 @@
       *  HV-IND-COUNT             IN USE THROUGH TEMP VAR SQL-VAR-0020 DECIMAL(9,0)
       *  HV-IND-NRO-TARJ          IN USE INTEGER(2 BYTES)
       *  HV-IND-SALDO-HIPO        IN USE INTEGER(2 BYTES)
-      *  HV-IND-SUMA          NOT IN USE
       *  HV-NOMBRE                IN USE CHAR(25)
       *  HV-SALDO-CLI             IN USE THROUGH TEMP VAR SQL-VAR-0002 DECIMAL(13,2)
       *  HV-SALDO-CTA             IN USE THROUGH TEMP VAR SQL-VAR-0003 DECIMAL(13,2)
@@ -1404,9 +1462,6 @@
       *  WS-HOST-TARJETAS.HV-TARJ-LIQUID NOT IN USE
       *  WS-HOST-TARJETAS.HV-TARJ-NOMBRE NOT IN USE
       *  WS-HOST-TARJETAS.HV-TARJ-NRO NOT IN USE
-      *  WS-INDICADORES       NOT IN USE
-      *  WS-INDICADORES.HV-IND-COUNT NOT IN USE
-      *  WS-INDICADORES.HV-IND-SUMA NOT IN USE
       *  WS-PERIODO               IN USE CHAR(6)
       *  WS-PERIODO-DEF           IN USE CHAR(6)
       **********************************************************************

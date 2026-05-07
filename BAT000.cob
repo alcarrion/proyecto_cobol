@@ -1,13 +1,6 @@
       *================================================================*
       * PROGRAMA : BAT000.sqb                                         *
       * FUNCION  : PROCESO BATCH DE CIERRE MENSUAL                    *
-      *            - SNAPSHOT EN AUDIT_MAESTRA  (clientes + ctactes)  *
-      *            - SNAPSHOT EN AUDIT_TARJETAS (1:N)                 *
-      *            - SNAPSHOT EN AUDIT_HIPOTECAS (1:N)                *
-      *            - RESET OPERATIVO DE TARJETAS                      *
-      *            - COMMIT global si todo OK / ROLLBACK si algo falla*
-      * LLAMADO  : BANCSMENU (OPCION 5)                               *
-      * PRECOMP  : esqlOC BAT000.sqb  ->  BAT000.cob                  *
       *================================================================*
        IDENTIFICATION DIVISION.
        PROGRAM-ID. BAT000.
@@ -283,15 +276,10 @@
            05 WS-CTR-HIPOTECAS     PIC 9(6) VALUE 0.
            05 WS-CTR-ERRORES       PIC 9(6) VALUE 0.
 
-      *================================================================*
-      *   LINKAGE SECTION                                              *
-      *================================================================*
+
        LINKAGE SECTION.
            COPY LKCIF.
 
-      *================================================================*
-      *   PROCEDURE DIVISION                                           *
-      *================================================================*
        PROCEDURE DIVISION USING LK-DATOS-TRANSACCION.
 
        0000-PRINCIPAL.
