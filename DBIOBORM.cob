@@ -1,11 +1,5 @@
        IDENTIFICATION DIVISION.
        PROGRAM-ID. DBIOBORM.
-      *================================================================*
-      * PROYECTO      : proyecto_cobol                                 *
-      * MODULO        : CAPA DE ACCESO A DATOS (DBIO) - HIPOTECAS      *
-      * DESCRIPCION   : Ejecuta operaciones CRUD en la tabla HIPOTECAS *
-      *                 utilizando SQL embebido para MySQL.            *
-      *================================================================*
 
        DATA DIVISION.
        WORKING-STORAGE SECTION.
@@ -23,14 +17,33 @@
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 0.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 96.
+           05 SQL-STMT   PIC X(96) VALUE 'UPDATE control_secuencias SET 
+      -    'ULTIMO_NUMERO = ULTIMO_NUMERO + 1 WHERE TIPO_PRODUCTO = ''HI
+      -    'POTECA'''.
+      **********************************************************************
+       01 SQL-STMT-1.
+           05 SQL-IPTR   POINTER VALUE NULL.
+           05 SQL-PREP   PIC X VALUE 'N'.
+           05 SQL-OPT    PIC X VALUE SPACE.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 0.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 77.
+           05 SQL-STMT   PIC X(77) VALUE 'SELECT ULTIMO_NUMERO FROM cont
+      -    'rol_secuencias WHERE TIPO_PRODUCTO = ''HIPOTECA'''.
+      **********************************************************************
+       01 SQL-STMT-2.
+           05 SQL-IPTR   POINTER VALUE NULL.
+           05 SQL-PREP   PIC X VALUE 'N'.
+           05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 9.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 156.
-           05 SQL-STMT   PIC X(156) VALUE 'INSERT INTO HIPOTECAS (ID_HIP
+           05 SQL-STMT   PIC X(156) VALUE 'INSERT INTO hipotecas (ID_HIP
       -    'OTECA,ID_CLIENTE,FECHA_INICIO,MONTO_ORIGINAL,TASA_INTERES,SA
       -    'LDO_ACTUAL,FECHA_VENCTO,DIA_PAGO,ESTADO) VALUES (?,?,?,?,?,?
       -    ',?,?,?)'.
       **********************************************************************
-       01 SQL-STMT-1.
+       01 SQL-STMT-3.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
@@ -38,34 +51,27 @@
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 137.
            05 SQL-STMT   PIC X(137) VALUE 'SELECT ID_CLIENTE,FECHA_INICI
       -    'O,MONTO_ORIGINAL,TASA_INTERES,SALDO_ACTUAL,FECHA_VENCTO,DIA_
-      -    'PAGO,ESTADO FROM HIPOTECAS WHERE ID_HIPOTECA = ?'.
+      -    'PAGO,ESTADO FROM hipotecas WHERE ID_HIPOTECA = ?'.
       **********************************************************************
-       01 SQL-STMT-2.
+       01 SQL-STMT-4.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 3.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 70.
-           05 SQL-STMT   PIC X(70) VALUE 'UPDATE HIPOTECAS SET SALDO_ACT
+           05 SQL-STMT   PIC X(70) VALUE 'UPDATE hipotecas SET SALDO_ACT
       -    'UAL = ?,ESTADO = ? WHERE ID_HIPOTECA = ?'.
-      **********************************************************************
-       01 SQL-STMT-3.
-           05 SQL-IPTR   POINTER VALUE NULL.
-           05 SQL-PREP   PIC X VALUE 'N'.
-           05 SQL-OPT    PIC X VALUE SPACE.
-           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 43.
-           05 SQL-STMT   PIC X(43) VALUE 'DELETE FROM HIPOTECAS WHERE ID
-      -    '_HIPOTECA = ?'.
       **********************************************************************
       *******          PRECOMPILER-GENERATED VARIABLES               *******
        01 SQLV-GEN-VARS.
-           05 SQL-VAR-0001  PIC S9(3) COMP-3.
+           05 SQL-VAR-0004  PIC S9(9) COMP-3.
+           05 SQL-VAR-0005  PIC S9(9) COMP-3.
+           05 SQL-VAR-0006  PIC S9(13)V9(2) COMP-3.
+           05 SQL-VAR-0007  PIC S9(3)V9(4) COMP-3.
+           05 SQL-VAR-0008  PIC S9(13)V9(2) COMP-3.
+           05 SQL-VAR-0009  PIC S9(3) COMP-3.
       *******       END OF PRECOMPILER-GENERATED VARIABLES           *******
       **********************************************************************
-      *=================================================================
-      * SQL COMMUNICATION AREA: Captura errores y estados de MySQL
-      *=================================================================
       *    EXEC SQL INCLUDE SQLCA END-EXEC.
        01 SQLCA.
            05 SQLSTATE PIC X(5).
@@ -87,24 +93,7 @@
            05 SQL-HCONN USAGE POINTER VALUE NULL.
 
        LINKAGE SECTION.
-      *=================================================================
-      * BLOQUE DE DECLARACION PARA EL PRE-COMPILADOR (esqlOC)
-      *=================================================================
       *    EXEC SQL BEGIN DECLARE SECTION END-EXEC.
-
-      * Se expande BORM-REGISTRO para asegurar visibilidad en esqlOC
-       01  BORM-REGISTRO.
-           05 BORM-ID-HIPOTECA      PIC 9(09)  COMP-5.
-           05 BORM-ID-CLIENTE       PIC 9(08)  COMP-5.
-           05 BORM-FECHA-INICIO     PIC X(10).
-           05 BORM-MONTO-ORIGINAL   PIC S9(13)V99 COMP-3.
-           05 BORM-TASA-INTERES     PIC S9(03)V9999 COMP-3.
-           05 BORM-SALDO-ACTUAL     PIC S9(13)V99 COMP-3.
-           05 BORM-FECHA-VENCTO     PIC X(10).
-           05 BORM-DIA-PAGO         PIC 9(02).
-           05 BORM-ESTADO           PIC X(20).
-
-      * Sincronizado con el COPY LKCIF del BANCSMENU y BR0000
        01  LK-DATOS-TRANSACCION.
            05 LK-ACCION-DB             PIC X(01).
            05 LK-ID-CLIENTE            PIC 9(09).
@@ -116,87 +105,113 @@
            05 LK-TERMINAL-ID           PIC X(04).
            05 LK-FECHA-PROCESO         PIC 9(08).
 
+       01  BORM-REGISTRO.
+           05 BORM-ID-HIPOTECA          PIC 9(09).
+           05 BORM-ID-CLIENTE           PIC 9(08).
+           05 BORM-FECHA-INICIO         PIC X(10).
+           05 BORM-MONTO-ORIGINAL       PIC S9(13)V99.
+           05 BORM-TASA-INTERES         PIC S9(03)V9999.
+           05 BORM-SALDO-ACTUAL         PIC S9(13)V99.
+           05 BORM-FECHA-VENCTO         PIC X(10).
+           05 BORM-DIA-PAGO             PIC 9(02).
+           05 BORM-ESTADO               PIC X(20).
       *    EXEC SQL END DECLARE SECTION END-EXEC.
 
-       PROCEDURE DIVISION USING LK-DATOS-TRANSACCION BORM-REGISTRO.
-       0000-MAIN-DBIO.
-           INITIALIZE LK-COD-RETORNO
+       PROCEDURE DIVISION USING LK-DATOS-TRANSACCION, BORM-REGISTRO.
 
+       0000-PRINCIPAL.
+           MOVE 0 TO LK-COD-RETORNO
+           MOVE SPACES TO LK-MENSAJE
            EVALUATE LK-ACCION-DB
-               WHEN 'I'
-                   PERFORM 1000-INSERTAR-HIPOTECA
-               WHEN 'C'
-                   PERFORM 2000-CONSULTAR-HIPOTECA
-               WHEN 'U'
-                   PERFORM 3000-ACTUALIZAR-HIPOTECA
-               WHEN 'D'
-                   PERFORM 4000-ELIMINAR-HIPOTECA
+               WHEN 'S' PERFORM 0500-GENERAR-SECUENCIA
+               WHEN 'A' PERFORM 1000-INSERTAR-HIPOTECA
+               WHEN 'C' PERFORM 2000-CONSULTAR-HIPOTECA
+               WHEN 'M' PERFORM 3000-ACTUALIZAR-HIPOTECA
                WHEN OTHER
-                   MOVE 01 TO LK-COD-RETORNO *> Código de error de acci
-           END-EVALUATE
+                   MOVE 98 TO LK-COD-RETORNO
+                   MOVE "ACCION NO SOPORTADA" TO LK-MENSAJE
+           END-EVALUATE.
+           EXIT PROGRAM.
 
-           *> Mapeo de SQLCODE al estándar de retorno del core bancario
-           IF SQLCODE = 0
-               MOVE 00 TO LK-COD-RETORNO
-           ELSE
-               *> 99 indica error crítico de base de datos
-               MOVE 99 TO LK-COD-RETORNO
-           END-IF
-
-           GOBACK.
-
-      *----------------------------------------------------------------*
-      * 1000-INSERTAR-HIPOTECA: Alta de nuevo préstamo                 *
-      *----------------------------------------------------------------*
-       1000-INSERTAR-HIPOTECA.
+       0500-GENERAR-SECUENCIA.
       *    EXEC SQL
-      *        INSERT INTO HIPOTECAS (
-      *            ID_HIPOTECA,
-      *            ID_CLIENTE,
-      *            FECHA_INICIO,
-      *            MONTO_ORIGINAL,
-      *            TASA_INTERES,
-      *            SALDO_ACTUAL,
-      *            FECHA_VENCTO,
-      *            DIA_PAGO,
-      *            ESTADO
-      *        ) VALUES (
-      *            :BORM-ID-HIPOTECA,
-      *            :BORM-ID-CLIENTE,
-      *            :BORM-FECHA-INICIO,
-      *            :BORM-MONTO-ORIGINAL,
-      *            :BORM-TASA-INTERES,
-      *            :BORM-SALDO-ACTUAL,
-      *            :BORM-FECHA-VENCTO,
-      *            :BORM-DIA-PAGO,
-      *            :BORM-ESTADO
-      *        )
+      *        UPDATE control_secuencias
+      *        SET ULTIMO_NUMERO = ULTIMO_NUMERO + 1
+      *        WHERE TIPO_PRODUCTO = 'HIPOTECA'
       *    END-EXEC.
            IF SQL-PREP OF SQL-STMT-0 = 'N'
+               MOVE 0 TO SQL-COUNT
+               CALL 'OCSQLPRE' USING SQLV
+                                   SQL-STMT-0
+                                   SQLCA
+               SET SQL-HCONN OF SQLCA TO NULL
+           END-IF
+           CALL 'OCSQLEXE' USING SQL-STMT-0
+                               SQLCA
+                   .
+      *    EXEC SQL
+      *        SELECT ULTIMO_NUMERO INTO :BORM-ID-HIPOTECA
+      *        FROM control_secuencias WHERE TIPO_PRODUCTO = 'HIPOTECA'
+      *    END-EXEC.
+           IF SQL-PREP OF SQL-STMT-1 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
-                 BORM-ID-HIPOTECA
-               MOVE 'I' TO SQL-TYPE(1)
-               MOVE 4 TO SQL-LEN(1)
+                 SQL-VAR-0004
+               MOVE '3' TO SQL-TYPE(1)
+               MOVE 5 TO SQL-LEN(1)
+               MOVE X'00' TO SQL-PREC(1)
+               MOVE 1 TO SQL-COUNT
+               CALL 'OCSQLPRE' USING SQLV
+                                   SQL-STMT-1
+                                   SQLCA
+               SET SQL-HCONN OF SQLCA TO NULL
+           END-IF
+           CALL 'OCSQLEXE' USING SQL-STMT-1
+                               SQLCA
+           MOVE SQL-VAR-0004 TO BORM-ID-HIPOTECA
+                   .
+           IF SQLCODE = 0 MOVE 0 TO LK-COD-RETORNO
+           ELSE MOVE 99 TO LK-COD-RETORNO END-IF.
+
+       1000-INSERTAR-HIPOTECA.
+      *    EXEC SQL
+      *        INSERT INTO hipotecas (ID_HIPOTECA, ID_CLIENTE,
+      *        FECHA_INICIO,
+      *        MONTO_ORIGINAL, TASA_INTERES,
+      *        SALDO_ACTUAL, FECHA_VENCTO,
+      *        DIA_PAGO, ESTADO) VALUES (:BORM-ID-HIPOTECA,
+      *        :BORM-ID-CLIENTE,
+      *        :BORM-FECHA-INICIO, :BORM-MONTO-ORIGINAL,
+      *        :BORM-TASA-INTERES,
+      *        :BORM-SALDO-ACTUAL, :BORM-FECHA-VENCTO,
+      *        :BORM-DIA-PAGO, :BORM-ESTADO)
+      *    END-EXEC.
+           IF SQL-PREP OF SQL-STMT-2 = 'N'
+               SET SQL-ADDR(1) TO ADDRESS OF
+                 SQL-VAR-0004
+               MOVE '3' TO SQL-TYPE(1)
+               MOVE 5 TO SQL-LEN(1)
+               MOVE X'00' TO SQL-PREC(1)
                SET SQL-ADDR(2) TO ADDRESS OF
-                 BORM-ID-CLIENTE
-               MOVE 'I' TO SQL-TYPE(2)
-               MOVE 4 TO SQL-LEN(2)
+                 SQL-VAR-0005
+               MOVE '3' TO SQL-TYPE(2)
+               MOVE 5 TO SQL-LEN(2)
+               MOVE X'00' TO SQL-PREC(2)
                SET SQL-ADDR(3) TO ADDRESS OF
                  BORM-FECHA-INICIO
                MOVE 'X' TO SQL-TYPE(3)
                MOVE 10 TO SQL-LEN(3)
                SET SQL-ADDR(4) TO ADDRESS OF
-                 BORM-MONTO-ORIGINAL
+                 SQL-VAR-0006
                MOVE '3' TO SQL-TYPE(4)
                MOVE 8 TO SQL-LEN(4)
                MOVE X'02' TO SQL-PREC(4)
                SET SQL-ADDR(5) TO ADDRESS OF
-                 BORM-TASA-INTERES
+                 SQL-VAR-0007
                MOVE '3' TO SQL-TYPE(5)
                MOVE 4 TO SQL-LEN(5)
                MOVE X'04' TO SQL-PREC(5)
                SET SQL-ADDR(6) TO ADDRESS OF
-                 BORM-SALDO-ACTUAL
+                 SQL-VAR-0008
                MOVE '3' TO SQL-TYPE(6)
                MOVE 8 TO SQL-LEN(6)
                MOVE X'02' TO SQL-PREC(6)
@@ -205,7 +220,7 @@
                MOVE 'X' TO SQL-TYPE(7)
                MOVE 10 TO SQL-LEN(7)
                SET SQL-ADDR(8) TO ADDRESS OF
-                 SQL-VAR-0001
+                 SQL-VAR-0009
                MOVE '3' TO SQL-TYPE(8)
                MOVE 2 TO SQL-LEN(8)
                MOVE X'00' TO SQL-PREC(8)
@@ -215,63 +230,62 @@
                MOVE 20 TO SQL-LEN(9)
                MOVE 9 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-0
+                                   SQL-STMT-2
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
+           MOVE BORM-ID-HIPOTECA
+             TO SQL-VAR-0004
+           MOVE BORM-ID-CLIENTE
+             TO SQL-VAR-0005
+           MOVE BORM-MONTO-ORIGINAL
+             TO SQL-VAR-0006
+           MOVE BORM-TASA-INTERES
+             TO SQL-VAR-0007
+           MOVE BORM-SALDO-ACTUAL
+             TO SQL-VAR-0008
            MOVE BORM-DIA-PAGO
-             TO SQL-VAR-0001
-           CALL 'OCSQLEXE' USING SQL-STMT-0
+             TO SQL-VAR-0009
+           CALL 'OCSQLEXE' USING SQL-STMT-2
                                SQLCA
                    .
+           PERFORM 9000-EVALUAR-SQL.
 
-      *----------------------------------------------------------------*
-      * 2000-CONSULTAR-HIPOTECA: Recupera datos por ID_HIPOTECA        *
-      *----------------------------------------------------------------*
        2000-CONSULTAR-HIPOTECA.
       *    EXEC SQL
-      *        SELECT
-      *            ID_CLIENTE,
-      *            FECHA_INICIO,
-      *            MONTO_ORIGINAL,
-      *            TASA_INTERES,
-      *            SALDO_ACTUAL,
-      *            FECHA_VENCTO,
-      *            DIA_PAGO,
-      *            ESTADO
-      *        INTO
-      *            :BORM-ID-CLIENTE,
-      *            :BORM-FECHA-INICIO,
-      *            :BORM-MONTO-ORIGINAL,
-      *            :BORM-TASA-INTERES,
-      *            :BORM-SALDO-ACTUAL,
-      *            :BORM-FECHA-VENCTO,
-      *            :BORM-DIA-PAGO,
-      *            :BORM-ESTADO
-      *        FROM HIPOTECAS
-      *        WHERE ID_HIPOTECA = :BORM-ID-HIPOTECA
+      *        SELECT ID_CLIENTE, FECHA_INICIO,
+      *        MONTO_ORIGINAL, TASA_INTERES,
+      *        SALDO_ACTUAL, FECHA_VENCTO,
+      *        DIA_PAGO, ESTADO
+      *        INTO :BORM-ID-CLIENTE, :BORM-FECHA-INICIO,
+      *        :BORM-MONTO-ORIGINAL,
+      *        :BORM-TASA-INTERES, :BORM-SALDO-ACTUAL,
+      *        :BORM-FECHA-VENCTO,
+      *        :BORM-DIA-PAGO, :BORM-ESTADO
+      *        FROM hipotecas WHERE ID_HIPOTECA = :BORM-ID-HIPOTECA
       *    END-EXEC.
-           IF SQL-PREP OF SQL-STMT-1 = 'N'
+           IF SQL-PREP OF SQL-STMT-3 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
-                 BORM-ID-CLIENTE
-               MOVE 'I' TO SQL-TYPE(1)
-               MOVE 4 TO SQL-LEN(1)
+                 SQL-VAR-0005
+               MOVE '3' TO SQL-TYPE(1)
+               MOVE 5 TO SQL-LEN(1)
+               MOVE X'00' TO SQL-PREC(1)
                SET SQL-ADDR(2) TO ADDRESS OF
                  BORM-FECHA-INICIO
                MOVE 'X' TO SQL-TYPE(2)
                MOVE 10 TO SQL-LEN(2)
                SET SQL-ADDR(3) TO ADDRESS OF
-                 BORM-MONTO-ORIGINAL
+                 SQL-VAR-0006
                MOVE '3' TO SQL-TYPE(3)
                MOVE 8 TO SQL-LEN(3)
                MOVE X'02' TO SQL-PREC(3)
                SET SQL-ADDR(4) TO ADDRESS OF
-                 BORM-TASA-INTERES
+                 SQL-VAR-0007
                MOVE '3' TO SQL-TYPE(4)
                MOVE 4 TO SQL-LEN(4)
                MOVE X'04' TO SQL-PREC(4)
                SET SQL-ADDR(5) TO ADDRESS OF
-                 BORM-SALDO-ACTUAL
+                 SQL-VAR-0008
                MOVE '3' TO SQL-TYPE(5)
                MOVE 8 TO SQL-LEN(5)
                MOVE X'02' TO SQL-PREC(5)
@@ -280,7 +294,7 @@
                MOVE 'X' TO SQL-TYPE(6)
                MOVE 10 TO SQL-LEN(6)
                SET SQL-ADDR(7) TO ADDRESS OF
-                 SQL-VAR-0001
+                 SQL-VAR-0009
                MOVE '3' TO SQL-TYPE(7)
                MOVE 2 TO SQL-LEN(7)
                MOVE X'00' TO SQL-PREC(7)
@@ -289,33 +303,37 @@
                MOVE 'X' TO SQL-TYPE(8)
                MOVE 20 TO SQL-LEN(8)
                SET SQL-ADDR(9) TO ADDRESS OF
-                 BORM-ID-HIPOTECA
-               MOVE 'I' TO SQL-TYPE(9)
-               MOVE 4 TO SQL-LEN(9)
+                 SQL-VAR-0004
+               MOVE '3' TO SQL-TYPE(9)
+               MOVE 5 TO SQL-LEN(9)
+               MOVE X'00' TO SQL-PREC(9)
                MOVE 9 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-1
+                                   SQL-STMT-3
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
-           CALL 'OCSQLEXE' USING SQL-STMT-1
+           MOVE BORM-ID-HIPOTECA TO SQL-VAR-0004
+           CALL 'OCSQLEXE' USING SQL-STMT-3
                                SQLCA
-           MOVE SQL-VAR-0001 TO BORM-DIA-PAGO
+           MOVE SQL-VAR-0005 TO BORM-ID-CLIENTE
+           MOVE SQL-VAR-0006 TO BORM-MONTO-ORIGINAL
+           MOVE SQL-VAR-0007 TO BORM-TASA-INTERES
+           MOVE SQL-VAR-0008 TO BORM-SALDO-ACTUAL
+           MOVE SQL-VAR-0009 TO BORM-DIA-PAGO
                    .
+           PERFORM 9000-EVALUAR-SQL.
 
-      *----------------------------------------------------------------*
-      * 3000-ACTUALIZAR-HIPOTECA: Modifica saldo y estado              *
-      *----------------------------------------------------------------*
        3000-ACTUALIZAR-HIPOTECA.
       *    EXEC SQL
-      *        UPDATE HIPOTECAS
+      *        UPDATE hipotecas
       *        SET SALDO_ACTUAL = :BORM-SALDO-ACTUAL,
-      *            ESTADO       = :BORM-ESTADO
-      *        WHERE ID_HIPOTECA = :BORM-ID-HIPOTECA
+      *        ESTADO =
+      *        :BORM-ESTADO WHERE ID_HIPOTECA = :BORM-ID-HIPOTECA
       *    END-EXEC.
-           IF SQL-PREP OF SQL-STMT-2 = 'N'
+           IF SQL-PREP OF SQL-STMT-4 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
-                 BORM-SALDO-ACTUAL
+                 SQL-VAR-0008
                MOVE '3' TO SQL-TYPE(1)
                MOVE 8 TO SQL-LEN(1)
                MOVE X'02' TO SQL-PREC(1)
@@ -324,52 +342,41 @@
                MOVE 'X' TO SQL-TYPE(2)
                MOVE 20 TO SQL-LEN(2)
                SET SQL-ADDR(3) TO ADDRESS OF
-                 BORM-ID-HIPOTECA
-               MOVE 'I' TO SQL-TYPE(3)
-               MOVE 4 TO SQL-LEN(3)
+                 SQL-VAR-0004
+               MOVE '3' TO SQL-TYPE(3)
+               MOVE 5 TO SQL-LEN(3)
+               MOVE X'00' TO SQL-PREC(3)
                MOVE 3 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-2
+                                   SQL-STMT-4
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
-           CALL 'OCSQLEXE' USING SQL-STMT-2
+           MOVE BORM-SALDO-ACTUAL
+             TO SQL-VAR-0008
+           MOVE BORM-ID-HIPOTECA
+             TO SQL-VAR-0004
+           CALL 'OCSQLEXE' USING SQL-STMT-4
                                SQLCA
                    .
+           PERFORM 9000-EVALUAR-SQL.
 
-      *----------------------------------------------------------------*
-      * 4000-ELIMINAR-HIPOTECA: Baja física                            *
-      *----------------------------------------------------------------*
-       4000-ELIMINAR-HIPOTECA.
-      *    EXEC SQL
-      *        DELETE FROM HIPOTECAS
-      *        WHERE ID_HIPOTECA = :BORM-ID-HIPOTECA
-      *    END-EXEC.
-           IF SQL-PREP OF SQL-STMT-3 = 'N'
-               SET SQL-ADDR(1) TO ADDRESS OF
-                 BORM-ID-HIPOTECA
-               MOVE 'I' TO SQL-TYPE(1)
-               MOVE 4 TO SQL-LEN(1)
-               MOVE 1 TO SQL-COUNT
-               CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-3
-                                   SQLCA
-               SET SQL-HCONN OF SQLCA TO NULL
-           END-IF
-           CALL 'OCSQLEXE' USING SQL-STMT-3
-                               SQLCA
-                   .
+       9000-EVALUAR-SQL.
+           IF SQLCODE = 0 MOVE 00 TO LK-COD-RETORNO
+           ELSE IF SQLCODE = 100 MOVE 01 TO LK-COD-RETORNO
+           ELSE MOVE 99 TO LK-COD-RETORNO
+           MOVE "ERROR SQL" TO LK-MENSAJE END-IF.
       **********************************************************************
       *  : ESQL for GnuCOBOL/OpenCOBOL Version 3 (2024.04.30) Build May 10 2024
 
       *******               EMBEDDED SQL VARIABLES USAGE             *******
-      *  BORM-DIA-PAGO            IN USE THROUGH TEMP VAR SQL-VAR-0001 DECIMAL(3,0)
+      *  BORM-DIA-PAGO            IN USE THROUGH TEMP VAR SQL-VAR-0009 DECIMAL(3,0)
       *  BORM-ESTADO              IN USE CHAR(20)
       *  BORM-FECHA-INICIO        IN USE CHAR(10)
       *  BORM-FECHA-VENCTO        IN USE CHAR(10)
-      *  BORM-ID-CLIENTE          IN USE INTEGER(4 BYTES)
-      *  BORM-ID-HIPOTECA         IN USE INTEGER(4 BYTES)
-      *  BORM-MONTO-ORIGINAL      IN USE DECIMAL(15,2)
+      *  BORM-ID-CLIENTE          IN USE THROUGH TEMP VAR SQL-VAR-0005 DECIMAL(9,0)
+      *  BORM-ID-HIPOTECA         IN USE THROUGH TEMP VAR SQL-VAR-0004 DECIMAL(9,0)
+      *  BORM-MONTO-ORIGINAL      IN USE THROUGH TEMP VAR SQL-VAR-0006 DECIMAL(15,2)
       *  BORM-REGISTRO        NOT IN USE
       *  BORM-REGISTRO.BORM-DIA-PAGO NOT IN USE
       *  BORM-REGISTRO.BORM-ESTADO NOT IN USE
@@ -380,8 +387,8 @@
       *  BORM-REGISTRO.BORM-MONTO-ORIGINAL NOT IN USE
       *  BORM-REGISTRO.BORM-SALDO-ACTUAL NOT IN USE
       *  BORM-REGISTRO.BORM-TASA-INTERES NOT IN USE
-      *  BORM-SALDO-ACTUAL        IN USE DECIMAL(15,2)
-      *  BORM-TASA-INTERES        IN USE DECIMAL(7,4)
+      *  BORM-SALDO-ACTUAL        IN USE THROUGH TEMP VAR SQL-VAR-0008 DECIMAL(15,2)
+      *  BORM-TASA-INTERES        IN USE THROUGH TEMP VAR SQL-VAR-0007 DECIMAL(7,4)
       *  LK-ACCION-DB         NOT IN USE
       *  LK-COD-RETORNO       NOT IN USE
       *  LK-DATOS-TRANSACCION NOT IN USE

@@ -15,7 +15,8 @@
            05 LK-MODO-OPERACION        PIC X(01).
               88 LK-CONSULTA           VALUE 'C'.
               88 LK-ALTA               VALUE 'A'.
-
+              88 LK-MODIF              VALUE 'M'.
+              88 Lk-SIGUIENTE          VALUE 'S'.
       *    CODIGO DE RETORNO (RESULTADO DE LA OPERACION)
       *    00 = EXITO / OPERACION REALIZADA
       *    01-98 = ERRORES DE NEGOCIO O VALIDACION
@@ -25,7 +26,7 @@
       *    MENSAJE DESCRIPTIVO PARA EL USUARIO O LOG
            05 LK-MENSAJE               PIC X(50).
 
-      *    CAMPOS DE CONTROL DE AUDITORIA (OPCIONALES PARA EL CORE)[cite: 1, 2]
+      *    CAMPOS DE CONTROL DE AUDITORIA
       *    ID DEL USUARIO QUE REALIZA LA TRANSACCION
            05 LK-USUARIO-ID            PIC X(08).
       *    ID DE LA TERMINAL O AGENCIA
