@@ -58,7 +58,7 @@
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 4.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 99.
            05 SQL-STMT   PIC X(99) VALUE 'UPDATE clientes SET DIRECCION_
-      -    'CLIENTE = ?,TELEF_CLIENTE = ?,EMAIL_CLIENTE = ?,WHERE DOC_CL
+      -    'CLIENTE = ?,TELEF_CLIENTE = ?,EMAIL_CLIENTE = ? WHERE DOC_CL
       -    'IENTE = ?'.
       **********************************************************************
        01 SQL-STMT-4.
@@ -393,7 +393,7 @@
       *        UPDATE clientes
       *        SET DIRECCION_CLIENTE = :CUSM-DIRECCION,
       *            TELEF_CLIENTE = :CUSM-TELEFONO,
-      *            EMAIL_CLIENTE = :CUSM-EMAIL,
+      *            EMAIL_CLIENTE = :CUSM-EMAIL
       *             TARJETA = :CUSM-TARJETA,
       *             CREDITO = :CUSM-CREDITO,
       *             HIPOTECA = :CUSM-HIPOTECA,

@@ -11,7 +11,7 @@
 
        01  WS-OPCION-CIF       PIC 9(01).
        01  WS-CONTINUAR-CIF    PIC X(01) VALUE 'S'.
-      * 01 WS-TIENE-CUENTA     PIC X(01) VALUE 'N'.
+       01  WS-CONFIRMAR        PIC X(01).
 
        01  WS-PROGRAMAS.
            05 WS-PGM-DBIOCUSM    PIC X(8) VALUE 'DBIOCUSM'.
@@ -21,15 +21,11 @@
            05 WS-MES          PIC 9(02).
            05 WS-DIA          PIC 9(02).
        01  WS-FECHA-ISO        PIC X(10).
-      * COPY de la tabla maestra de Clientes (CUSM)
            COPY CUSMREC.
-      * COPY de la tabla maestra de Cuentas (INVM)
            COPY INVMREC.
-      * COPY de variables de Linkage movido a Linkage Section
 
        LINKAGE SECTION.
            COPY LKCIF.
-
 
        PROCEDURE DIVISION USING LK-DATOS-TRANSACCION.
 
@@ -63,118 +59,208 @@
                WHEN 0
                    MOVE 'N' TO WS-CONTINUAR-CIF
                WHEN OTHER
-                   DISPLAY "Opcion invalida."
+                   DISPLAY "Opcion invalida. Intente de nuevo."
            END-EVALUATE.
 
        2000-ALTA-CLIENTE.
            DISPLAY "--- ALTA DE CLIENTE ---".
            INITIALIZE REG-CUSM.
 
-           DISPLAY "Tipo de Documento (CED/PAS): "
-           ACCEPT CUSM-TIPO-DOC.
-           DISPLAY "Numero de Documento        : "
+      *    Validar tipo de documento
+           PERFORM 2100-PEDIR-TIPO-DOC.
+
+           DISPLAY "Cedula/Pasaporte: "
            ACCEPT CUSM-DOC-CLIENTE.
-      *    Validacion de cuenta existente
+
+      *    Validar cedula no vacia
+           IF CUSM-DOC-CLIENTE = SPACES
+               DISPLAY "ERROR: La cedula no puede estar vacia."
+               GO TO 2000-ALTA-CLIENTE
+           END-IF.
+
+      *    Verificar si ya existe
            MOVE 'C' TO LK-ACCION-DB.
            CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
 
            IF LK-COD-RETORNO = 0
-               DISPLAY "Alert: EL DOCUMENTO YA EXISTE EN EL SISTEMA."
+               DISPLAY "ERROR: ESA CEDULA YA EXISTE EN EL SISTEMA."
            ELSE
-               DISPLAY "Nombre(s)    : " ACCEPT CUSM-NOMBRE
-               DISPLAY "Apellido(s)  : " ACCEPT CUSM-APELLIDOS
-               DISPLAY "Direccion    : " ACCEPT CUSM-DIRECCION
-               DISPLAY "Telefono     : " ACCEPT CUSM-TELEFONO
-               DISPLAY "E-mail       : " ACCEPT CUSM-EMAIL
+               DISPLAY "Nombre(s)    : "
+               ACCEPT CUSM-NOMBRE
+               IF CUSM-NOMBRE = SPACES
+                   DISPLAY "ERROR: El nombre no puede estar vacio."
+                   GO TO 2000-ALTA-CLIENTE
+               END-IF
 
-               MOVE 'A' TO LK-ACCION-DB
-               CALL 'DBIOCUSM' USING REG-CUSM, LK-DATOS-TRANSACCION
+               DISPLAY "Apellido(s)  : "
+               ACCEPT CUSM-APELLIDOS
+               IF CUSM-APELLIDOS = SPACES
+                   DISPLAY "ERROR: El apellido no puede estar vacio."
+                   GO TO 2000-ALTA-CLIENTE
+               END-IF
 
+               DISPLAY "Direccion    : "
+               ACCEPT CUSM-DIRECCION
+               DISPLAY "Telefono     : "
+               ACCEPT CUSM-TELEFONO
+               DISPLAY "E-mail       : "
+               ACCEPT CUSM-EMAIL
 
-           MOVE 1 TO CUSM-CTA-ACTIVA
+      *        Setear campos automaticos
+               MOVE 1 TO CUSM-CTA-ACTIVA
                MOVE 0 TO CUSM-SALDO-CLIENTE
+               MOVE 0 TO CUSM-TARJETA
+               MOVE 0 TO CUSM-CREDITO
+               MOVE 0 TO CUSM-HIPOTECA
                ACCEPT WS-FECHA-SISTEMA FROM DATE YYYYMMDD
-               STRING WS-ANIO "-" WS-MES "-" WS-DIA INTO
-               CUSM-FECHA-ALTA
+               STRING WS-ANIO "-" WS-MES "-" WS-DIA
+                   DELIMITED BY SIZE INTO CUSM-FECHA-ALTA
                MOVE '9999-12-31' TO CUSM-FECHA-CIERRE
 
-      *    PASO 1: INSERTAR CLIENTE (Capa de Acceso a Datos)
+      *        PASO 1: INSERTAR CLIENTE
                MOVE 'A' TO LK-ACCION-DB
-               CALL 'DBIOCUSM' USING REG-CUSM, LK-DATOS-TRANSACCION
+               CALL WS-PGM-DBIOCUSM USING REG-CUSM,
+                   LK-DATOS-TRANSACCION
 
                IF LK-COD-RETORNO = 0
-      *            5. PASO 2: CREAR CUENTA CORRIENTE (Usa el ID generado)
+      *            PASO 2: CREAR CUENTA CORRIENTE
                    INITIALIZE REG-INVM
                    MOVE CUSM-ID-CLIENTE TO INVM-ID-CLIENTE
                    MOVE 0 TO INVM-SALDO-ACTUAL
                    MOVE CUSM-FECHA-ALTA TO INVM-FECHA-ULT-MOV
 
                    MOVE 'A' TO LK-ACCION-DB
-                   CALL 'DBIOINVM' USING REG-INVM, LK-DATOS-TRANSACCION
+                   CALL WS-PGM-DBIOINVM USING REG-INVM,
+                       LK-DATOS-TRANSACCION
 
                    IF LK-COD-RETORNO = 0
-      *                EXITO TOTAL: LLAMAMOS AL COMMIT
-                   CALL 'DBIOTRAN' USING 'C'
-                   DISPLAY "ALTA EXITOSA. ID ASIGNADO: " CUSM-ID-CLIENTE
+                       CALL 'DBIOTRAN' USING 'C'
+                       DISPLAY "ALTA EXITOSA. ID: " CUSM-ID-CLIENTE
                    ELSE
-      *                FALLO LA CUENTA: ROLLBACK
                        CALL 'DBIOTRAN' USING 'R'
-                   DISPLAY "ERROR EN CUENTA CORRIENTE. NADA SE GUARDO."
+                       DISPLAY "ERROR EN CUENTA. NADA SE GUARDO."
                    END-IF
                ELSE
-      *            FALLO EL CLIENTE: ROLLBACK
                    CALL 'DBIOTRAN' USING 'R'
-                   DISPLAY "FALLO EN ALTA DE CLIENTE: " LK-MENSAJE
+                   DISPLAY "FALLO ALTA CLIENTE: " LK-MENSAJE
                END-IF
+           END-IF.
+
+       2100-PEDIR-TIPO-DOC.
+           DISPLAY "Tipo de Documento (CED/PAS): "
+           ACCEPT CUSM-TIPO-DOC.
+           IF CUSM-TIPO-DOC = 'ced'
+               MOVE 'CED' TO CUSM-TIPO-DOC
+           END-IF.
+           IF CUSM-TIPO-DOC = 'pas'
+               MOVE 'PAS' TO CUSM-TIPO-DOC
+           END-IF.
+           IF CUSM-TIPO-DOC NOT = 'CED' AND
+              CUSM-TIPO-DOC NOT = 'PAS'
+               DISPLAY "ERROR: Solo se acepta CED o PAS."
+               PERFORM 2100-PEDIR-TIPO-DOC
            END-IF.
 
        3000-CONSULTA-CLIENTE.
            DISPLAY "--- CONSULTA DE CLIENTE ---".
            INITIALIZE REG-CUSM.
 
-           DISPLAY "Ingrese Documento: " ACCEPT CUSM-DOC-CLIENTE.
+           DISPLAY "Ingrese Cedula: "
+           ACCEPT CUSM-DOC-CLIENTE.
+
+           IF CUSM-DOC-CLIENTE = SPACES
+               DISPLAY "ERROR: La cedula no puede estar vacia."
+               GO TO 3000-CONSULTA-CLIENTE
+           END-IF.
 
            MOVE 'C' TO LK-ACCION-DB.
            CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
 
            IF LK-COD-RETORNO = 0
                DISPLAY "-----------------------------------"
-               DISPLAY "DOCUMENTO :" CUSM-DOC-CLIENTE
+               DISPLAY "CEDULA    : " CUSM-DOC-CLIENTE
                DISPLAY "CLIENTE   : " CUSM-NOMBRE " " CUSM-APELLIDOS
+               DISPLAY "DIRECCION : " CUSM-DIRECCION
+               DISPLAY "TELEFONO  : " CUSM-TELEFONO
+               DISPLAY "EMAIL     : " CUSM-EMAIL
                DISPLAY "SALDO CT  : " CUSM-SALDO-CLIENTE
-               DISPLAY "Direccion : " CUSM-DIRECCION
-               DISPLAY "Telefono  : " CUSM-TELEFONO
-               DISPLAY "Cuenta Activa: " CUSM-CTA-ACTIVA
+               DISPLAY "CTA ACTIVA: " CUSM-CTA-ACTIVA
                DISPLAY "-----------------------------------"
            ELSE
-               DISPLAY LK-MENSAJE
+               DISPLAY "CLIENTE NO ENCONTRADO."
            END-IF.
 
        4000-MODIFICA-CLIENTE.
            DISPLAY "--- MODIFICACION DE CLIENTE ---".
-      *    Primero consultamos para verificar que existe
-           DISPLAY "Ingrese Documento del Cliente: "
+           INITIALIZE REG-CUSM.
+
+           DISPLAY "Ingrese Cedula del Cliente: "
            ACCEPT CUSM-DOC-CLIENTE.
+
+           IF CUSM-DOC-CLIENTE = SPACES
+               DISPLAY "ERROR: La cedula no puede estar vacia."
+               GO TO 4000-MODIFICA-CLIENTE
+           END-IF.
 
            MOVE 'C' TO LK-ACCION-DB.
            CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
 
            IF LK-COD-RETORNO = 0
-               DISPLAY "Dato Actual - Direccion: " CUSM-DIRECCION
-               DISPLAY "Nueva Direccion: "        ACCEPT CUSM-DIRECCION
-               DISPLAY "Dato Actual - Telefono : " CUSM-TELEFONO
-               DISPLAY "Nuevo Telefono : "        ACCEPT CUSM-TELEFONO
+               DISPLAY "Direccion actual : " CUSM-DIRECCION
+               DISPLAY "Nueva Direccion  : "
+               ACCEPT CUSM-DIRECCION
+               DISPLAY "Telefono actual  : " CUSM-TELEFONO
+               DISPLAY "Nuevo Telefono   : "
+               ACCEPT CUSM-TELEFONO
+               DISPLAY "Email actual     : " CUSM-EMAIL
+               DISPLAY "Nuevo Email      : "
+               ACCEPT CUSM-EMAIL
 
                MOVE 'M' TO LK-ACCION-DB
-               CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION
-               DISPLAY "ACTUALIZACION COMPLETADA."
+               CALL WS-PGM-DBIOCUSM USING REG-CUSM,
+                   LK-DATOS-TRANSACCION
+
+               IF LK-COD-RETORNO = 0
+                   DISPLAY "CLIENTE ACTUALIZADO CORRECTAMENTE."
+               ELSE
+                   DISPLAY "ERROR AL ACTUALIZAR: " LK-MENSAJE
+               END-IF
            ELSE
                DISPLAY "CLIENTE NO EXISTE."
            END-IF.
 
        5000-BAJA-CLIENTE.
            DISPLAY "--- BAJA LOGICA DE CLIENTE ---".
-           DISPLAY "Ingrese Documento: " ACCEPT CUSM-DOC-CLIENTE.
+           INITIALIZE REG-CUSM.
 
+           DISPLAY "Ingrese Cedula: "
+           ACCEPT CUSM-DOC-CLIENTE.
+
+           IF CUSM-DOC-CLIENTE = SPACES
+               DISPLAY "ERROR: La cedula no puede estar vacia."
+               GO TO 5000-BAJA-CLIENTE
+           END-IF.
+
+      *    Verificar que existe
+           MOVE 'C' TO LK-ACCION-DB.
            CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
-           DISPLAY LK-MENSAJE.
+
+           IF LK-COD-RETORNO = 0
+               IF CUSM-CTA-ACTIVA = 0
+                   DISPLAY "AVISO: Este cliente ya esta dado de baja."
+               ELSE
+                   DISPLAY "Cliente  : " CUSM-NOMBRE " " CUSM-APELLIDOS
+                   DISPLAY "Confirmar baja? (S/N): "
+                   ACCEPT WS-CONFIRMAR
+                   IF WS-CONFIRMAR = 'S' OR 's'
+                       MOVE 'B' TO LK-ACCION-DB
+                       CALL WS-PGM-DBIOCUSM USING REG-CUSM,
+                           LK-DATOS-TRANSACCION
+                       DISPLAY LK-MENSAJE
+                   ELSE
+                       DISPLAY "BAJA CANCELADA."
+                   END-IF
+               END-IF
+           ELSE
+               DISPLAY "CLIENTE NO EXISTE."
+           END-IF.

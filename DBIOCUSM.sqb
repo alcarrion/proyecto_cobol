@@ -126,7 +126,7 @@
                UPDATE clientes
                SET DIRECCION_CLIENTE = :CUSM-DIRECCION,
                    TELEF_CLIENTE = :CUSM-TELEFONO,
-                   EMAIL_CLIENTE = :CUSM-EMAIL,
+                   EMAIL_CLIENTE = :CUSM-EMAIL
       *             TARJETA = :CUSM-TARJETA,
       *             CREDITO = :CUSM-CREDITO,
       *             HIPOTECA = :CUSM-HIPOTECA,
