@@ -21,6 +21,11 @@
            05 WS-MES          PIC 9(02).
            05 WS-DIA          PIC 9(02).
        01  WS-FECHA-ISO        PIC X(10).
+
+       01  WS-AUXILIARES-VALIDACION.
+           05 WS-I                PIC 9(02).
+           05 WS-DOC-LEN          PIC 9(02).
+           05 WS-DOC-VALIDO       PIC X(01) VALUE 'N'.
            COPY CUSMREC.
            COPY INVMREC.
 
@@ -67,16 +72,8 @@
            INITIALIZE REG-CUSM.
 
       *    Validar tipo de documento
-           PERFORM 2100-PEDIR-TIPO-DOC.
+           PERFORM 9100-VALIDAR-DOC-CAPTURA.
 
-           DISPLAY "Cedula/Pasaporte: "
-           ACCEPT CUSM-DOC-CLIENTE.
-
-      *    Validar cedula no vacia
-           IF CUSM-DOC-CLIENTE = SPACES
-               DISPLAY "ERROR: La cedula no puede estar vacia."
-               GO TO 2000-ALTA-CLIENTE
-           END-IF.
 
       *    Verificar si ya existe
            MOVE 'C' TO LK-ACCION-DB.
@@ -146,32 +143,13 @@
                END-IF
            END-IF.
 
-       2100-PEDIR-TIPO-DOC.
-           DISPLAY "Tipo de Documento (CED/PAS): "
-           ACCEPT CUSM-TIPO-DOC.
-           IF CUSM-TIPO-DOC = 'ced'
-               MOVE 'CED' TO CUSM-TIPO-DOC
-           END-IF.
-           IF CUSM-TIPO-DOC = 'pas'
-               MOVE 'PAS' TO CUSM-TIPO-DOC
-           END-IF.
-           IF CUSM-TIPO-DOC NOT = 'CED' AND
-              CUSM-TIPO-DOC NOT = 'PAS'
-               DISPLAY "ERROR: Solo se acepta CED o PAS."
-               PERFORM 2100-PEDIR-TIPO-DOC
-           END-IF.
+
 
        3000-CONSULTA-CLIENTE.
            DISPLAY "--- CONSULTA DE CLIENTE ---".
            INITIALIZE REG-CUSM.
 
-           DISPLAY "Ingrese Cedula: "
-           ACCEPT CUSM-DOC-CLIENTE.
-
-           IF CUSM-DOC-CLIENTE = SPACES
-               DISPLAY "ERROR: La cedula no puede estar vacia."
-               GO TO 3000-CONSULTA-CLIENTE
-           END-IF.
+           PERFORM 9100-VALIDAR-DOC-CAPTURA.
 
            MOVE 'C' TO LK-ACCION-DB.
            CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
@@ -194,13 +172,7 @@
            DISPLAY "--- MODIFICACION DE CLIENTE ---".
            INITIALIZE REG-CUSM.
 
-           DISPLAY "Ingrese Cedula del Cliente: "
-           ACCEPT CUSM-DOC-CLIENTE.
-
-           IF CUSM-DOC-CLIENTE = SPACES
-               DISPLAY "ERROR: La cedula no puede estar vacia."
-               GO TO 4000-MODIFICA-CLIENTE
-           END-IF.
+           PERFORM 9100-VALIDAR-DOC-CAPTURA.
 
            MOVE 'C' TO LK-ACCION-DB.
            CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
@@ -233,13 +205,7 @@
            DISPLAY "--- BAJA LOGICA DE CLIENTE ---".
            INITIALIZE REG-CUSM.
 
-           DISPLAY "Ingrese Cedula: "
-           ACCEPT CUSM-DOC-CLIENTE.
-
-           IF CUSM-DOC-CLIENTE = SPACES
-               DISPLAY "ERROR: La cedula no puede estar vacia."
-               GO TO 5000-BAJA-CLIENTE
-           END-IF.
+           PERFORM 9100-VALIDAR-DOC-CAPTURA.
 
       *    Verificar que existe
            MOVE 'C' TO LK-ACCION-DB.
@@ -249,18 +215,73 @@
                IF CUSM-CTA-ACTIVA = 0
                    DISPLAY "AVISO: Este cliente ya esta dado de baja."
                ELSE
-                   DISPLAY "Cliente  : " CUSM-NOMBRE " " CUSM-APELLIDOS
-                   DISPLAY "Confirmar baja? (S/N): "
-                   ACCEPT WS-CONFIRMAR
-                   IF WS-CONFIRMAR = 'S' OR 's'
-                       MOVE 'B' TO LK-ACCION-DB
-                       CALL WS-PGM-DBIOCUSM USING REG-CUSM,
-                           LK-DATOS-TRANSACCION
-                       DISPLAY LK-MENSAJE
+                   IF CUSM-SALDO-CLIENTE NOT = ZERO OR
+                      CUSM-TARJETA NOT = ZERO OR
+                      CUSM-HIPOTECA NOT = ZERO
+
+               DISPLAY "**********************************************"
+               DISPLAY "ERROR: NO SE PUEDE DAR DE BAJA AL CLIENTE"
+               DISPLAY "MOTIVO: EL CLIENTE TIENE PRODUCTOS ACTIVOS"
+               DISPLAY "----------------------------------------------"
+               DISPLAY "SALDO ACTUAL : " CUSM-SALDO-CLIENTE
+               DISPLAY "TIENE TARJETA: " CUSM-TARJETA " (1=SI, 0=NO)"
+               DISPLAY "TIENE HIPOT. : " CUSM-HIPOTECA " (1=SI, 0=NO)"
+               DISPLAY "**********************************************"
+               DISPLAY "SOLUCION: DEBE CANCELAR PRODUCTOS Y RETIRAR"
+               DISPLAY "SALDO ANTES DE CONTINUAR."
+
                    ELSE
-                       DISPLAY "BAJA CANCELADA."
+               DISPLAY "CLIENTE  : " CUSM-NOMBRE " " CUSM-APELLIDOS
+                       DISPLAY "CONFIRMAR BAJA DEFINITIVA? (S/N): "
+                       ACCEPT WS-CONFIRMAR
+
+                       IF WS-CONFIRMAR = 'S' OR 's'
+                           MOVE 'B' TO LK-ACCION-DB
+                           CALL WS-PGM-DBIOCUSM USING REG-CUSM,
+                                                  LK-DATOS-TRANSACCION
+                           DISPLAY ">>> " LK-MENSAJE
+                       ELSE
+                           DISPLAY "OPERACION CANCELADA POR EL USUARIO."
+                       END-IF
                    END-IF
                END-IF
            ELSE
-               DISPLAY "CLIENTE NO EXISTE."
+              DISPLAY "ERROR: EL CLIENTE NO EXISTE EN LA BASE DE DATOS."
            END-IF.
+
+       9100-VALIDAR-DOC-CAPTURA.
+           MOVE 'N' TO WS-DOC-VALIDO.
+
+           PERFORM UNTIL WS-DOC-VALIDO = 'S'
+               DISPLAY "----------------------------------------------"
+               DISPLAY "INGRESE DOCUMENTO (8 CED / 12 PAS): "
+               ACCEPT CUSM-DOC-CLIENTE
+
+      * Calcular longitud real (eliminando espacios a la derecha)
+               MOVE 0 TO WS-DOC-LEN
+               MOVE 12 TO WS-I
+               PERFORM UNTIL WS-I = 0 OR CUSM-DOC-CLIENTE(WS-I:1)
+               NOT = SPACE
+                   SUBTRACT 1 FROM WS-I
+               END-PERFORM
+               MOVE WS-I TO WS-DOC-LEN
+
+      * Lógica de Validación y Asignación Automática
+               IF WS-DOC-LEN >= 8 AND WS-DOC-LEN <= 12
+                   MOVE 'S' TO WS-DOC-VALIDO
+
+      * Identificación automática
+                   IF WS-DOC-LEN = 8
+                       MOVE "CED" TO CUSM-TIPO-DOC
+                   ELSE
+                       MOVE "PAS" TO CUSM-TIPO-DOC
+                   END-IF
+
+                   DISPLAY ">>> SISTEMA: DOCUMENTO VALIDO"
+                   DISPLAY ">>> TIPO ASIGNADO: " CUSM-TIPO-DOC
+               ELSE
+                   DISPLAY "ERROR: LONGITUD INVALIDA (" WS-DOC-LEN ")"
+                   DISPLAY "DEBE TENER ENTRE 8 Y 12 CARACTERES."
+                   DISPLAY "POR FAVOR, INTENTE DE NUEVO."
+               END-IF
+           END-PERFORM.

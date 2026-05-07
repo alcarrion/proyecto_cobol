@@ -1,3 +1,843 @@
+================================================================================
+                ARQUITECTURA Y DOCUMENTACIÓN DEL PROYECTO COBOL
+                        SISTEMA BANCARIO INTEGRADO v1.0
+================================================================================
+
+FECHA: 02-05-2025
+AUTORES: LUIS, ALISON, FRANKLIN
+TECNOLOGÍA: COBOL (cobc) + MySQL ODBC 8.0 + Embedded SQL
+
+================================================================================
+                            1. VISIÓN GENERAL
+================================================================================
+
+El proyecto es un SISTEMA BANCARIO INTEGRADO que gestiona:
+  • Clientes (Alta, Baja, Modificación, Consulta)
+  • Cuentas Corrientes (Depósitos, Extracciones, Consultas de Saldo)
+  • Tarjetas de Crédito (Emisión, Consumos, Pagos, Bloqueos)
+  • Hipotecas/Préstamos (Altas, Pagos de Cuotas, Consultas)
+  • Transacciones Bancarias (Commit/Rollback)
+
+ARQUITECTURA: 3 Capas
+  1. PRESENTACIÓN: Programas MAINLINE (CI0000, IN0000, TC0000, BR0000, BAT000)
+  2. LÓGICA DE NEGOCIO: Reglas y validaciones en MAINLINE
+  3. ACCESO A DATOS: Módulos DBIO (DBIOCUSM, DBIOINVM, DBIOTARJ, DBIOBORM)
+
+TECNOLOGÍA BD: 
+  - Driver: MySQL ODBC 8.0 ANSI Driver
+  - Servidor: localhost
+  - Database: proyecto_cobol
+  - Usuario: root / Password: tata
+
+================================================================================
+                    2. PROGRAMAS MAINLINE (CAPA PRESENTACIÓN)
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ A) BANCSMENU.cob (MENÚ PRINCIPAL - PUNTO DE ENTRADA)
+├─────────────────────────────────────────────────────────────────────────────┤
+│ FUNCIONALIDAD:
+│   - Punto de entrada del sistema
+│   - Menú principal con 6 opciones
+│   - Gestión de la conexión a la base de datos
+│   - Invocación de los módulos funcionales
+│
+│ ACCIONES:
+│   1. Gestión de Clientes (CI0000)
+│   2. Cuentas Corrientes (IN0000)
+│   3. Tarjetas de Crédito (TC0000)
+│   4. Hipotecas/Préstamos (BR0000)
+│   5. Cierre Mensual (BAT000)
+│   6. Reportes Gerenciales (RP0000)
+│   0. Salir
+│
+│ CONEXIÓN A BD:
+│   - Línea 8000-CARGAR-CONFIG: Arma cadena de conexión
+│   - Línea 8100-CONECTAR-BD: Conecta a MySQL vía ODBC
+│   - String: "DRIVER={MySQL ODBC 8.0 ANSI Driver};
+│             SERVER=localhost;DATABASE=proyecto_cobol;UID=root;PWD=tata;"
+│
+│ FLOW: Carga config → Conecta BD → Muestra menú → Invoca módulos → Desconecta
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ B) CI0000.cbl (MÓDULO CIF - GESTIÓN DE CLIENTES)
+├─────────────────────────────────────────────────────────────────────────────┤
+│ FUNCIONALIDAD: ABM de Clientes (Alta, Baja, Modificación, Consulta)
+│
+│ OPERACIONES:
+│   1. ALTA DE CLIENTE (2000-ALTA-CLIENTE)
+│      - Valida tipo de documento (CED/PAS)
+│      - Verifica que no exista cedula duplicada (CONSULTA a DBIOCUSM)
+│      - Captura: Nombre, Apellidos, Dirección, Teléfono, Email
+│      - Inicializa: saldo=0, tarjeta=0, crédito=0, hipoteca=0, cta_activa=1
+│      - INSERTA Cliente en DBIOCUSM (acción 'A')
+│      - INSERTA Cuenta Corriente en DBIOINVM (acción 'A')
+│      - Genera COMMIT si ambas operaciones exitosas
+│
+│   2. CONSULTA DE CLIENTE (3000-CONSULTA-CLIENTE)
+│      - Busca cliente por documento
+│      - Llama DBIOCUSM con acción 'C' (consulta)
+│      - Devuelve datos del cliente si existe
+│
+│   3. MODIFICACIÓN DE CLIENTE (4000-MODIFICA-CLIENTE)
+│      - Busca cliente por documento
+│      - Permite actualizar: Dirección, Teléfono, Email
+│      - Llama DBIOCUSM con acción 'M' (modificación)
+│
+│   4. BAJA LÓGICA (5000-BAJA-CLIENTE)
+│      - Busca cliente por documento
+│      - Marca CTA_ACTIVA = 0 y setea FECHA_CIERRE = CURDATE()
+│      - Llama DBIOCUSM con acción 'B' (baja)
+│
+│ ESTRUCTURAS DE DATOS:
+│   - REG-CUSM: Registro de cliente (copybook CUSMREC)
+│   - REG-INVM: Registro de cuenta corriente (copybook INVMREC)
+│   - LK-DATOS-TRANSACCION: Control de transacción (copybook LKCIF)
+│
+│ QUERIES (delegadas a DBIOCUSM):
+│   SELECT: Busca cliente por DOC_CLIENTE
+│   INSERT: Inserta nuevo cliente
+│   UPDATE: Actualiza dirección, teléfono, email o marca baja
+│
+│ FLOW: Menú → Opción → Validaciones → Llamada DBIO → Transacción → Mensaje
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ C) IN0000.cbl (MÓDULO INVM - CUENTAS CORRIENTES)
+├─────────────────────────────────────────────────────────────────────────────┤
+│ FUNCIONALIDAD: Gestión de Cuentas Corrientes (Depósitos, Extracciones)
+│ REGLA CRÍTICA: No permitir saldo negativo
+│
+│ OPERACIONES:
+│   1. CONSULTA DE SALDO (2000-CONSULTA-SALDO)
+│      - Busca cliente por documento (DBIOCUSM 'C')
+│      - Obtiene ID_CLIENTE
+│      - Consulta saldo en DBIOINVM ('C')
+│      - Muestra saldo actual
+│
+│   2. DEPOSITO (3000-DEPOSITO)
+│      - Busca cliente y cuenta
+│      - Acepta monto > 0
+│      - Suma monto a SALDO_ACTUAL
+│      - Setea COD_ULT_MOV = 2 (código depósito)
+│      - Actualiza en DBIOINVM ('M')
+│      - Commit si exitoso
+│
+│   3. EXTRACCIÓN (4000-EXTRACCION)
+│      - Busca cliente y cuenta
+│      - Valida que monto <= SALDO_ACTUAL (sin negativo)
+│      - Resta monto a SALDO_ACTUAL
+│      - Setea COD_ULT_MOV = 3 (código retiro)
+│      - IMPORTE_MOV = monto * -1 (valor negativo)
+│      - Actualiza en DBIOINVM ('M')
+│      - Commit si exitoso
+│
+│ QUERIES:
+│   INSERT: Crea registro en CTACTES al dar de alta cliente
+│   SELECT: Obtiene saldo actual por ID_CLIENTE
+│   UPDATE: Actualiza saldo, código movimiento e importe
+│
+│ VALIDACIONES CRÍTICAS:
+│   - Cliente debe existir
+│   - Cuenta debe existir (se crea con alta de cliente)
+│   - No permitir saldo negativo
+│   - Monto debe ser > 0
+│
+│ FLOW: Busca Cliente → Obtiene Cuenta → Valida Monto → Actualiza → Transacción
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ D) TC0000.cbl (MÓDULO TARJETAS - TARJETAS DE CRÉDITO)
+├─────────────────────────────────────────────────────────────────────────────┤
+│ FUNCIONALIDAD: Gestión de Tarjetas de Crédito
+│ REGLAS:
+│   - Cliente debe existir y estar activo
+│   - Una tarjeta por cliente (máximo)
+│   - Tarjeta debe estar Activa para operar
+│
+│ OPERACIONES:
+│   1. EMISIÓN DE TARJETA (2000-EMISION-TARJETA)
+│      - Valida que cliente exista y esté activo (DBIOCUSM 'C')
+│      - Verifica que cliente no tenga tarjeta (CUSM-TARJETA = 0)
+│      - GENERA número dinámico: prefijo '4555' + ID_CLIENTE + random
+│      - Calcula FECHA_VENCIMIENTO = fecha_emisión + 4 años
+│      - Acepta LIMITE DE CRÉDITO
+│      - INSERTA en DBIOTARJ ('A')
+│      - ACTUALIZA flag CUSM-TARJETA = 1 en DBIOCUSM ('M')
+│      - COMMIT
+│
+│   2. CONSULTA DE TARJETA (3000-CONSULTA-TARJETA)
+│      - Busca por NRO_TARJETA
+│      - Muestra: número, estado, límite, deuda acumulada, disponible
+│      - Disponible = LIMITE_TARJETA - ACUM_MES
+│
+│   3. CARGO A TARJETA (4000-CARGO-TARJETA)
+│      - Busca tarjeta por número (DBIOTARJ 'C')
+│      - Valida que tarjeta esté activa (ESTADO = 'A')
+│      - Valida que monto no exceda disponible
+│      - Suma monto a ACUM_MES
+│      - ACTUALIZA en DBIOTARJ ('M')
+│      - COMMIT
+│
+│   4. PAGO DE TARJETA (5000-PAGO-TARJETA)
+│      - Busca tarjeta
+│      - Acepta monto a pagar
+│      - Resta de LIQUIDACION_MES (abono)
+│      - ACTUALIZA en DBIOTARJ ('M')
+│
+│   5. CONSULTA DE DEUDA (6000-CONSULTA-DEUDA)
+│      - Muestra ACUM_MES (consumos)
+│      - Muestra LIQUIDACION_MES (pagos)
+│      - Calcula deuda pendiente = ACUM_MES - LIQUIDACION_MES
+│
+│   6. BLOQUEO DE TARJETA (7000-BLOQUEO-TARJETA)
+│      - Marca ESTADO = 'B' (Bloqueada)
+│
+│   7. BAJA/CANCELACIÓN (8000-BAJA-TARJETA)
+│      - Valida que deuda esté pagada
+│      - Marca ESTADO = 'I' (Inactiva)
+│      - ACTUALIZA en DBIOTARJ ('M')
+│
+│ QUERIES (delegadas a DBIOTARJ):
+│   INSERT: Emitir nueva tarjeta
+│   SELECT: Consultar por NRO_TARJETA
+│   UPDATE: Actualizar límite, deuda, estado
+│
+│ FLOW: Menú → Opción → Busca Tarjeta → Validaciones → Actualiza → Transacción
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ E) BR0000.cbl (MÓDULO BORM - HIPOTECAS/PRÉSTAMOS)
+├─────────────────────────────────────────────────────────────────────────────┤
+│ FUNCIONALIDAD: Gestión de Hipotecas y Préstamos
+│
+│ OPERACIONES:
+│   1. ALTA DE PRÉSTAMO (2100-REGISTRAR-ALTA)
+│      - Busca cliente por documento (DBIOCUSM 'C')
+│      - Valida que cliente exista
+│      - GENERA ID dinámico: prefijo '9' + YY + secuencia 6 dígitos
+│      - Acepta: Monto del préstamo
+│      - Acepta: Tasa de interés anual (ej: 10.5%)
+│      - Acepta: Plazo en meses
+│      - Calcula FECHA_VENCIMIENTO = fecha_inicio + plazo en meses
+│      - Acepta: Día de pago (1-31)
+│      - INSERTA en DBIOBORM ('A')
+│      - COMMIT
+│
+│   2. CONSULTA DE HIPOTECA (2200-CONSULTAR-SALDO)
+│      - Busca por ID_HIPOTECA
+│      - Muestra: saldo actual, fecha vencimiento, estado
+│
+│   3. PROCESAR PAGO (2300-PROCESAR-PAGO)
+│      - Busca hipoteca por ID
+│      - Muestra saldo actual
+│      - Acepta monto a pagar
+│      - Valida que no exceda deuda
+│      - Resta del SALDO_ACTUAL
+│      - ACTUALIZA en DBIOBORM ('M')
+│      - Calcula amortización automática
+│
+│ QUERIES (delegadas a DBIOBORM):
+│   INSERT: Crear nueva hipoteca
+│   SELECT: Consultar por ID_HIPOTECA
+│   UPDATE: Actualizar saldo_actual y estado
+│   ESPECIAL: UPDATE control_secuencias para generar ID único
+│
+│ FLOW: Menú → Opción → Busca Cliente → Valida → Calcula Vencimiento → 
+│       Inserta/Actualiza → Transacción
+└─────────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+                    3. MÓDULOS DBIO (CAPA DE ACCESO A DATOS)
+================================================================================
+
+Los módulos DBIO implementan CRUD (Create, Read, Update, Delete) con Embedded SQL.
+Se comunican vía LINKAGE SECTION con el control de transacción LKCIF.
+
+PATRÓN COMÚN:
+  Entrada: Registro de datos + Acción BD + Datos transacción
+  Proceso: Ejecuta SQL según acción
+  Salida: Código retorno + Mensaje + Registro actualizado
+
+ACCIONES SOPORTADAS:
+  'A' = ALTA (INSERT)
+  'C' = CONSULTA (SELECT)
+  'M' = MODIFICACIÓN (UPDATE)
+  'B' = BAJA LÓGICA (UPDATE con estado/fecha cierre)
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ A) DBIOCUSM (CRUD de CLIENTES)
+├─────────────────────────────────────────────────────────────────────────────┤
+│ QUERIES IMPLEMENTADAS:
+│
+│ 1. INSERT - REGISTRAR NUEVO CLIENTE
+│    SQL-STMT-0:
+│    INSERT INTO clientes (
+│        TIPO_DOC, DOC_CLIENTE, FECHA_ALTA, NOMBRE_CLIENTE, APELLIDOS_CLIENTE,
+│        DIRECCION_CLIENTE, TELEF_CLIENTE, EMAIL_CLIENTE,
+│        TARJETA, CREDITO, HIPOTECA, CTA_ACTIVA, FECHA_CIERRE, SALDO_CLIENTE
+│    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+│
+│ 2. SELECT LAST_INSERT_ID() - OBTENER ID GENERADO
+│    SQL-STMT-1:
+│    SELECT LAST_INSERT_ID()
+│    Retorna ID_CLIENTE generado automáticamente
+│
+│ 3. SELECT - CONSULTAR POR DOCUMENTO
+│    SQL-STMT-2:
+│    SELECT ID_CLIENTE, TIPO_DOC, FECHA_ALTA, NOMBRE_CLIENTE,
+│           APELLIDOS_CLIENTE, DIRECCION_CLIENTE, TELEF_CLIENTE, EMAIL_CLIENTE,
+│           TARJETA, CREDITO, HIPOTECA, CTA_ACTIVA, FECHA_CIERRE, SALDO_CLIENTE
+│    FROM clientes
+│    WHERE DOC_CLIENTE = ?
+│    [1 parámetro: documento del cliente]
+│
+│ 4. UPDATE - MODIFICAR DATOS CONTACTO
+│    SQL-STMT-3:
+│    UPDATE clientes SET
+│        DIRECCION_CLIENTE = ?, TELEF_CLIENTE = ?, EMAIL_CLIENTE = ?
+│    WHERE DOC_CLIENTE = ?
+│    [3 parámetros: nuevos datos; 1 parámetro: documento]
+│
+│ 5. UPDATE - BAJA LÓGICA
+│    SQL-STMT-4:
+│    UPDATE clientes SET
+│        CTA_ACTIVA = 0, FECHA_CIERRE = CURDATE()
+│    WHERE DOC_CLIENTE = ?
+│    [1 parámetro: documento]
+│
+│ RETURNS:
+│   - LK-COD-RETORNO: 0 = éxito, !=0 = error
+│   - LK-MENSAJE: Descripción del resultado
+│   - REG-CUSM: Datos del cliente (si consulta exitosa)
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ B) DBIOINVM (CRUD de CUENTAS CORRIENTES)
+├─────────────────────────────────────────────────────────────────────────────┤
+│ QUERIES IMPLEMENTADAS:
+│
+│ 1. INSERT - CREAR CUENTA CORRIENTE
+│    SQL-STMT-0:
+│    INSERT INTO ctactes (
+│        ID_CLIENTE, COD_ULT_MOV, FECHA_ULT_MOV, IMPORTE_MOV, SALDO_ACTUAL
+│    ) VALUES (?, ?, ?, ?, ?)
+│    [5 parámetros: id, código mov, fecha, importe, saldo]
+│    NOTA: Se crea automáticamente con alta de cliente (CI0000)
+│
+│ 2. SELECT - CONSULTAR SALDO
+│    SQL-STMT-1:
+│    SELECT COD_ULT_MOV, FECHA_ULT_MOV, IMPORTE_MOV, SALDO_ACTUAL
+│    FROM ctactes
+│    WHERE ID_CLIENTE = ?
+│    [1 parámetro: ID_CLIENTE]
+│    Retorna el estado actual de la cuenta
+│
+│ 3. UPDATE - ACTUALIZAR SALDO Y MOVIMIENTO
+│    SQL-STMT-2:
+│    UPDATE ctactes SET
+│        COD_ULT_MOV = ?, FECHA_ULT_MOV = CURDATE(),
+│        IMPORTE_MOV = ?, SALDO_ACTUAL = ?
+│    WHERE ID_CLIENTE = ?
+│    [3 parámetros: código mov, importe, saldo; 1 parámetro: ID_CLIENTE]
+│
+│ CODIGOS DE MOVIMIENTO (COD_ULT_MOV):
+│   0 = Apertura de Cuenta
+│   1 = Movimiento especial
+│   2 = Depósito
+│   3 = Extracción/Retiro
+│
+│ RETURNS:
+│   - LK-COD-RETORNO: 0 = éxito, !=0 = error
+│   - LK-MENSAJE: Descripción
+│   - REG-INVM: Datos de la cuenta (si consulta)
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ C) DBIOTARJ (CRUD de TARJETAS DE CRÉDITO)
+├─────────────────────────────────────────────────────────────────────────────┤
+│ QUERIES IMPLEMENTADAS:
+│
+│ 1. INSERT - EMITIR NUEVA TARJETA
+│    SQL-STMT-0:
+│    INSERT INTO TARJETAS (
+│        ID_CLIENTE, NRO_TARJETA, FECHA_EMISION, FECHA_VENCIMIENTO,
+│        LIMITE_TARJETA, ACUM_MES, LIQUIDACION_MES, ESTADO
+│    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+│    [8 parámetros]
+│    PK COMPUESTA: (ID_CLIENTE, NRO_TARJETA)
+│
+│ 2. SELECT - CONSULTAR TARJETA
+│    SQL-STMT-1:
+│    SELECT ID_CLIENTE, FECHA_EMISION, FECHA_VENCIMIENTO,
+│           LIMITE_TARJETA, ACUM_MES, LIQUIDACION_MES, ESTADO
+│    FROM TARJETAS
+│    WHERE NRO_TARJETA = ?
+│    [1 parámetro: número de tarjeta]
+│
+│ 3. UPDATE - ACTUALIZAR DEUDA Y ESTADO
+│    SQL-STMT-2:
+│    UPDATE TARJETAS SET
+│        ACUM_MES = ?, LIQUIDACION_MES = ?, ESTADO = ?
+│    WHERE NRO_TARJETA = ?
+│    [3 parámetros: nuevos montos, estado; 1 parámetro: número tarjeta]
+│
+│ 4. UPDATE - BLOQUEO DE TARJETA
+│    SQL-STMT-3:
+│    UPDATE TARJETAS SET ESTADO = 'I'
+│    WHERE NRO_TARJETA = ?
+│    [1 parámetro: número tarjeta]
+│
+│ ESTADOS TARJETA:
+│   'A' = Activa
+│   'B' = Bloqueada
+│   'I' = Inactiva (cancelada)
+│
+│ RETURNS:
+│   - LK-COD-RETORNO: 0 = éxito
+│   - REG-TARJ: Datos de la tarjeta
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ D) DBIOBORM (CRUD de HIPOTECAS/PRÉSTAMOS)
+├─────────────────────────────────────────────────────────────────────────────┤
+│ QUERIES IMPLEMENTADAS:
+│
+│ 1. UPDATE SECUENCIA - OBTENER PRÓXIMO ID
+│    SQL-STMT-0:
+│    UPDATE control_secuencias SET
+│        ULTIMO_NUMERO = ULTIMO_NUMERO + 1
+│    WHERE TIPO_PRODUCTO = 'HIPOTECA'
+│
+│ 2. SELECT SECUENCIA - LEER ÚLTIMO ID
+│    SQL-STMT-1:
+│    SELECT ULTIMO_NUMERO FROM control_secuencias
+│    WHERE TIPO_PRODUCTO = 'HIPOTECA'
+│    NOTA: Requiere tabla CONTROL_SECUENCIAS para generar IDs únicos
+│
+│ 3. INSERT - CREAR NUEVA HIPOTECA
+│    SQL-STMT-2:
+│    INSERT INTO hipotecas (
+│        ID_HIPOTECA, ID_CLIENTE, FECHA_INICIO, MONTO_ORIGINAL,
+│        TASA_INTERES, SALDO_ACTUAL, FECHA_VENCTO, DIA_PAGO, ESTADO
+│    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+│    [9 parámetros]
+│    ID_HIPOTECA: Generado dinámicamente (prefijo '9')
+│
+│ 4. SELECT - CONSULTAR HIPOTECA
+│    SQL-STMT-3:
+│    SELECT ID_CLIENTE, FECHA_INICIO, MONTO_ORIGINAL,
+│           TASA_INTERES, SALDO_ACTUAL, FECHA_VENCTO, DIA_PAGO, ESTADO
+│    FROM hipotecas
+│    WHERE ID_HIPOTECA = ?
+│    [1 parámetro: ID_HIPOTECA]
+│
+│ 5. UPDATE - ACTUALIZAR SALDO Y ESTADO
+│    SQL-STMT-4:
+│    UPDATE hipotecas SET
+│        SALDO_ACTUAL = ?, ESTADO = ?
+│    WHERE ID_HIPOTECA = ?
+│    [2 parámetros: nuevo saldo, estado; 1 parámetro: ID]
+│
+│ RETURNS:
+│   - LK-COD-RETORNO: 0 = éxito
+│   - BORM-REGISTRO: Datos de la hipoteca
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ E) DBIOTRAN (CONTROL DE TRANSACCIONES)
+├─────────────────────────────────────────────────────────────────────────────┤
+│ FUNCIONALIDAD:
+│   - Manejo de COMMIT y ROLLBACK
+│   - Control de integridad transaccional
+│
+│ OPERACIONES:
+│
+│ 1. COMMIT
+│    Acción: 'C'
+│    EXEC SQL COMMIT WORK END-EXEC
+│    Confirma todos los cambios de la transacción
+│
+│ 2. ROLLBACK
+│    Acción: 'R'
+│    EXEC SQL ROLLBACK WORK END-EXEC
+│    Deshace todos los cambios de la transacción
+│
+│ USO TÍPICO:
+│   - Después de operaciones exitosas: CALL 'DBIOTRAN' USING 'C'
+│   - Después de errores o validaciones fallidas: CALL 'DBIOTRAN' USING 'R'
+│
+│ EJEMPLO (CI0000 - Alta de Cliente):
+│   MOVE 'A' TO LK-ACCION-DB
+│   CALL 'DBIOCUSM' USING REG-CUSM, LK-DATOS-TRANSACCION  [Inserta cliente]
+│   IF LK-COD-RETORNO = 0
+│       CALL 'DBIOINVM' USING REG-INVM, LK-DATOS-TRANSACCION  [Crea cuenta]
+│       IF LK-COD-RETORNO = 0
+│           CALL 'DBIOTRAN' USING 'C'  [COMMIT - ambas operaciones OK]
+│       ELSE
+│           CALL 'DBIOTRAN' USING 'R'  [ROLLBACK - fallo en cuenta]
+│       END-IF
+│   ELSE
+│       CALL 'DBIOTRAN' USING 'R'  [ROLLBACK - fallo en cliente]
+│   END-IF
+│
+│ NOTA: Garantiza la integridad ACID de las transacciones
+└─────────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+                        4. COPYBOOKS (ESTRUCTURAS DE DATOS)
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ A) LKCIF.CPY - CONTROL DE TRANSACCIONES
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 01  LK-DATOS-TRANSACCION.
+│     05 LK-ACCION-DB             PIC X(01).
+│        'A'=INSERT, 'B'=DELETE, 'M'=UPDATE, 'C'=SELECT, 'S'=SIGUIENTE
+│     05 LK-ID-CLIENTE            PIC 9(09).
+│     05 LK-IMPORTE-TRANSACCION   PIC S9(13)V99 COMP-3.
+│     05 LK-MODO-OPERACION        PIC X(01).
+│        88 LK-CONSULTA           VALUE 'C'.
+│        88 LK-ALTA               VALUE 'A'.
+│        88 LK-MODIF              VALUE 'M'.
+│        88 LK-SIGUIENTE          VALUE 'S'.
+│     05 LK-COD-RETORNO           PIC 9(02).
+│        00 = EXITO / OPERACION REALIZADA
+│        01-98 = ERRORES DE NEGOCIO O VALIDACION
+│        99 = ERROR CRITICO DE BASE DE DATOS (SQLCODE != 0)
+│     05 LK-MENSAJE               PIC X(50).
+│     05 LK-USUARIO-ID            PIC X(08).  [ID usuario que realiza txn]
+│     05 LK-TERMINAL-ID           PIC X(04).  [ID terminal/agencia]
+│     05 LK-FECHA-PROCESO         PIC 9(08).  [Fecha contable YYYYMMDD]
+│
+│ FLUJO TÍPICO:
+│   1. Mainline setea LK-ACCION-DB según operación
+│   2. Mainline llama módulo DBIO pasando el registro LKCIF
+│   3. DBIO ejecuta operación SQL
+│   4. DBIO setea LK-COD-RETORNO y LK-MENSAJE
+│   5. Mainline evalúa resultado y decide Commit/Rollback
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ B) CUSMREC.CPY - MAESTRO DE CLIENTES
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 01  REG-CUSM.
+│     05 CUSM-ID-CLIENTE          PIC 9(08).        [PK Auto-increment]
+│     05 CUSM-TIPO-DOC            PIC X(03).        [CED/PAS]
+│     05 CUSM-DOC-CLIENTE         PIC X(12).        [Único]
+│     05 CUSM-FECHA-ALTA          PIC X(10).        [YYYY-MM-DD]
+│     05 CUSM-NOMBRE              PIC X(25).
+│     05 CUSM-APELLIDOS           PIC X(25).
+│     05 CUSM-DIRECCION           PIC X(45).
+│     05 CUSM-TELEFONO            PIC X(12).
+│     05 CUSM-EMAIL               PIC X(40).
+│     05 CUSM-TARJETA             PIC 9(01).        [0=No,1=Sí]
+│     05 CUSM-CREDITO             PIC 9(01).        [0=No,1=Sí]
+│     05 CUSM-HIPOTECA            PIC 9(01).        [0=No,1=Sí]
+│     05 CUSM-CTA-ACTIVA          PIC 9(01).        [0=Inactiva,1=Activa]
+│     05 CUSM-FECHA-CIERRE        PIC X(10).        [Fecha cierre cuenta]
+│     05 CUSM-SALDO-CLIENTE       PIC S9(10)V99.    [Saldo total]
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ C) INVMREC.CPY - CUENTAS CORRIENTES
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 01  REG-INVM.
+│     05 INVM-ID-CLIENTE          PIC 9(08).        [FK a clientes]
+│     05 INVM-COD-ULT-MOV         PIC 9(02).        [Código movimiento]
+│     05 INVM-FECHA-ULT-MOV       PIC X(10).        [Último movimiento]
+│     05 INVM-IMPORTE-MOV         PIC S9(10)V99.    [Monto del movimiento]
+│     05 INVM-SALDO-ACTUAL        PIC S9(10)V99.    [Saldo en cuenta]
+│
+│ RELACIÓN: 1-a-1 con CUSM (cada cliente tiene una cuenta corriente)
+│ PK: ID_CLIENTE
+│ FK: ID_CLIENTE → clientes(ID_CLIENTE)
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ D) TARJREC.CPY - TARJETAS DE CRÉDITO
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 01  REG-TARJ.
+│     05 TARJ-ID-CLIENTE          PIC 9(08).        [FK a clientes]
+│     05 TARJ-NRO-TARJETA         PIC X(16).        [Número único]
+│     05 TARJ-FECHA-EMISION       PIC X(10).        [YYYY-MM-DD]
+│     05 TARJ-FECHA-VENCIM        PIC X(10).        [Vencimiento]
+│     05 TARJ-LIMITE-TARJETA      PIC S9(10)V99.    [Límite crédito]
+│     05 TARJ-ACUM-MES            PIC S9(10)V99.    [Consumos acumulados]
+│     05 TARJ-LIQUIDACION-MES     PIC S9(10)V99.    [Pagos acumulados]
+│     05 TARJ-ESTADO              PIC X(01).        [A/B/I]
+│     05 TARJ-IMPORTE-MOV         PIC S9(10)V99.    [Último movimiento]
+│
+│ RELACIÓN: N-a-1 con CUSM (cliente puede tener múltiples tarjetas)
+│ PK COMPUESTA: (ID_CLIENTE, NRO_TARJETA)
+│ FK: ID_CLIENTE → clientes(ID_CLIENTE)
+│ ESTADOS: A=Activa, B=Bloqueada, I=Inactiva/Cancelada
+│
+│ DISPONIBLE = LIMITE_TARJETA - ACUM_MES
+│ DEUDA = ACUM_MES - LIQUIDACION_MES
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ E) BORMREC.CPY - HIPOTECAS/PRÉSTAMOS
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 01  BORM-REGISTRO.
+│     05 BORM-ID-HIPOTECA         PIC 9(09).        [PK - Dinámico: 9+...]
+│     05 BORM-ID-CLIENTE          PIC 9(08).        [FK a clientes]
+│     05 BORM-FECHA-INICIO        PIC X(10).        [YYYY-MM-DD]
+│     05 BORM-MONTO-ORIGINAL      PIC S9(13)V99.    [Monto prestado]
+│     05 BORM-TASA-INTERES        PIC S9(03)V9999.  [Ej: 10.5%]
+│     05 BORM-SALDO-ACTUAL        PIC S9(13)V99.    [Deuda pendiente]
+│     05 BORM-FECHA-VENCTO        PIC X(10).        [Fecha vencimiento]
+│     05 BORM-DIA-PAGO            PIC 9(02).        [1-31]
+│     05 BORM-ESTADO              PIC X(20).        [ACTIVO/PAGADO/MORA]
+│
+│ RELACIÓN: N-a-1 con CUSM (cliente puede tener múltiples hipotecas)
+│ PK: ID_HIPOTECA
+│ FK: ID_CLIENTE → clientes(ID_CLIENTE)
+│
+│ FORMATO ID_HIPOTECA: 9 dígitos
+│   Prefijo: 9 (indica hipoteca)
+│   Año: 2 dígitos (YY)
+│   Secuencia: 6 dígitos (autoincrement por tabla control_secuencias)
+│ EJEMPLO: 925010001 (hipoteca de 2025, secuencia 0001)
+└─────────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+                    5. DIAGRAMA DE FLUJO DE TRANSACCIONES
+================================================================================
+
+EJEMPLO: ALTA DE NUEVO CLIENTE (MAINLINE: CI0000 → DBIO)
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           CI0000 (MAINLINE)
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 1. DISPLAY "INGRESE CEDULA:"
+│    ACCEPT CUSM-DOC-CLIENTE
+│
+│ 2. Buscar si cliente existe (validación)
+│    MOVE 'C' TO LK-ACCION-DB
+│    CALL 'DBIOCUSM' USING REG-CUSM, LK-DATOS-TRANSACCION
+│    IF LK-COD-RETORNO = 0
+│        DISPLAY "ERROR: YA EXISTE"
+│        GO TO 2000-ALTA-CLIENTE
+│    END-IF
+│
+│ 3. Capturar datos (nombre, apellidos, etc.)
+│    DISPLAY "Nombre: "
+│    ACCEPT CUSM-NOMBRE
+│    ... (teléfono, email, dirección)
+│
+│ 4. Setear campos automáticos
+│    MOVE 1 TO CUSM-CTA-ACTIVA        (cuenta activa)
+│    MOVE 0 TO CUSM-SALDO-CLIENTE     (saldo inicial)
+│    MOVE 0 TO CUSM-TARJETA           (sin tarjeta)
+│    ACCEPT WS-FECHA-SISTEMA FROM DATE YYYYMMDD
+│    STRING WS-ANIO "-" WS-MES "-" WS-DIA INTO CUSM-FECHA-ALTA
+│
+│ 5. INSERTAR CLIENTE EN BD
+│    MOVE 'A' TO LK-ACCION-DB
+│    CALL 'DBIOCUSM' USING REG-CUSM, LK-DATOS-TRANSACCION
+│
+│    [Aquí ocurre: CI0000 → DBIOCUSM]
+│    [DBIOCUSM ejecuta SQL y setea LK-COD-RETORNO]
+│
+│    IF LK-COD-RETORNO = 0
+│        → Procede con paso 6
+│    ELSE
+│        → ERROR: Muestra LK-MENSAJE y Rollback
+│    END-IF
+│
+│ 6. CREAR CUENTA CORRIENTE ASOCIADA
+│    INITIALIZE REG-INVM
+│    MOVE CUSM-ID-CLIENTE TO INVM-ID-CLIENTE  (recibido de DBIOCUSM)
+│    MOVE 0 TO INVM-SALDO-ACTUAL
+│    MOVE CUSM-FECHA-ALTA TO INVM-FECHA-ULT-MOV
+│
+│    MOVE 'A' TO LK-ACCION-DB
+│    CALL 'DBIOINVM' USING REG-INVM, LK-DATOS-TRANSACCION
+│
+│    [Aquí ocurre: CI0000 → DBIOINVM]
+│
+│    IF LK-COD-RETORNO = 0
+│        → Procede con paso 7
+│    ELSE
+│        → ERROR: Rollback de ambas operaciones
+│    END-IF
+│
+│ 7. CONFIRMAR TRANSACCIÓN
+│    CALL 'DBIOTRAN' USING 'C'   [COMMIT]
+│    DISPLAY "ALTA EXITOSA. ID: " CUSM-ID-CLIENTE
+│
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    DBIOCUSM (CAPA DE ACCESO A DATOS)
+├─────────────────────────────────────────────────────────────────────────────┤
+│ PROCEDURE DIVISION USING REG-CUSM, LK-DATOS-TRANSACCION.
+│
+│ 0000-PRINCIPAL.
+│     MOVE 0 TO LK-COD-RETORNO
+│     MOVE SPACES TO LK-MENSAJE
+│
+│     EVALUATE LK-ACCION-DB
+│         WHEN 'A'
+│             PERFORM 1000-INSERTAR-CLIENTE
+│         WHEN 'C'
+│             PERFORM 2000-CONSULTAR-CLIENTE
+│         WHEN 'M'
+│             PERFORM 3000-ACTUALIZAR-CLIENTE
+│         WHEN 'B'
+│             PERFORM 4000-BAJA-LOGICA-CLIENTE
+│         WHEN OTHER
+│             MOVE 98 TO LK-COD-RETORNO
+│             MOVE "ACCION DB NO SOPORTADA" TO LK-MENSAJE
+│     END-EVALUATE.
+│
+│     EXIT PROGRAM.
+│
+│ 1000-INSERTAR-CLIENTE.
+│     EXEC SQL
+│         INSERT INTO clientes (
+│             TIPO_DOC, DOC_CLIENTE, FECHA_ALTA, NOMBRE_CLIENTE,
+│             APELLIDOS_CLIENTE, DIRECCION_CLIENTE, TELEF_CLIENTE,
+│             EMAIL_CLIENTE, TARJETA, CREDITO, HIPOTECA, CTA_ACTIVA,
+│             FECHA_CIERRE, SALDO_CLIENTE
+│         ) VALUES (
+│             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+│         )
+│     END-EXEC.
+│
+│     PERFORM 9000-EVALUAR-SQL.
+│
+│     IF LK-COD-RETORNO = 0
+│         EXEC SQL
+│             SELECT LAST_INSERT_ID() INTO :CUSM-ID-CLIENTE
+│         END-EXEC.
+│         MOVE "CLIENTE INSERTADO" TO LK-MENSAJE
+│     ELSE
+│         MOVE SQLERRMC TO LK-MENSAJE
+│     END-IF.
+│
+│ 9000-EVALUAR-SQL.
+│     IF SQLCODE = 0
+│         MOVE 0 TO LK-COD-RETORNO
+│     ELSE
+│         MOVE 99 TO LK-COD-RETORNO
+│     END-IF.
+│
+└─────────────────────────────────────────────────────────────────────────────┘
+
+════════════════════════════════════════════════════════════════════════════════
+
+                        DETALLES DE CONEXIÓN A BD
+
+════════════════════════════════════════════════════════════════════════════════
+
+STRING CONEXIÓN (BANCSMENU.cob - línea 8000):
+  "DRIVER={MySQL ODBC 8.0 ANSI Driver};
+   SERVER=localhost;
+   DATABASE=proyecto_cobol;
+   UID=root;
+   PWD=tata;"
+
+TECNOLOGÍA EMBEDDED SQL:
+  - Precompilador: cobc (GnuCOBOL)
+  - Driver: MySQL ODBC 8.0 ANSI Driver
+  - Lenguaje: COBOL + SQL embebido (EXEC SQL ... END-EXEC)
+  - Parámetros: Placeholders (?) - Prepared Statements
+
+MANEJO DE ERRORES SQL:
+  - SQLCODE: Código de retorno SQL
+    0 = Éxito
+    != 0 = Error (consultar SQLERRMC para detalle)
+  - SQLSTATE: Estado SQL estándar (5 caracteres)
+    '00000' = Success
+    '02000' = No data (sin registros)
+    '23000' = Violación de integridad (PK/FK)
+    '24000' = Invalid cursor state
+  - SQLERRMC: Mensaje de error descriptivo
+
+ESTRUCTURA DE CONTROL SQLCA (SQL Communications Area):
+  - SQLCODE: Código numérico del error
+  - SQLSTATE: Estado estándar
+  - SQLERRM: Mensaje de error
+  - SQLERRD: Array de 6 valores diagnósticos
+
+════════════════════════════════════════════════════════════════════════════════
+
+                      MODELO RELACIONAL - TABLAS
+
+════════════════════════════════════════════════════════════════════════════════
+
+1. TABLA: clientes
+   ├─ ID_CLIENTE (PK) INT(8) AUTO_INCREMENT
+   ├─ TIPO_DOC VARCHAR(3) [CED, PAS]
+   ├─ DOC_CLIENTE VARCHAR(12) UNIQUE
+   ├─ FECHA_ALTA DATE
+   ├─ NOMBRE_CLIENTE VARCHAR(25)
+   ├─ APELLIDOS_CLIENTE VARCHAR(25)
+   ├─ DIRECCION_CLIENTE VARCHAR(45)
+   ├─ TELEF_CLIENTE VARCHAR(12)
+   ├─ EMAIL_CLIENTE VARCHAR(40)
+   ├─ TARJETA TINYINT(1) [0/1]
+   ├─ CREDITO TINYINT(1) [0/1]
+   ├─ HIPOTECA TINYINT(1) [0/1]
+   ├─ CTA_ACTIVA TINYINT(1) [0=Cerrada, 1=Activa]
+   ├─ FECHA_CIERRE DATE
+   └─ SALDO_CLIENTE DECIMAL(12,2)
+
+2. TABLA: ctactes (Cuentas Corrientes)
+   ├─ ID_CLIENTE (PK, FK) INT(8)
+   ├─ COD_ULT_MOV INT(2)
+   ├─ FECHA_ULT_MOV DATE
+   ├─ IMPORTE_MOV DECIMAL(12,2)
+   └─ SALDO_ACTUAL DECIMAL(12,2)
+   
+   FK: ID_CLIENTE → clientes(ID_CLIENTE)
+
+3. TABLA: TARJETAS
+   ├─ ID_CLIENTE (PK, FK) INT(8)
+   ├─ NRO_TARJETA (PK) VARCHAR(16)
+   ├─ FECHA_EMISION DATE
+   ├─ FECHA_VENCIMIENTO DATE
+   ├─ LIMITE_TARJETA DECIMAL(12,2)
+   ├─ ACUM_MES DECIMAL(12,2)
+   ├─ LIQUIDACION_MES DECIMAL(12,2)
+   └─ ESTADO CHAR(1) [A/B/I]
+   
+   PK COMPUESTA: (ID_CLIENTE, NRO_TARJETA)
+   FK: ID_CLIENTE → clientes(ID_CLIENTE)
+
+4. TABLA: HIPOTECAS
+   ├─ ID_HIPOTECA (PK) INT(9)
+   ├─ ID_CLIENTE (FK) INT(8)
+   ├─ FECHA_INICIO DATE
+   ├─ MONTO_ORIGINAL DECIMAL(15,2)
+   ├─ TASA_INTERES DECIMAL(7,4)
+   ├─ SALDO_ACTUAL DECIMAL(15,2)
+   ├─ FECHA_VENCTO DATE
+   ├─ DIA_PAGO INT(2)
+   └─ ESTADO VARCHAR(20)
+   
+   FK: ID_CLIENTE → clientes(ID_CLIENTE)
+
+5. TABLA: COD_MOVIMIENTOS
+   ├─ CODIGO (PK) INT(2)
+   ├─ DESCRIPCION VARCHAR(30)
+   └─ TIPO_AFECTACION CHAR(1) [+/-]
+
+6. TABLA: INDICADORES
+   ├─ CODIGO (PK) VARCHAR(10)
+   ├─ VALOR DECIMAL(10,4)
+   └─ DESCRIPCION VARCHAR(50)
+
+7. TABLA: control_secuencias (IMPLÍCITA - usada por DBIOBORM)
+   ├─ TIPO_PRODUCTO VARCHAR(20) [PK]
+   └─ ULTIMO_NUMERO INT(9)
+
+════════════════════════════════════════════════════════════════════════════════
+
 -- ================================================================
 -- SCRIPT COMPLETO DE BASE DE DATOS: proyecto_cobol
 -- Generado con integridad referencial basada en el Diagrama ER
