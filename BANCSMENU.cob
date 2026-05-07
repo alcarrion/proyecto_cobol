@@ -143,7 +143,7 @@
                "DRIVER={MySQL ODBC 8.0 ANSI Driver};"
                "SERVER=localhost;"
                "DATABASE=proyecto_cobol;"
-               "UID=root;PWD=tata;"
+               "UID=root;PWD=1234;"
                DELIMITED BY SIZE INTO DB-CONN-STR
            END-STRING.
            INSPECT DB-CONN-STR REPLACING TRAILING SPACES BY LOW-VALUES.
