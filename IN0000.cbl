@@ -20,6 +20,12 @@
            COPY INVMREC.
            COPY CUSMREC.
 
+       01  WS-VALIDACION.
+           05  WS-MONTO-ENTRADA    PIC X(12).
+           05  WS-ES-VALIDO        PIC X(01).
+               88  ES-NUMERO       VALUE 'S'.
+               88  NO-ES-NUMERO    VALUE 'N'.
+
        LINKAGE SECTION.
            COPY LKCIF.
 
@@ -58,6 +64,7 @@
 
        2000-CONSULTA-SALDO.
            DISPLAY "--- CONSULTA DE SALDO ---".
+           MOVE 'C' TO LK-ACCION-DB.
            PERFORM 9000-BUSCAR-CLIENTE-Y-CUENTA.
 
            IF LK-COD-RETORNO = 0
@@ -69,30 +76,31 @@
 
        3000-DEPOSITO.
            DISPLAY "--- DEPOSITO EN EFECTIVO ---".
+           MOVE 'L' TO LK-ACCION-DB.
+
            PERFORM 9000-BUSCAR-CLIENTE-Y-CUENTA.
+
            IF LK-COD-RETORNO = 0
-               DISPLAY "INGRESE MONTO A DEPOSITAR: "
-               ACCEPT WS-MONTO-TX
-
-               IF WS-MONTO-TX > 0
-                   ADD WS-MONTO-TX TO INVM-SALDO-ACTUAL
-                   MOVE 2            TO INVM-COD-ULT-MOV
-                   MOVE WS-MONTO-TX  TO INVM-IMPORTE-MOV
-
-                   MOVE 'M' TO LK-ACCION-DB
-                   CALL WS-PGM-DBIOINVM
-                   USING REG-INVM, LK-DATOS-TRANSACCION
-
-                   IF LK-COD-RETORNO = 0
-                       CALL 'DBIOTRAN' USING 'C'
-                       DISPLAY "DEPOSITO EXITOSO. NUEVO SALDO: "
-                               INVM-SALDO-ACTUAL
-                   ELSE
-                       CALL 'DBIOTRAN' USING 'R'
-                       DISPLAY "ERROR AL REGISTRAR MOVIMIENTO."
-                   END-IF
+               *> Validamos estado antes de pedir dinero
+               IF CUSM-CTA-ACTIVA = 0
+                   PERFORM 9100-MOSTRAR-ERROR-INACTIVA
+                   CALL 'DBIOTRAN' USING 'R'
                ELSE
-                   DISPLAY "ERROR: EL MONTO DEBE SER MAYOR A CERO."
+
+                   PERFORM 9300-VALIDAR-MONTO
+
+                   IF WS-MONTO-TX > 0
+                       ADD WS-MONTO-TX TO INVM-SALDO-ACTUAL ROUNDED
+                       MOVE 2            TO INVM-COD-ULT-MOV
+                       MOVE WS-MONTO-TX  TO INVM-IMPORTE-MOV
+
+                       MOVE 'M' TO LK-ACCION-DB
+                       CALL WS-PGM-DBIOINVM USING REG-INVM,
+                                                  LK-DATOS-TRANSACCION
+                       PERFORM 9200-GESTIONAR-TRANSACCION
+                   ELSE
+                       DISPLAY "ERROR: EL MONTO DEBE SER MAYOR A CERO."
+                   END-IF
                END-IF
            ELSE
                DISPLAY "ERROR: " LK-MENSAJE
@@ -100,56 +108,115 @@
 
        4000-EXTRACCION.
            DISPLAY "--- EXTRACCION DE EFECTIVO ---".
-           PERFORM 9000-BUSCAR-CLIENTE-Y-CUENTA.
+           INITIALIZE REG-CUSM.
+           INITIALIZE REG-INVM.
+           DISPLAY "INGRESE DOC DEL CLIENTE: "
+           ACCEPT CUSM-DOC-CLIENTE.
+
+           PERFORM 9300-VALIDAR-MONTO.
+
+           MOVE 'C' TO LK-ACCION-DB.
+           CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
 
            IF LK-COD-RETORNO = 0
-               DISPLAY "SALDO DISPONIBLE: " INVM-SALDO-ACTUAL
-               DISPLAY "INGRESE MONTO A EXTRAER: "
-               ACCEPT WS-MONTO-TX
+               IF CUSM-CTA-ACTIVA = 0
+                   PERFORM 9100-MOSTRAR-ERROR-INACTIVA
 
-               IF WS-MONTO-TX <= 0
-                   DISPLAY "ERROR: EL MONTO DEBE SER MAYOR A CERO."
                ELSE
-                   IF WS-MONTO-TX > INVM-SALDO-ACTUAL
-                       DISPLAY "FONDOS INSUFICIENTES."
-                   ELSE
-                       SUBTRACT WS-MONTO-TX FROM INVM-SALDO-ACTUAL
-                       MOVE 3            TO INVM-COD-ULT-MOV *> Codigo Retiro
-                       COMPUTE INVM-IMPORTE-MOV = WS-MONTO-TX * -1
+                   MOVE CUSM-ID-CLIENTE TO INVM-ID-CLIENTE
+                   MOVE 'L' TO LK-ACCION-DB
+                   CALL WS-PGM-DBIOINVM USING
+                   REG-INVM, LK-DATOS-TRANSACCION
 
-                       MOVE 'M' TO LK-ACCION-DB
-                       CALL WS-PGM-DBIOINVM USING REG-INVM,
-                                                  LK-DATOS-TRANSACCION
+                   IF LK-COD-RETORNO = 0
+                       *> 4. Reglas de negocio críticas (con la DB bloqueada)
+                       DISPLAY "SALDO DISPONIBLE: " INVM-SALDO-ACTUAL
 
-                       IF LK-COD-RETORNO = 0
-                           CALL 'DBIOTRAN' USING 'C'
-                           DISPLAY "RETIRO EXITOSO. NUEVO SALDO: "
-                                   INVM-SALDO-ACTUAL
+                       IF WS-MONTO-TX <= INVM-SALDO-ACTUAL
+                           SUBTRACT WS-MONTO-TX
+                           FROM INVM-SALDO-ACTUAL ROUNDED
+                           MOVE 3 TO INVM-COD-ULT-MOV
+                           COMPUTE INVM-IMPORTE-MOV = WS-MONTO-TX * -1
+
+                           MOVE 'M' TO LK-ACCION-DB
+                           CALL WS-PGM-DBIOINVM
+                           USING REG-INVM, LK-DATOS-TRANSACCION
+                           PERFORM 9200-GESTIONAR-TRANSACCION
                        ELSE
+                           DISPLAY "ERROR: FONDOS INSUFICIENTES."
+                           *> ¡LIBERAR EL LOCK INMEDIATAMENTE!
                            CALL 'DBIOTRAN' USING 'R'
-                           DISPLAY "ERROR AL PROCESAR RETIRO."
                        END-IF
+                   ELSE
+                      DISPLAY "ERROR: CUENTA NO ENCONTRADA dEL CLIENTE."
+                       CALL 'DBIOTRAN' USING 'R'
                    END-IF
                END-IF
            ELSE
-               DISPLAY "ERROR: " LK-MENSAJE
+               DISPLAY "ERROR: CLIENTE NO EXISTE."
            END-IF.
 
        9000-BUSCAR-CLIENTE-Y-CUENTA.
       *    Busca primero al cliente para obtener el ID interno via Cedula
            INITIALIZE REG-CUSM.
+
            DISPLAY "INGRESE DOC DEL CLIENTE: "
            ACCEPT CUSM-DOC-CLIENTE.
 
+           MOVE LK-ACCION-DB TO WS-CONTINUAR-INVM.
            MOVE 'C' TO LK-ACCION-DB.
            CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
 
            IF LK-COD-RETORNO = 0
       *        Si el cliente existe, usamos su ID para buscar la cuenta
                MOVE CUSM-ID-CLIENTE TO INVM-ID-CLIENTE
-               MOVE 'C' TO LK-ACCION-DB
+
+               MOVE WS-CONTINUAR-INVM TO LK-ACCION-DB
                CALL WS-PGM-DBIOINVM USING REG-INVM, LK-DATOS-TRANSACCION
+`
            ELSE
-               MOVE "CLIENTE NO ENCONTRADO" TO LK-MENSAJE
+               MOVE "CLIENTE NO EXISTE" TO LK-MENSAJE
                MOVE 01 TO LK-COD-RETORNO
            END-IF.
+
+       9100-MOSTRAR-ERROR-INACTIVA.
+           DISPLAY "******************************************"
+           DISPLAY "ERROR: CUENTA CERRADA / INACTIVA"
+           DISPLAY "OPERACION NO PERMITIDA."
+           DISPLAY "******************************************".
+
+       9200-GESTIONAR-TRANSACCION.
+           IF LK-COD-RETORNO = 0
+               CALL 'DBIOTRAN' USING 'C'
+               DISPLAY "TRANSACCION EXITOSA. NUEVO SALDO: "
+                       INVM-SALDO-ACTUAL
+           ELSE
+               CALL 'DBIOTRAN' USING 'R'
+               DISPLAY "ERROR CRITICO AL REGISTRAR EN BD."
+           END-IF.
+
+       9300-VALIDAR-MONTO.
+           SET NO-ES-NUMERO TO TRUE
+           PERFORM UNTIL ES-NUMERO
+               MOVE SPACES TO WS-MONTO-ENTRADA
+               DISPLAY "INGRESE MONTO (0.00): "
+               ACCEPT WS-MONTO-ENTRADA
+
+               IF WS-MONTO-ENTRADA = SPACES
+                   DISPLAY "ERROR: DEBE INGRESAR UN VALOR"
+               ELSE
+
+                   IF WS-MONTO-ENTRADA(1:1)
+                       IS NUMERIC OR WS-MONTO-ENTRADA(1:1) = "."
+                       COMPUTE WS-MONTO-TX =
+                           FUNCTION NUMVAL(WS-MONTO-ENTRADA)
+                       IF WS-MONTO-TX > 0
+                           SET ES-NUMERO TO TRUE
+                       ELSE
+                           DISPLAY "ERROR: MONTO DEBE SER MAYOR A CERO"
+                       END-IF
+                   ELSE
+                       DISPLAY "ERROR: SOLO SE PERMITEN NUMEROS Y PUNTO"
+                   END-IF
+               END-IF
+           END-PERFORM.

@@ -34,20 +34,30 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 91.
-           05 SQL-STMT   PIC X(91) VALUE 'SELECT COD_ULT_MOV,FECHA_ULT_M
-      -    'OV,IMPORTE_MOV,SALDO_ACTUAL FROM ctactes WHERE ID_CLIENTE = 
-      -    '?'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 103.
+           05 SQL-STMT   PIC X(103) VALUE 'SELECT COD_ULT_MOV,FECHA_ULT_
+      -    'MOV,IMPORTE_MOV,SALDO_ACTUAL FROM ctactes WHERE TRIM(ID_CLIE
+      -    'NTE) = TRIM(?)'.
       **********************************************************************
        01 SQL-STMT-2.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
-           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 4.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 114.
-           05 SQL-STMT   PIC X(114) VALUE 'UPDATE ctactes SET COD_ULT_MO
+           05 SQL-STMT   PIC X(114) VALUE 'SELECT COD_ULT_MOV,FECHA_ULT_
+      -    'MOV,IMPORTE_MOV,SALDO_ACTUAL FROM ctactes WHERE TRIM(ID_CLIE
+      -    'NTE) = TRIM(?) FOR UPDATE'.
+      **********************************************************************
+       01 SQL-STMT-3.
+           05 SQL-IPTR   POINTER VALUE NULL.
+           05 SQL-PREP   PIC X VALUE 'N'.
+           05 SQL-OPT    PIC X VALUE SPACE.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 4.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 126.
+           05 SQL-STMT   PIC X(126) VALUE 'UPDATE ctactes SET COD_ULT_MO
       -    'V = ?,FECHA_ULT_MOV = CURDATE(),IMPORTE_MOV = ?,SALDO_ACTUAL
-      -    ' = ? WHERE ID_CLIENTE = ?'.
+      -    ' = ? WHERE TRIM(ID_CLIENTE) = TRIM(?)'.
       **********************************************************************
       *******          PRECOMPILER-GENERATED VARIABLES               *******
        01 SQLV-GEN-VARS.
@@ -84,6 +94,8 @@
            05 INVM-FECHA-ULT-MOV   PIC X(10).
            05 INVM-IMPORTE-MOV     PIC S9(10)V99.
            05 INVM-SALDO-ACTUAL    PIC S9(10)V99.
+
+
            COPY LKCIF.
       *    EXEC SQL END DECLARE SECTION END-EXEC.
 
@@ -98,6 +110,8 @@
                    PERFORM 1000-INSERTAR-CUENTA
                WHEN 'C'
                    PERFORM 2000-CONSULTAR-CUENTA
+               WHEN 'L'
+                   PERFORM 2100-CONSULTAR-BLOQUEO
                WHEN 'M'
                    PERFORM 3000-ACTUALIZAR-SALDO
                WHEN OTHER
@@ -179,7 +193,7 @@
       *             :INVM-IMPORTE-MOV,
       *             :INVM-SALDO-ACTUAL
       *        FROM ctactes
-      *        WHERE ID_CLIENTE = :INVM-ID-CLIENTE
+      *        WHERE TRIM(ID_CLIENTE) = TRIM(:INVM-ID-CLIENTE)
       *    END-EXEC.
            IF SQL-PREP OF SQL-STMT-1 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -224,6 +238,58 @@
                MOVE "CONSULTA EXITOSA" TO LK-MENSAJE
            END-IF.
 
+       2100-CONSULTAR-BLOQUEO.
+      *    EXEC SQL
+      *        SELECT COD_ULT_MOV, FECHA_ULT_MOV,
+      *               IMPORTE_MOV, SALDO_ACTUAL
+      *        INTO :INVM-COD-ULT-MOV,
+      *             :INVM-FECHA-ULT-MOV,
+      *             :INVM-IMPORTE-MOV,
+      *             :INVM-SALDO-ACTUAL
+      *        FROM ctactes
+      *        WHERE TRIM(ID_CLIENTE) = TRIM(:INVM-ID-CLIENTE)
+      *        FOR UPDATE
+      *    END-EXEC.
+           IF SQL-PREP OF SQL-STMT-2 = 'N'
+               SET SQL-ADDR(1) TO ADDRESS OF
+                 SQL-VAR-0002
+               MOVE '3' TO SQL-TYPE(1)
+               MOVE 2 TO SQL-LEN(1)
+               MOVE X'00' TO SQL-PREC(1)
+               SET SQL-ADDR(2) TO ADDRESS OF
+                 INVM-FECHA-ULT-MOV
+               MOVE 'X' TO SQL-TYPE(2)
+               MOVE 10 TO SQL-LEN(2)
+               SET SQL-ADDR(3) TO ADDRESS OF
+                 SQL-VAR-0003
+               MOVE '3' TO SQL-TYPE(3)
+               MOVE 7 TO SQL-LEN(3)
+               MOVE X'02' TO SQL-PREC(3)
+               SET SQL-ADDR(4) TO ADDRESS OF
+                 SQL-VAR-0004
+               MOVE '3' TO SQL-TYPE(4)
+               MOVE 7 TO SQL-LEN(4)
+               MOVE X'02' TO SQL-PREC(4)
+               SET SQL-ADDR(5) TO ADDRESS OF
+                 SQL-VAR-0001
+               MOVE '3' TO SQL-TYPE(5)
+               MOVE 5 TO SQL-LEN(5)
+               MOVE X'00' TO SQL-PREC(5)
+               MOVE 5 TO SQL-COUNT
+               CALL 'OCSQLPRE' USING SQLV
+                                   SQL-STMT-2
+                                   SQLCA
+               SET SQL-HCONN OF SQLCA TO NULL
+           END-IF
+           MOVE INVM-ID-CLIENTE TO SQL-VAR-0001
+           CALL 'OCSQLEXE' USING SQL-STMT-2
+                               SQLCA
+           MOVE SQL-VAR-0002 TO INVM-COD-ULT-MOV
+           MOVE SQL-VAR-0003 TO INVM-IMPORTE-MOV
+           MOVE SQL-VAR-0004 TO INVM-SALDO-ACTUAL
+                   .
+           PERFORM 9000-EVALUAR-SQL.
+
        3000-ACTUALIZAR-SALDO.
       *    EXEC SQL
       *        UPDATE ctactes
@@ -231,9 +297,9 @@
       *            FECHA_ULT_MOV = CURDATE(),
       *            IMPORTE_MOV = :INVM-IMPORTE-MOV,
       *            SALDO_ACTUAL = :INVM-SALDO-ACTUAL
-      *        WHERE ID_CLIENTE = :INVM-ID-CLIENTE
+      *        WHERE TRIM(ID_CLIENTE) = TRIM(:INVM-ID-CLIENTE)
       *    END-EXEC.
-           IF SQL-PREP OF SQL-STMT-2 = 'N'
+           IF SQL-PREP OF SQL-STMT-3 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  SQL-VAR-0002
                MOVE '3' TO SQL-TYPE(1)
@@ -256,7 +322,7 @@
                MOVE X'00' TO SQL-PREC(4)
                MOVE 4 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-2
+                                   SQL-STMT-3
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
@@ -268,7 +334,7 @@
              TO SQL-VAR-0004
            MOVE INVM-ID-CLIENTE
              TO SQL-VAR-0001
-           CALL 'OCSQLEXE' USING SQL-STMT-2
+           CALL 'OCSQLEXE' USING SQL-STMT-3
                                SQLCA
                    .
            PERFORM 9000-EVALUAR-SQL.

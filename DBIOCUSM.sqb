@@ -114,7 +114,8 @@
                     :CUSM-FECHA-CIERRE,
                     :CUSM-SALDO-CLIENTE
                FROM clientes
-               WHERE DOC_CLIENTE = :CUSM-DOC-CLIENTE
+               WHERE TRIM(DOC_CLIENTE) = TRIM(:CUSM-DOC-CLIENTE)
+
            END-EXEC.
            PERFORM 9000-EVALUAR-SQL.
            IF LK-COD-RETORNO = 0
@@ -127,7 +128,7 @@
                SET DIRECCION_CLIENTE = :CUSM-DIRECCION,
                    TELEF_CLIENTE = :CUSM-TELEFONO,
                    EMAIL_CLIENTE = :CUSM-EMAIL
-               WHERE DOC_CLIENTE = :CUSM-DOC-CLIENTE
+               WHERE TRIM(DOC_CLIENTE) = TRIM(:CUSM-DOC-CLIENTE)
            END-EXEC.
 
            PERFORM 9000-EVALUAR-SQL.
@@ -144,7 +145,7 @@
                UPDATE clientes
                SET CTA_ACTIVA = 0,
                    FECHA_CIERRE = CURDATE()
-               WHERE DOC_CLIENTE = :CUSM-DOC-CLIENTE
+               WHERE TRIM(DOC_CLIENTE) = TRIM(:CUSM-DOC-CLIENTE)
            END-EXEC.
            PERFORM 9000-EVALUAR-SQL.
            IF LK-COD-RETORNO = 0 AND SQLCODE = 0

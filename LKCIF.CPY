@@ -16,6 +16,7 @@
               88 LK-CONSULTA           VALUE 'C'.
               88 LK-ALTA               VALUE 'A'.
               88 LK-MODIF              VALUE 'M'.
+              88 LK-BLOQUEO            VALUE 'L'.
               88 Lk-SIGUIENTE          VALUE 'S'.
       *    CODIGO DE RETORNO (RESULTADO DE LA OPERACION)
       *    00 = EXITO / OPERACION REALIZADA

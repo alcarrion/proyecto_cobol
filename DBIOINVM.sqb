@@ -18,6 +18,8 @@
            05 INVM-FECHA-ULT-MOV   PIC X(10).
            05 INVM-IMPORTE-MOV     PIC S9(10)V99.
            05 INVM-SALDO-ACTUAL    PIC S9(10)V99.
+
+
            COPY LKCIF.
            EXEC SQL END DECLARE SECTION END-EXEC.
 
@@ -32,6 +34,8 @@
                    PERFORM 1000-INSERTAR-CUENTA
                WHEN 'C'
                    PERFORM 2000-CONSULTAR-CUENTA
+               WHEN 'L'
+                   PERFORM 2100-CONSULTAR-BLOQUEO
                WHEN 'M'
                    PERFORM 3000-ACTUALIZAR-SALDO
                WHEN OTHER
@@ -71,12 +75,26 @@
                     :INVM-IMPORTE-MOV,
                     :INVM-SALDO-ACTUAL
                FROM ctactes
-               WHERE ID_CLIENTE = :INVM-ID-CLIENTE
+               WHERE TRIM(ID_CLIENTE) = TRIM(:INVM-ID-CLIENTE)
            END-EXEC.
            PERFORM 9000-EVALUAR-SQL.
            IF LK-COD-RETORNO = 0
                MOVE "CONSULTA EXITOSA" TO LK-MENSAJE
            END-IF.
+
+       2100-CONSULTAR-BLOQUEO.
+           EXEC SQL
+               SELECT COD_ULT_MOV, FECHA_ULT_MOV,
+                      IMPORTE_MOV, SALDO_ACTUAL
+               INTO :INVM-COD-ULT-MOV,
+                    :INVM-FECHA-ULT-MOV,
+                    :INVM-IMPORTE-MOV,
+                    :INVM-SALDO-ACTUAL
+               FROM ctactes
+               WHERE TRIM(ID_CLIENTE) = TRIM(:INVM-ID-CLIENTE)
+               FOR UPDATE
+           END-EXEC.
+           PERFORM 9000-EVALUAR-SQL.
 
        3000-ACTUALIZAR-SALDO.
            EXEC SQL
@@ -85,7 +103,7 @@
                    FECHA_ULT_MOV = CURDATE(),
                    IMPORTE_MOV = :INVM-IMPORTE-MOV,
                    SALDO_ACTUAL = :INVM-SALDO-ACTUAL
-               WHERE ID_CLIENTE = :INVM-ID-CLIENTE
+               WHERE TRIM(ID_CLIENTE) = TRIM(:INVM-ID-CLIENTE)
            END-EXEC.
            PERFORM 9000-EVALUAR-SQL.
            IF LK-COD-RETORNO = 0

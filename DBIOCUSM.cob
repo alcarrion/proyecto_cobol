@@ -44,31 +44,32 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 215.
-           05 SQL-STMT   PIC X(215) VALUE 'SELECT ID_CLIENTE,TIPO_DOC,FE
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 227.
+           05 SQL-STMT   PIC X(227) VALUE 'SELECT ID_CLIENTE,TIPO_DOC,FE
       -    'CHA_ALTA,NOMBRE_CLIENTE,APELLIDOS_CLIENTE,DIRECCION_CLIENTE,
       -    'TELEF_CLIENTE,EMAIL_CLIENTE,TARJETA,CREDITO,HIPOTECA,CTA_ACT
-      -    'IVA,FECHA_CIERRE,SALDO_CLIENTE FROM clientes WHERE DOC_CLIEN
-      -    'TE = ?'.
+      -    'IVA,FECHA_CIERRE,SALDO_CLIENTE FROM clientes WHERE TRIM(DOC_
+      -    'CLIENTE) = TRIM(?)'.
       **********************************************************************
        01 SQL-STMT-3.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 4.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 99.
-           05 SQL-STMT   PIC X(99) VALUE 'UPDATE clientes SET DIRECCION_
-      -    'CLIENTE = ?,TELEF_CLIENTE = ?,EMAIL_CLIENTE = ? WHERE DOC_CL
-      -    'IENTE = ?'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 111.
+           05 SQL-STMT   PIC X(111) VALUE 'UPDATE clientes SET DIRECCION
+      -    '_CLIENTE = ?,TELEF_CLIENTE = ?,EMAIL_CLIENTE = ? WHERE TRIM(
+      -    'DOC_CLIENTE) = TRIM(?)'.
       **********************************************************************
        01 SQL-STMT-4.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 81.
-           05 SQL-STMT   PIC X(81) VALUE 'UPDATE clientes SET CTA_ACTIVA
-      -    ' = 0,FECHA_CIERRE = CURDATE() WHERE DOC_CLIENTE = ?'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 93.
+           05 SQL-STMT   PIC X(93) VALUE 'UPDATE clientes SET CTA_ACTIVA
+      -    ' = 0,FECHA_CIERRE = CURDATE() WHERE TRIM(DOC_CLIENTE) = TRIM
+      -    '(?)'.
       **********************************************************************
       *******          PRECOMPILER-GENERATED VARIABLES               *******
        01 SQLV-GEN-VARS.
@@ -299,7 +300,8 @@
       *             :CUSM-FECHA-CIERRE,
       *             :CUSM-SALDO-CLIENTE
       *        FROM clientes
-      *        WHERE DOC_CLIENTE = :CUSM-DOC-CLIENTE
+      *        WHERE TRIM(DOC_CLIENTE) = TRIM(:CUSM-DOC-CLIENTE)
+
       *    END-EXEC.
            IF SQL-PREP OF SQL-STMT-2 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -394,7 +396,7 @@
       *        SET DIRECCION_CLIENTE = :CUSM-DIRECCION,
       *            TELEF_CLIENTE = :CUSM-TELEFONO,
       *            EMAIL_CLIENTE = :CUSM-EMAIL
-      *        WHERE DOC_CLIENTE = :CUSM-DOC-CLIENTE
+      *        WHERE TRIM(DOC_CLIENTE) = TRIM(:CUSM-DOC-CLIENTE)
       *    END-EXEC.
            IF SQL-PREP OF SQL-STMT-3 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -439,7 +441,7 @@
       *        UPDATE clientes
       *        SET CTA_ACTIVA = 0,
       *            FECHA_CIERRE = CURDATE()
-      *        WHERE DOC_CLIENTE = :CUSM-DOC-CLIENTE
+      *        WHERE TRIM(DOC_CLIENTE) = TRIM(:CUSM-DOC-CLIENTE)
       *    END-EXEC.
            IF SQL-PREP OF SQL-STMT-4 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
