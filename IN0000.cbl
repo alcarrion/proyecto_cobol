@@ -31,6 +31,8 @@
            05 WS-DOC-LEN          PIC 9(02).
            05 WS-DOC-VALIDO       PIC X(01) VALUE 'N'.
 
+       01  WS-AUXILIARES.
+           05  WS-ACCION-TEMP      PIC X(01).
        LINKAGE SECTION.
            COPY LKCIF.
 
@@ -102,7 +104,21 @@
                        MOVE 'M' TO LK-ACCION-DB
                        CALL WS-PGM-DBIOINVM USING REG-INVM,
                                                   LK-DATOS-TRANSACCION
-                       PERFORM 9200-GESTIONAR-TRANSACCION
+                       IF LK-COD-RETORNO = 0
+                           *> 2. ACTUALIZAR SALDO GLOBAL DEL CLIENTE
+                           ADD WS-MONTO-TX TO CUSM-SALDO-CLIENTE ROUNDED
+
+                           MOVE 'M' TO LK-ACCION-DB
+                           CALL WS-PGM-DBIOCUSM
+                           USING REG-CUSM, LK-DATOS-TRANSACCION
+
+
+                           PERFORM 9200-GESTIONAR-TRANSACCION
+                       ELSE
+                           CALL 'DBIOTRAN' USING 'R'
+                           DISPLAY "ERROR AL ACTUALIZAR CUENTA."
+                       END-IF
+
                    ELSE
                        DISPLAY "ERROR: EL MONTO DEBE SER MAYOR A CERO."
                    END-IF
@@ -113,71 +129,79 @@
 
        4000-EXTRACCION.
            DISPLAY "--- EXTRACCION DE EFECTIVO ---".
-           INITIALIZE REG-CUSM.
-           INITIALIZE REG-INVM.
-           DISPLAY "INGRESE DOC DEL CLIENTE: "
-           ACCEPT CUSM-DOC-CLIENTE.
-
-           PERFORM 9300-VALIDAR-MONTO.
-
-           MOVE 'C' TO LK-ACCION-DB.
-           CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
+           MOVE 'L' TO LK-ACCION-DB.
+           PERFORM 9000-BUSCAR-CLIENTE-Y-CUENTA.
 
            IF LK-COD-RETORNO = 0
                IF CUSM-CTA-ACTIVA = 0
                    PERFORM 9110-MOSTRAR-ERROR-INACTIVA
-
+                   CALL 'DBIOTRAN' USING 'R'
                ELSE
-                   MOVE CUSM-ID-CLIENTE TO INVM-ID-CLIENTE
-                   MOVE 'L' TO LK-ACCION-DB
-                   CALL WS-PGM-DBIOINVM USING
-                   REG-INVM, LK-DATOS-TRANSACCION
+                   DISPLAY "SALDO DISPONIBLE: " INVM-SALDO-ACTUAL
+                   PERFORM 9300-VALIDAR-MONTO
 
-                   IF LK-COD-RETORNO = 0
-                       *> 4. Reglas de negocio cr锟絫icas (con la DB bloqueada)
-                       DISPLAY "SALDO DISPONIBLE: " INVM-SALDO-ACTUAL
-
+                   IF WS-MONTO-TX > 0
                        IF WS-MONTO-TX <= INVM-SALDO-ACTUAL
+                           *> 1. ACTUALIZAR SALDO DE LA CUENTA
                            SUBTRACT WS-MONTO-TX
-                           FROM INVM-SALDO-ACTUAL ROUNDED
+                                    FROM INVM-SALDO-ACTUAL ROUNDED
                            MOVE 3 TO INVM-COD-ULT-MOV
                            COMPUTE INVM-IMPORTE-MOV = WS-MONTO-TX * -1
 
                            MOVE 'M' TO LK-ACCION-DB
                            CALL WS-PGM-DBIOINVM
                            USING REG-INVM, LK-DATOS-TRANSACCION
-                           PERFORM 9200-GESTIONAR-TRANSACCION
+
+                           IF LK-COD-RETORNO = 0
+                               *> 2. SINCRONIZAR SALDO MAESTRO DEL CLIENTE
+                               SUBTRACT WS-MONTO-TX
+                                        FROM CUSM-SALDO-CLIENTE ROUNDED
+
+                               MOVE 'M' TO LK-ACCION-DB
+                               CALL WS-PGM-DBIOCUSM
+                               USING REG-CUSM, LK-DATOS-TRANSACCION
+
+                               *> 3. GESTIONAR EL COMMIT O ROLLBACK
+                               PERFORM 9200-GESTIONAR-TRANSACCION
+                           ELSE
+                               CALL 'DBIOTRAN' USING 'R'
+                               DISPLAY "ERROR AL ACTUALIZAR CUENTA."
+                           END-IF
                        ELSE
                            DISPLAY "ERROR: FONDOS INSUFICIENTES."
-                           *> 锟絃IBERAR EL LOCK INMEDIATAMENTE!
                            CALL 'DBIOTRAN' USING 'R'
                        END-IF
                    ELSE
-                      DISPLAY "ERROR: CUENTA NO ENCONTRADA dEL CLIENTE."
-                       CALL 'DBIOTRAN' USING 'R'
+                       DISPLAY "ERROR: EL MONTO DEBE SER MAYOR A CERO."
                    END-IF
                END-IF
            ELSE
-               DISPLAY "ERROR: CLIENTE NO EXISTE."
+               DISPLAY "ERROR: " LK-MENSAJE
            END-IF.
-
        9000-BUSCAR-CLIENTE-Y-CUENTA.
-      *    Busca primero al cliente para obtener el ID interno via Cedula
            INITIALIZE REG-CUSM.
+           INITIALIZE REG-INVM.
 
            PERFORM 9100-VALIDAR-DOC-CAPTURA.
 
-           MOVE LK-ACCION-DB TO WS-CONTINUAR-INVM.
+           *> Resguardamos la intenci髇 original ('L' o 'C')
+           MOVE LK-ACCION-DB TO WS-ACCION-TEMP.
+
+           *> Buscamos primero al cliente (Siempre con 'C')
            MOVE 'C' TO LK-ACCION-DB.
            CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
 
            IF LK-COD-RETORNO = 0
-      *        Si el cliente existe, usamos su ID para buscar la cuenta
                MOVE CUSM-ID-CLIENTE TO INVM-ID-CLIENTE
 
-               MOVE WS-CONTINUAR-INVM TO LK-ACCION-DB
+               *> Restauramos la acci髇 para la cuenta
+               MOVE WS-ACCION-TEMP TO LK-ACCION-DB
                CALL WS-PGM-DBIOINVM USING REG-INVM, LK-DATOS-TRANSACCION
 
+               IF LK-COD-RETORNO NOT = 0
+                   MOVE "CUENTA NO ENCONTRADA PARA ESTE CLIENTE"
+                   TO LK-MENSAJE
+               END-IF
            ELSE
                MOVE "CLIENTE NO EXISTE" TO LK-MENSAJE
                MOVE 01 TO LK-COD-RETORNO
@@ -200,11 +224,10 @@
                END-PERFORM
                MOVE WS-I TO WS-DOC-LEN
 
-      * L贸gica de Validaci贸n y Asignaci贸n Autom谩tica
+
                IF WS-DOC-LEN >= 8 AND WS-DOC-LEN <= 12
                    MOVE 'S' TO WS-DOC-VALIDO
 
-      * Identificaci贸n autom谩tica
                    IF WS-DOC-LEN = 8
                        MOVE "CED" TO CUSM-TIPO-DOC
                    ELSE
