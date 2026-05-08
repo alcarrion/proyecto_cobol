@@ -195,7 +195,7 @@
 
        01  WS-PERIODO              PIC X(6).
        01  WS-PERIODO-DEF          PIC X(6).
-       01  WS-ANIO-MES-LIKE        PIC X(10).
+       01  WS-ANIO-MES-LIKE        PIC X(9).
 
       *    Variables host - AUDIT_MAESTRA
        01  WS-HOST-MAESTRA.
@@ -242,7 +242,6 @@
            05 HV-IND-ACUM-MES      PIC S9(4) COMP-5.
            05 HV-IND-SALDO-HIPO    PIC S9(4) COMP-5.
 
-      *    Verificacion de periodo
        01  HV-IND-COUNT            PIC 9(9).
 
       *    EXEC SQL END DECLARE SECTION END-EXEC.
@@ -342,30 +341,23 @@
            05 WS-FIN-CURSOR        PIC X VALUE 'N'.
            05 WS-ABORT             PIC X VALUE 'N'.
 
-      *    Para detectar cambio de cliente en reporte general
        01  WS-ULTIMO-ID-CLI        PIC 9(8) VALUE 0.
 
       *================================================================*
       *   CONTADORES POR REPORTE                                       *
       *================================================================*
        01  WS-CONTADORES.
-      *    Clientes nuevos
            05 WS-CTR-CLIENTES-NVO  PIC 9(6) VALUE 0.
-      *    Hipotecas
            05 WS-CTR-HIPOTECAS     PIC 9(6) VALUE 0.
            05 WS-SUM-SALDO-HIPO    PIC S9(13)V99 VALUE 0.
-      *    Tarjetas
            05 WS-CTR-TARJETAS      PIC 9(6) VALUE 0.
            05 WS-SUM-ACUM-TARJ     PIC S9(10)V99 VALUE 0.
-      *    Cuentas corrientes
            05 WS-CTR-CUENTAS       PIC 9(6) VALUE 0.
            05 WS-SUM-SALDO-CTA     PIC S9(10)V99 VALUE 0.
-      *    General
            05 WS-CTR-GEN-CLIENTES  PIC 9(6) VALUE 0.
            05 WS-CTR-GEN-TARJETAS  PIC 9(6) VALUE 0.
            05 WS-CTR-GEN-HIPOTECAS PIC 9(6) VALUE 0.
 
-      *    Nombres dinamicos de archivos .DAT
        01  WS-NOM-CLIENTES         PIC X(30).
        01  WS-NOM-HIPOTECAS        PIC X(30).
        01  WS-NOM-TARJETAS         PIC X(30).
@@ -373,7 +365,7 @@
        01  WS-NOM-GENERAL          PIC X(30).
 
       *================================================================*
-      *   FORMATO DE REPORTE - ESTRUCTURA COMPARTIDA                   *
+      *   FORMATO DE REPORTE                                           *
       *================================================================*
        01  RP-FORMAT.
            05  RP-TITULO.
@@ -385,7 +377,6 @@
            05  RP-BLANK            PIC X(132) VALUE SPACES.
            05  RP-INDIC            PIC X(132).
 
-      *    Detalle clientes nuevos
        01  WS-DET-CLIENTES.
            05 WS-DC-ID             PIC 9(8).
            05 FILLER               PIC X VALUE SPACE.
@@ -398,7 +389,6 @@
            05 WS-DC-SALDO          PIC ZZZ,ZZZ,ZZ9.99.
            05 FILLER               PIC X(51) VALUE SPACES.
 
-      *    Detalle hipotecas
        01  WS-DET-HIPOTECAS.
            05 WS-DH-ID-HIPO        PIC 9(9).
            05 FILLER               PIC X VALUE SPACE.
@@ -415,7 +405,6 @@
            05 WS-DH-ESTADO         PIC X(20).
            05 FILLER               PIC X(10) VALUE SPACES.
 
-      *    Detalle tarjetas
        01  WS-DET-TARJETAS.
            05 WS-DT-ID-CLI         PIC 9(8).
            05 FILLER               PIC X VALUE SPACE.
@@ -432,7 +421,6 @@
            05 WS-DT-ESTADO         PIC X(1).
            05 FILLER               PIC X(17) VALUE SPACES.
 
-      *    Detalle cuentas
        01  WS-DET-CUENTAS.
            05 WS-DCU-ID            PIC 9(8).
            05 FILLER               PIC X VALUE SPACE.
@@ -447,7 +435,6 @@
            05 WS-DCU-IMPORTE       PIC ZZZ,ZZZ,ZZ9.99.
            05 FILLER               PIC X(22) VALUE SPACES.
 
-      *    Detalle general
        01  WS-DET-GENERAL.
            05 WS-DG-ID-CLI         PIC 9(8).
            05 FILLER               PIC X VALUE SPACE.
@@ -475,19 +462,19 @@
       *================================================================*
        PROCEDURE DIVISION USING LK-DATOS-TRANSACCION.
 
-       0000-PRINCIPAL.
-           MOVE 0      TO LK-COD-RETORNO
-           MOVE SPACES TO LK-MENSAJE
+               0000-PRINCIPAL.
+       MOVE 0      TO LK-COD-RETORNO
+        MOVE SPACES TO LK-MENSAJE
 
-           PERFORM 1000-INICIALIZAR
-           IF WS-ABORT = 'N'
-               PERFORM 2000-VALIDAR-PERIODO
-           END-IF
-           IF WS-ABORT = 'N'
-               PERFORM 3000-MENU-REPORTES
-           END-IF
+        PERFORM 1000-INICIALIZAR
+        IF WS-ABORT = 'N'
+        PERFORM 2000-VALIDAR-PERIODO
+       END-IF
+        IF WS-ABORT = 'N'
+        PERFORM 3000-MENU-REPORTES
+       END-IF
 
-           EXIT PROGRAM.
+       EXIT PROGRAM.
 
       *================================================================*
       *   1000 - INICIALIZAR                                           *
@@ -518,12 +505,9 @@
                MOVE '000000' TO WS-PERIODO-DEF
            END-IF
 
-           DISPLAY '================================'
-           DISPLAY ' RP0000 - REPORTES GERENCIALES'
-           DISPLAY '================================'
            DISPLAY ' ULTIMO PERIODO: ' WS-PERIODO-DEF
            DISPLAY ' INGRESE PERIODO (YYYYMM)'
-           DISPLAY ' O ENTER PARA USAR EL DEFAULT: '
+           DISPLAY ' O ENTER PARA DEFAULT: '
            ACCEPT WS-PERIODO
 
            IF WS-PERIODO = SPACES
@@ -532,12 +516,21 @@
 
            DISPLAY ' PERIODO: ' WS-PERIODO
 
+           PERFORM 1100-ARMAR-FILTRO-LIKE.
+
+      *    Armar filtro LIKE para clientes nuevos (YYYY-MM-%)
+      *    Se arma aqui y se rearma en 4000 antes del OPEN
+           PERFORM 1100-ARMAR-FILTRO-LIKE.
+
+       1100-ARMAR-FILTRO-LIKE.
+           MOVE SPACES TO WS-ANIO-MES-LIKE
            STRING WS-PERIODO(1:4) DELIMITED SIZE
                   '-'             DELIMITED SIZE
                   WS-PERIODO(5:2) DELIMITED SIZE
                   '-%'            DELIMITED SIZE
                   INTO WS-ANIO-MES-LIKE
-           END-STRING.
+           END-STRING
+           DISPLAY ' FILTRO LIKE: [' WS-ANIO-MES-LIKE ']'.
 
       *================================================================*
       *   2000 - VALIDAR PERIODO                                       *
@@ -593,7 +586,9 @@
       *================================================================*
        3000-MENU-REPORTES.
            PERFORM UNTIL WS-CONTINUAR = 'N'
-
+               DISPLAY '================================'
+               DISPLAY ' RP0000 - REPORTES GERENCIALES'
+               DISPLAY '================================'
                DISPLAY '================================'
                DISPLAY ' REPORTES - PERIODO: ' WS-PERIODO
                DISPLAY '================================'
@@ -627,10 +622,13 @@
 
       *================================================================*
       *   4000 - REPORTE CLIENTES NUEVOS                              *
-      *   INDICADOR: Total clientes nuevos del periodo                 *
       *================================================================*
        4000-RPT-CLIENTES.
            MOVE ZERO TO WS-CTR-CLIENTES-NVO
+
+      *    Rearmar filtro LIKE antes del OPEN para garantizar
+      *    que el precompilador lo tome con el valor correcto
+           PERFORM 1100-ARMAR-FILTRO-LIKE
 
            STRING 'RPT_CLIENTES_' DELIMITED SIZE
                   WS-PERIODO      DELIMITED SIZE
@@ -660,7 +658,7 @@
                SET SQL-ADDR(2) TO ADDRESS OF
                  WS-ANIO-MES-LIKE
                MOVE 'X' TO SQL-TYPE(2)
-               MOVE 10 TO SQL-LEN(2)
+               MOVE 9 TO SQL-LEN(2)
                MOVE 2 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
                                    SQL-STMT-0
@@ -755,7 +753,6 @@
 
       *================================================================*
       *   5000 - REPORTE HIPOTECAS                                     *
-      *   INDICADORES: Total hipotecas / Saldo total                   *
       *================================================================*
        5000-RPT-HIPOTECAS.
            MOVE ZERO TO WS-CTR-HIPOTECAS
@@ -868,8 +865,8 @@
                        MOVE HV-HIPO-ESTADO     TO WS-DH-ESTADO
                        MOVE WS-DET-HIPOTECAS   TO FS-REG-HIPOTECAS
                        WRITE FS-REG-HIPOTECAS
-                       ADD 1               TO WS-CTR-HIPOTECAS
-                       ADD HV-HIPO-SALDO   TO WS-SUM-SALDO-HIPO
+                       ADD 1             TO WS-CTR-HIPOTECAS
+                       ADD HV-HIPO-SALDO TO WS-SUM-SALDO-HIPO
                    WHEN 100
                        MOVE 'S' TO WS-FIN-CURSOR
                    WHEN OTHER
@@ -900,7 +897,6 @@
 
       *================================================================*
       *   6000 - REPORTE TARJETAS                                      *
-      *   INDICADORES: Total tarjetas / Acumulado total del mes        *
       *================================================================*
        6000-RPT-TARJETAS.
            MOVE ZERO TO WS-CTR-TARJETAS
@@ -1043,7 +1039,6 @@
 
       *================================================================*
       *   7000 - REPORTE CUENTAS CORRIENTES                            *
-      *   INDICADORES: Cuentas activas / Saldo total                   *
       *================================================================*
        7000-RPT-CUENTAS.
            MOVE ZERO TO WS-CTR-CUENTAS
@@ -1180,10 +1175,6 @@
 
       *================================================================*
       *   8000 - REPORTE GENERAL                                       *
-      *   INDICADORES: Clientes / Tarjetas / Hipotecas                 *
-      *   LOGICA: Un cliente puede tener N tarjetas e N hipotecas.     *
-      *   WS-ULTIMO-ID-CLI detecta cambio de cliente para no           *
-      *   contar el mismo cliente multiples veces.                     *
       *================================================================*
        8000-RPT-GENERAL.
            MOVE ZERO TO WS-CTR-GEN-CLIENTES
@@ -1308,18 +1299,15 @@
                            MOVE ZERO TO HV-GEN-SALDO-HIPO
                        END-IF
 
-      *                Contar cliente solo cuando cambia el ID
                        IF HV-GEN-ID-CLI NOT = WS-ULTIMO-ID-CLI
                            ADD 1 TO WS-CTR-GEN-CLIENTES
                            MOVE HV-GEN-ID-CLI TO WS-ULTIMO-ID-CLI
                        END-IF
 
-      *                Contar tarjeta solo si tiene una asignada
                        IF HV-IND-NRO-TARJ >= 0
                            ADD 1 TO WS-CTR-GEN-TARJETAS
                        END-IF
 
-      *                Contar hipoteca solo si tiene una asignada
                        IF HV-IND-SALDO-HIPO >= 0
                            ADD 1 TO WS-CTR-GEN-HIPOTECAS
                        END-IF
@@ -1424,7 +1412,7 @@
       *  HV-TARJ-LIQUID           IN USE THROUGH TEMP VAR SQL-VAR-0010 DECIMAL(13,2)
       *  HV-TARJ-NOMBRE           IN USE CHAR(25)
       *  HV-TARJ-NRO              IN USE CHAR(16)
-      *  WS-ANIO-MES-LIKE         IN USE CHAR(10)
+      *  WS-ANIO-MES-LIKE         IN USE CHAR(9)
       *  WS-HOST-GENERAL      NOT IN USE
       *  WS-HOST-GENERAL.HV-GEN-ACUM-MES NOT IN USE
       *  WS-HOST-GENERAL.HV-GEN-APELLIDOS NOT IN USE
