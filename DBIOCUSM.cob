@@ -394,11 +394,6 @@
       *        SET DIRECCION_CLIENTE = :CUSM-DIRECCION,
       *            TELEF_CLIENTE = :CUSM-TELEFONO,
       *            EMAIL_CLIENTE = :CUSM-EMAIL
-      *             TARJETA = :CUSM-TARJETA,
-      *             CREDITO = :CUSM-CREDITO,
-      *             HIPOTECA = :CUSM-HIPOTECA,
-      *             CTA_ACTIVA = :CUSM-CTA-ACTIVA,
-      *             SALDO_CLIENTE = :CUSM-SALDO-CLIENTE
       *        WHERE DOC_CLIENTE = :CUSM-DOC-CLIENTE
       *    END-EXEC.
            IF SQL-PREP OF SQL-STMT-3 = 'N'
@@ -427,9 +422,15 @@
            CALL 'OCSQLEXE' USING SQL-STMT-3
                                SQLCA
                    .
+
            PERFORM 9000-EVALUAR-SQL.
-           IF LK-COD-RETORNO = 0
+           IF LK-COD-RETORNO = 0 AND SQLCODE = 0
                MOVE "CLIENTE ACTUALIZADO" TO LK-MENSAJE
+      *        EXEC SQL COMMIT END-EXEC
+           CALL 'OCSQLCMT' USING SQLCA END-CALL
+           ELSE
+      *        EXEC SQL ROLLBACK END-EXEC
+           CALL 'OCSQLRBK' USING SQLCA END-CALL
            END-IF.
 
        4000-BAJA-LOGICA-CLIENTE.
@@ -455,8 +456,13 @@
                                SQLCA
                    .
            PERFORM 9000-EVALUAR-SQL.
-           IF LK-COD-RETORNO = 0
+           IF LK-COD-RETORNO = 0 AND SQLCODE = 0
                MOVE "BAJA LOGICA REALIZADA (CTA_ACTIVA=0)" TO LK-MENSAJE
+      *        EXEC SQL COMMIT END-EXEC
+           CALL 'OCSQLCMT' USING SQLCA END-CALL
+           ELSE
+      *        EXEC SQL ROLLBACK END-EXEC
+           CALL 'OCSQLRBK' USING SQLCA END-CALL
            END-IF.
 
        9000-EVALUAR-SQL.

@@ -26,9 +26,28 @@
            05 WS-I                PIC 9(02).
            05 WS-DOC-LEN          PIC 9(02).
            05 WS-DOC-VALIDO       PIC X(01) VALUE 'N'.
+
+
+       01  WS-EMAIL-VAL.
+           05  WS-EMAIL-TEMP       PIC X(40).
+           05  WS-LOCAL-PART       PIC X(40).
+           05  WS-DOMAIN-PART      PIC X(40).
+           05  WS-AT-COUNT         PIC 9(02).
+           05  WS-DOT-COUNT        PIC 9(02).
+           05  WS-LEN              PIC 9(03).
+           05  WS-IND              PIC 9(03).
+           05  WS-EMAIL-VALIDO     PIC X(01).
+               88 EMAIL-OK         VALUE 'S'.
+               88 EMAIL-ERR        VALUE 'N'.
+
+      * BANDERAS DE REINTENTO
+       01  WS-VAL-CAMPOS.
+           05 WS-NOMBRE-OK        PIC X(01) VALUE 'N'.
+           05 WS-APELLIDO-OK      PIC X(01) VALUE 'N'.
+           05 WS-EMAIL-OK         PIC X(01) VALUE 'N'.
+
            COPY CUSMREC.
            COPY INVMREC.
-
        LINKAGE SECTION.
            COPY LKCIF.
 
@@ -82,26 +101,47 @@
            IF LK-COD-RETORNO = 0
                DISPLAY "ERROR: ESA CEDULA YA EXISTE EN EL SISTEMA."
            ELSE
-               DISPLAY "Nombre(s)    : "
-               ACCEPT CUSM-NOMBRE
-               IF CUSM-NOMBRE = SPACES
-                   DISPLAY "ERROR: El nombre no puede estar vacio."
-                   GO TO 2000-ALTA-CLIENTE
-               END-IF
+               MOVE 'N' TO WS-NOMBRE-OK
+               PERFORM UNTIL WS-NOMBRE-OK = 'S'
+                   DISPLAY "Nombre(s)    : "
+                   ACCEPT CUSM-NOMBRE
+                   IF CUSM-NOMBRE = SPACES
+                       DISPLAY "ERROR: El nombre no puede estar vacio."
+                   ELSE
+                       MOVE 'S' TO WS-NOMBRE-OK
+                   END-IF
+               END-PERFORM
 
-               DISPLAY "Apellido(s)  : "
-               ACCEPT CUSM-APELLIDOS
-               IF CUSM-APELLIDOS = SPACES
-                   DISPLAY "ERROR: El apellido no puede estar vacio."
-                   GO TO 2000-ALTA-CLIENTE
-               END-IF
+               MOVE 'N' TO WS-APELLIDO-OK
+               PERFORM UNTIL WS-APELLIDO-OK = 'S'
+                   DISPLAY "Apellido(s)  : "
+                   ACCEPT CUSM-APELLIDOS
+                   IF CUSM-APELLIDOS = SPACES
+                      DISPLAY "ERROR: El apellido no puede estar vacio."
+                   ELSE
+                       MOVE 'S' TO WS-APELLIDO-OK
+                   END-IF
+               END-PERFORM
 
                DISPLAY "Direccion    : "
                ACCEPT CUSM-DIRECCION
                DISPLAY "Telefono     : "
                ACCEPT CUSM-TELEFONO
                DISPLAY "E-mail       : "
-               ACCEPT CUSM-EMAIL
+
+               MOVE 'N' TO WS-EMAIL-OK
+               PERFORM UNTIL WS-EMAIL-OK = 'S'
+                   DISPLAY "E-mail       : "
+                   ACCEPT CUSM-EMAIL
+                   PERFORM 9200-VALIDAR-EMAIL
+                   IF EMAIL-ERR
+                       DISPLAY ">>> ERROR DE VALIDACION: " LK-MENSAJE
+                       DISPLAY "POR FAVOR REINGRESE EL CORREO."
+                   ELSE
+                       MOVE 'S' TO WS-EMAIL-OK
+                   END-IF
+               END-PERFORM
+
 
       *        Setear campos automaticos
                MOVE 1 TO CUSM-CTA-ACTIVA
@@ -249,6 +289,7 @@
               DISPLAY "ERROR: EL CLIENTE NO EXISTE EN LA BASE DE DATOS."
            END-IF.
 
+
        9100-VALIDAR-DOC-CAPTURA.
            MOVE 'N' TO WS-DOC-VALIDO.
 
@@ -285,3 +326,45 @@
                    DISPLAY "POR FAVOR, INTENTE DE NUEVO."
                END-IF
            END-PERFORM.
+
+       9200-VALIDAR-EMAIL.
+           SET EMAIL-OK TO TRUE
+           INITIALIZE WS-LOCAL-PART WS-DOMAIN-PART
+           MOVE 0 TO WS-AT-COUNT WS-DOT-COUNT WS-IND
+
+           MOVE CUSM-EMAIL TO WS-EMAIL-TEMP
+
+           *> 1. Buscar espacios en blanco (No permitidos en banca)
+           INSPECT WS-EMAIL-TEMP TALLYING WS-IND FOR ALL ' '
+           *> Calculamos longitud real restando espacios finales
+           COMPUTE WS-LEN = 40 - WS-IND
+
+           *> 2. Validar Arrobas (Debe haber exactamente una)
+           INSPECT WS-EMAIL-TEMP TALLYING WS-AT-COUNT FOR ALL '@'
+
+           IF WS-AT-COUNT NOT = 1
+               SET EMAIL-ERR TO TRUE
+               MOVE "EL EMAIL DEBE TENER EXACTAMENTE UNA @"
+               TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF
+
+           *> 3. Descomponer Email
+           UNSTRING WS-EMAIL-TEMP DELIMITED BY '@'
+               INTO WS-LOCAL-PART, WS-DOMAIN-PART
+           END-UNSTRING
+
+           *> 4. Validar que local y dominio no estén vacíos
+           IF WS-LOCAL-PART = SPACES OR WS-DOMAIN-PART = SPACES
+               SET EMAIL-ERR TO TRUE
+               MOVE "FORMATO DE EMAIL INCOMPLETO" TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF
+
+           *> 5. Validar puntos en el dominio (Debe tener al menos uno)
+           INSPECT WS-DOMAIN-PART TALLYING WS-DOT-COUNT FOR ALL '.'
+
+           IF WS-DOT-COUNT < 1
+               SET EMAIL-ERR TO TRUE
+               MOVE "DOMINIO SIN PUNTO (EJ. .COM, .EC)" TO LK-MENSAJE
+           END-IF.
