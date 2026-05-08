@@ -1,6 +1,16 @@
       *================================================================*
       * PROGRAMA : BAT000.sqb                                         *
       * FUNCION  : PROCESO BATCH DE CIERRE MENSUAL                    *
+      *            - SNAPSHOT EN AUDIT_MAESTRA  (clientes + ctactes)  *
+      *            - SNAPSHOT EN AUDIT_TARJETAS (1:N)                 *
+      *            - SNAPSHOT EN AUDIT_HIPOTECAS (1:N)                *
+      *            - PROCESAR MORA EN HIPOTECAS                       *
+      *            - DESCONTAR CUOTA DE CUENTA SI HAY FONDOS          *
+      *            - DAR DE BAJA TARJETAS VENCIDAS                    *
+      *            - RESET OPERATIVO DE TARJETAS                      *
+      *            - COMMIT global si todo OK / ROLLBACK si algo falla*
+      * LLAMADO  : BANCSMENU (OPCION 5)                               *
+      * PRECOMP  : esqlOC BAT000.sqb  ->  BAT000.cob                  *
       *================================================================*
        IDENTIFICATION DIVISION.
        PROGRAM-ID. BAT000.
@@ -61,6 +71,23 @@
            05 HV-HIPO-FECHA-VENC   PIC X(10).
            05 HV-HIPO-ESTADO       PIC X(20).
 
+      *    Variables host - PROCESAMIENTO DE MORA
+       01  WS-HOST-MORA.
+           05 HV-MORA-ID-HIPO      PIC 9(9).
+           05 HV-MORA-ID-CLI       PIC 9(8).
+           05 HV-MORA-SALDO-ACT    PIC S9(13)V99.
+           05 HV-MORA-MONTO-ORIG   PIC S9(13)V99.
+           05 HV-MORA-ESTADO       PIC X(20).
+           05 HV-MORA-MESES-TOT    PIC 9(4).
+           05 HV-MORA-MESES-TRANS  PIC 9(4).
+           05 HV-MORA-PAGO-MENS    PIC S9(13)V99.
+           05 HV-MORA-SALDO-ESP    PIC S9(13)V99.
+           05 HV-MORA-MESES-MORA   PIC 9(4).
+
+      *    Variables host para UPDATE de estado hipoteca y descuento
+           05 HV-MORA-NUEVO-ESTADO PIC X(20).
+           05 HV-MORA-CLI-SALDO    PIC S9(10)V99.
+
       *    Verificacion de periodo duplicado
        01  HV-COUNT-PERIODO        PIC 9(6).
 
@@ -114,6 +141,34 @@
                ORDER BY ID_CLIENTE, ID_HIPOTECA
            END-EXEC.
 
+      *    Cursor de mora: MySQL calcula todos los valores necesarios
+           EXEC SQL DECLARE CUR-MORA CURSOR FOR
+               SELECT H.ID_HIPOTECA,
+                      H.ID_CLIENTE,
+                      H.SALDO_ACTUAL,
+                      H.MONTO_ORIGINAL,
+                      H.ESTADO,
+                      TIMESTAMPDIFF(MONTH,
+                          H.FECHA_INICIO, H.FECHA_VENCTO),
+                      TIMESTAMPDIFF(MONTH,
+                          H.FECHA_INICIO, CURDATE()),
+                      (H.MONTO_ORIGINAL * H.TASA_INTERES) /
+                      TIMESTAMPDIFF(MONTH,
+                          H.FECHA_INICIO, H.FECHA_VENCTO),
+                      H.MONTO_ORIGINAL -
+                      ((H.MONTO_ORIGINAL * H.TASA_INTERES) /
+                      TIMESTAMPDIFF(MONTH,
+                          H.FECHA_INICIO, H.FECHA_VENCTO)) *
+                      TIMESTAMPDIFF(MONTH,
+                          H.FECHA_INICIO, CURDATE()),
+                      (SELECT COUNT(*) FROM AUDIT_HIPOTECAS A
+                       WHERE  A.ID_HIPOTECA = H.ID_HIPOTECA
+                       AND    A.ESTADO      = 'MOROSO')
+               FROM   HIPOTECAS H
+               WHERE  H.ESTADO IN ('ACTIVO', 'MOROSO')
+               ORDER BY H.ID_CLIENTE, H.ID_HIPOTECA
+           END-EXEC.
+
       *================================================================*
       *   WORKING STORAGE - CONTROL INTERNO                            *
       *================================================================*
@@ -130,17 +185,26 @@
            05 WS-FIN-MAESTRA       PIC X VALUE 'N'.
            05 WS-FIN-TARJETAS      PIC X VALUE 'N'.
            05 WS-FIN-HIPOTECAS     PIC X VALUE 'N'.
+           05 WS-FIN-MORA          PIC X VALUE 'N'.
 
        01  WS-CONTADORES.
            05 WS-CTR-CLIENTES      PIC 9(6) VALUE 0.
            05 WS-CTR-TARJETAS      PIC 9(6) VALUE 0.
            05 WS-CTR-HIPOTECAS     PIC 9(6) VALUE 0.
            05 WS-CTR-ERRORES       PIC 9(6) VALUE 0.
+           05 WS-CTR-MOROSAS       PIC 9(6) VALUE 0.
+           05 WS-CTR-CASTIGADAS    PIC 9(6) VALUE 0.
+           05 WS-CTR-TARJ-BAJA     PIC 9(6) VALUE 0.
 
-
+      *================================================================*
+      *   LINKAGE SECTION                                              *
+      *================================================================*
        LINKAGE SECTION.
            COPY LKCIF.
 
+      *================================================================*
+      *   PROCEDURE DIVISION                                           *
+      *================================================================*
        PROCEDURE DIVISION USING LK-DATOS-TRANSACCION.
 
        0000-PRINCIPAL.
@@ -161,6 +225,12 @@
                PERFORM 5000-SNAPSHOT-HIPOTECAS
            END-IF
            IF WS-ABORT = 'N'
+               PERFORM 5100-PROCESAR-MORA-HIPOTECAS
+           END-IF
+           IF WS-ABORT = 'N'
+               PERFORM 5200-BAJA-TARJETAS-VENCIDAS
+           END-IF
+           IF WS-ABORT = 'N'
                PERFORM 6000-RESET-OPERATIVO
            END-IF
            PERFORM 7000-FINALIZAR
@@ -168,7 +238,7 @@
            EXIT PROGRAM.
 
       *================================================================*
-      *   1000 - INICIALIZAR: AUTOCOMMIT, FECHA Y PERIODO             *
+      *   1000 - INICIALIZAR: FECHA Y PERIODO                         *
       *================================================================*
        1000-INICIALIZAR.
            MOVE FUNCTION CURRENT-DATE TO WS-FECHA-SISTEMA
@@ -191,6 +261,7 @@
            DISPLAY ' PERIODO : ' WS-PERIODO
            DISPLAY ' FECHA   : ' WS-FECHA-HOY
            DISPLAY '================================================'.
+
       *================================================================*
       *   2000 - VALIDAR QUE EL PERIODO NO EXISTA YA EN AUDITORIA     *
       *================================================================*
@@ -207,12 +278,13 @@
            PERFORM 9000-EVALUAR-SQL
 
            IF LK-COD-RETORNO = 99
-               DISPLAY 'ERROR AL VERIFICAR PERIODO. SQLCODE: ' SQLCODE
+               DISPLAY 'ERROR AL VERIFICAR PERIODO. SQLCODE: '
+                       SQLCODE
                MOVE 'S' TO WS-ABORT
            ELSE
                IF HV-COUNT-PERIODO > 0
                    DISPLAY 'ADVERTENCIA: PERIODO ' WS-PERIODO
-                           ' YA FUE PROCESADO ANTERIORMENTE.'
+                           ' YA FUE PROCESADO.'
                    MOVE 10 TO LK-COD-RETORNO
                    MOVE 'PERIODO YA PROCESADO. CIERRE CANCELADO.'
                        TO LK-MENSAJE
@@ -497,8 +569,211 @@
            END-IF.
 
       *================================================================*
+      *   5100 - PROCESAR MORA EN HIPOTECAS                           *
+      *                                                                *
+      *   LOGICA:                                                      *
+      *   MySQL calcula via TIMESTAMPDIFF:                             *
+      *   - MESES_TOTALES    = FECHA_VENCTO - FECHA_INICIO            *
+      *   - MESES_TRANS      = HOY - FECHA_INICIO                     *
+      *   - PAGO_MENSUAL     = (MONTO * TASA) / MESES_TOTALES         *
+      *   - SALDO_ESPERADO   = MONTO - (PAGO_MENS * MESES_TRANS)      *
+      *   - MESES_MORA       = COUNT en AUDIT_HIPOTECAS ESTADO=MOROSO  *
+      *                                                                *
+      *   COBOL evalua:                                                *
+      *   SI SALDO_ACTUAL > SALDO_ESPERADO                            *
+      *     SI MESES_MORA >= 3 -> CASTIGADO                           *
+      *     SI MESES_MORA  < 3 -> MOROSO                              *
+      *     Descontar PAGO_MENSUAL de SALDO_CLIENTE si hay fondos     *
+      *   SINO                                                         *
+      *     ACTIVO (pagó correctamente)                               *
+      *================================================================*
+       5100-PROCESAR-MORA-HIPOTECAS.
+           DISPLAY '>>> PROCESANDO MORA EN HIPOTECAS...'
+
+           EXEC SQL OPEN CUR-MORA END-EXEC
+
+           IF SQLCODE NOT = 0
+               DISPLAY 'ERROR ABRIENDO CUR-MORA: ' SQLCODE
+               MOVE 99 TO LK-COD-RETORNO
+               MOVE 'ERROR CRITICO ABRIENDO CURSOR MORA'
+                   TO LK-MENSAJE
+               MOVE 'S' TO WS-ABORT
+               EXIT PARAGRAPH
+           END-IF
+
+           MOVE 'N' TO WS-FIN-MORA
+
+           PERFORM UNTIL WS-FIN-MORA = 'S'
+
+               EXEC SQL
+                   FETCH CUR-MORA INTO
+                       :HV-MORA-ID-HIPO,
+                       :HV-MORA-ID-CLI,
+                       :HV-MORA-SALDO-ACT,
+                       :HV-MORA-MONTO-ORIG,
+                       :HV-MORA-ESTADO,
+                       :HV-MORA-MESES-TOT,
+                       :HV-MORA-MESES-TRANS,
+                       :HV-MORA-PAGO-MENS,
+                       :HV-MORA-SALDO-ESP,
+                       :HV-MORA-MESES-MORA
+               END-EXEC
+
+               EVALUATE SQLCODE
+                   WHEN 0
+      *                Verificar si el saldo actual es mayor al esperado
+                       IF HV-MORA-SALDO-ACT > HV-MORA-SALDO-ESP
+
+      *                    Determinar nuevo estado segun meses en mora
+                           IF HV-MORA-MESES-MORA >= 3
+                               MOVE 'CASTIGADO' TO HV-MORA-NUEVO-ESTADO
+                               ADD 1 TO WS-CTR-CASTIGADAS
+                               DISPLAY ' HIPOTECA CASTIGADA: '
+                                       HV-MORA-ID-HIPO
+                                       ' CLIENTE: '
+                                       HV-MORA-ID-CLI
+                           ELSE
+                               MOVE 'MOROSO' TO HV-MORA-NUEVO-ESTADO
+                               ADD 1 TO WS-CTR-MOROSAS
+                               DISPLAY ' HIPOTECA MOROSA: '
+                                       HV-MORA-ID-HIPO
+                                       ' CLIENTE: '
+                                       HV-MORA-ID-CLI
+                           END-IF
+
+      *                    Actualizar estado de la hipoteca
+                           EXEC SQL
+                               UPDATE HIPOTECAS
+                               SET    ESTADO = :HV-MORA-NUEVO-ESTADO
+                               WHERE  ID_HIPOTECA = :HV-MORA-ID-HIPO
+                           END-EXEC
+
+                           IF SQLCODE NOT = 0
+                               DISPLAY 'ERROR UPDATE ESTADO HIPOTECA: '
+                                       HV-MORA-ID-HIPO
+                                       ' SQLCODE: ' SQLCODE
+                               ADD 1 TO WS-CTR-ERRORES
+                               MOVE 'S' TO WS-ABORT
+                               MOVE 'S' TO WS-FIN-MORA
+                           END-IF
+
+      *                    Consultar saldo actual del cliente
+                           EXEC SQL
+                               SELECT SALDO_CLIENTE
+                               INTO   :HV-MORA-CLI-SALDO
+                               FROM   clientes
+                               WHERE  ID_CLIENTE = :HV-MORA-ID-CLI
+                           END-EXEC
+
+                           IF SQLCODE = 0
+      *                        Si el cliente tiene fondos descontar
+                               IF HV-MORA-CLI-SALDO >=
+                                  HV-MORA-PAGO-MENS
+                                   EXEC SQL
+                                       UPDATE clientes
+                                       SET    SALDO_CLIENTE =
+                                              SALDO_CLIENTE -
+                                              :HV-MORA-PAGO-MENS
+                                       WHERE  ID_CLIENTE =
+                                              :HV-MORA-ID-CLI
+                                   END-EXEC
+                                   IF SQLCODE NOT = 0
+                                       DISPLAY 'ERROR DESCUENTO CLI: '
+                                               HV-MORA-ID-CLI
+                                               ' SQLCODE: ' SQLCODE
+                                       ADD 1 TO WS-CTR-ERRORES
+                                       MOVE 'S' TO WS-ABORT
+                                       MOVE 'S' TO WS-FIN-MORA
+                                   ELSE
+                                       DISPLAY ' DESCUENTO APLICADO'
+                                               ' CLI: '
+                                               HV-MORA-ID-CLI
+                                               ' MONTO: '
+                                               HV-MORA-PAGO-MENS
+                                   END-IF
+                               ELSE
+                                   DISPLAY ' SIN FONDOS CLI: '
+                                           HV-MORA-ID-CLI
+                                           ' SALDO: '
+                                           HV-MORA-CLI-SALDO
+                               END-IF
+                           ELSE
+                               DISPLAY 'ERROR CONSULTA SALDO CLI: '
+                                       HV-MORA-ID-CLI
+                                       ' SQLCODE: ' SQLCODE
+                               ADD 1 TO WS-CTR-ERRORES
+                           END-IF
+
+                       ELSE
+      *                    Saldo correcto, hipoteca activa
+                           IF HV-MORA-ESTADO NOT = 'ACTIVO'
+                               EXEC SQL
+                                   UPDATE HIPOTECAS
+                                   SET    ESTADO = 'ACTIVO'
+                                   WHERE  ID_HIPOTECA =
+                                          :HV-MORA-ID-HIPO
+                               END-EXEC
+                           END-IF
+                       END-IF
+
+                   WHEN 100
+                       MOVE 'S' TO WS-FIN-MORA
+
+                   WHEN OTHER
+                       DISPLAY 'ERROR FETCH CUR-MORA: ' SQLCODE
+                       ADD 1   TO WS-CTR-ERRORES
+                       MOVE 'S' TO WS-ABORT
+                       MOVE 'S' TO WS-FIN-MORA
+               END-EVALUATE
+
+           END-PERFORM
+
+           EXEC SQL CLOSE CUR-MORA END-EXEC
+
+           IF WS-ABORT = 'N'
+               DISPLAY ' HIPOTECAS MOROSAS   : ' WS-CTR-MOROSAS
+               DISPLAY ' HIPOTECAS CASTIGADAS: ' WS-CTR-CASTIGADAS
+           ELSE
+               MOVE 99 TO LK-COD-RETORNO
+               MOVE 'ERROR EN PROC. MORA - SE HARA ROLLBACK'
+                   TO LK-MENSAJE
+           END-IF.
+
+      *================================================================*
+      *   5200 - DAR DE BAJA TARJETAS VENCIDAS                        *
+      *                                                                *
+      *   LOGICA:                                                      *
+      *   Si FECHA_VENCIMIENTO < CURDATE() y ESTADO = 'A'             *
+      *   → poner ESTADO = 'I' (Inactiva)                             *
+      *   Un solo UPDATE, sin cursor necesario                         *
+      *================================================================*
+       5200-BAJA-TARJETAS-VENCIDAS.
+           DISPLAY '>>> BAJA DE TARJETAS VENCIDAS...'
+
+           EXEC SQL
+               UPDATE TARJETAS
+               SET    ESTADO = 'I'
+               WHERE  FECHA_VENCIMIENTO < CURDATE()
+               AND    ESTADO = 'A'
+           END-EXEC
+
+           IF SQLCODE = 0
+               MOVE SQLERRD(3)       TO WS-CTR-TARJ-BAJA
+               DISPLAY ' TARJETAS DADAS DE BAJA: '
+                       WS-CTR-TARJ-BAJA
+           ELSE
+               DISPLAY 'ERROR EN BAJA TARJETAS: ' SQLCODE
+               MOVE 99 TO LK-COD-RETORNO
+               MOVE 'ERROR EN BAJA TARJETAS - SE HARA ROLLBACK'
+                   TO LK-MENSAJE
+               MOVE 'S' TO WS-ABORT
+               ADD 1 TO WS-CTR-ERRORES
+           END-IF.
+
+      *================================================================*
       *   6000 - RESET OPERATIVO: CIERRE DE TARJETAS                  *
       *   Mueve ACUM_MES a LIQUIDACION_MES y resetea ACUM_MES a 0    *
+      *   Solo aplica a tarjetas ACTIVAS (ESTADO = 'A')               *
       *================================================================*
        6000-RESET-OPERATIVO.
            DISPLAY '>>> RESET OPERATIVO TARJETAS...'
@@ -507,6 +782,7 @@
                UPDATE TARJETAS
                SET    LIQUIDACION_MES = ACUM_MES,
                       ACUM_MES        = 0
+               WHERE  ESTADO = 'A'
            END-EXEC
 
            IF SQLCODE = 0
@@ -529,6 +805,9 @@
            DISPLAY ' CLIENTES  PROCESADOS : ' WS-CTR-CLIENTES
            DISPLAY ' TARJETAS  PROCESADAS : ' WS-CTR-TARJETAS
            DISPLAY ' HIPOTECAS PROCESADAS : ' WS-CTR-HIPOTECAS
+           DISPLAY ' HIPOTECAS MOROSAS    : ' WS-CTR-MOROSAS
+           DISPLAY ' HIPOTECAS CASTIGADAS : ' WS-CTR-CASTIGADAS
+           DISPLAY ' TARJETAS DADAS BAJA  : ' WS-CTR-TARJ-BAJA
            DISPLAY ' ERRORES   DETECTADOS : ' WS-CTR-ERRORES
            DISPLAY '================================================'
 
