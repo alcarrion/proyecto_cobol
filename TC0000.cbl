@@ -3,9 +3,9 @@
       *================================================================*
       * PROGRAMA: MAINLINE TARJETAS DE CREDITO                         *
       * FUNCION:  Gestiona Emision, Consulta, Cargos, Pagos y Bajas.   *
-      * REGLA:    El cliente debe existir en CLIENTES y estar Activo.   *
-      * REGLA:    La tarjeta debe estar Activa para operar.             *
-      * PK TABLA: (ID_CLIENTE, NRO_TARJETA)                            *
+      * REGLA:    Cliente debe existir y estar activo.                  *
+      * REGLA:    Tarjeta debe estar activa para operar.                *
+      * REGLA:    Un cliente solo puede tener una tarjeta de credito.   *
       *================================================================*
 
        ENVIRONMENT DIVISION.
@@ -16,33 +16,41 @@
        01  WS-CONTINUAR-TARJ    PIC X(01) VALUE 'S'.
        01  WS-ENTRADA-MONTO     PIC X(13).
        01  WS-CONFIRMA          PIC X(01).
-      * COPY de la tabla maestra de Tarjetas (TARJETAS)
-           COPY TARJREC.
 
-      * COPY de la tabla maestra de Clientes (CUSM) - Validacion
+           COPY TARJREC.
            COPY CUSMREC.
 
-      * Variables de trabajo para operaciones
        01  WS-CALCULOS-TC.
-           05 WS-MONTO-TX      PIC S9(10)V99 VALUE ZERO.
-           05 WS-DISPONIBLE    PIC S9(10)V99 VALUE ZERO.
-           05 WS-DEUDA-TOTAL   PIC S9(10)V99 VALUE ZERO.
+           05 WS-MONTO-TX        PIC S9(10)V99 VALUE ZERO.
+           05 WS-DISPONIBLE      PIC S9(10)V99 VALUE ZERO.
+           05 WS-DEUDA-TOTAL     PIC S9(10)V99 VALUE ZERO.
+           05 WS-TASA-MENSUAL    PIC S9(03)V9999 VALUE ZERO.
+           05 WS-INTERES         PIC S9(10)V99 VALUE ZERO.
+           05 WS-TASA-ANUAL      PIC S9(05)V99 VALUE 35.
 
        01  WS-PROGRAMAS.
            05 WS-PGM-DBIOCUSM    PIC X(8) VALUE 'DBIOCUSM'.
            05 WS-PGM-DBIOTARJ    PIC X(8) VALUE 'DBIOTARJ'.
-           05 WS-PGM-TRAN        PIC X(08) VALUE 'DBIOTRAN'.
+           05 WS-PGM-TRAN        PIC X(8) VALUE 'DBIOTRAN'.
 
        01  WS-FECHA-SISTEMA.
-           05 WS-ANIO           PIC 9(04).
-           05 WS-MES            PIC 9(02).
-           05 WS-DIA            PIC 9(02).
+           05 WS-ANIO            PIC 9(04).
+           05 WS-MES             PIC 9(02).
+           05 WS-DIA             PIC 9(02).
 
-       01  WS-ANIO-VENC         PIC 9(04).
+       01  WS-ANIO-VENC          PIC 9(04).
 
        01  WS-AUX-GEN.
-           05 WS-SEMILLA        PIC 9(08).
-           05 WS-RANDOM         PIC 9(04).
+           05 WS-SEMILLA         PIC 9(08).
+           05 WS-RANDOM          PIC 9(04).
+
+       01  WS-FECHA-VENC-NUM.
+           05 WS-VENC-ANIO       PIC 9(04).
+           05 WS-VENC-MES        PIC 9(02).
+           05 WS-VENC-DIA        PIC 9(02).
+
+       01  WS-FECHA-HOY          PIC 9(08).
+       01  WS-FECHA-VENC-8       PIC 9(08).
 
        LINKAGE SECTION.
            COPY LKCIF.
@@ -51,24 +59,24 @@
 
        0000-PRINCIPAL.
            PERFORM 1000-PROCESAR-OPCIONES
-                   UNTIL WS-CONTINUAR-TARJ = 'N' OR 'n'.
+               UNTIL WS-CONTINUAR-TARJ = 'N' OR 'n'
            GOBACK.
 
        1000-PROCESAR-OPCIONES.
            DISPLAY "========================================".
-           DISPLAY "     MODULO TARJETAS DE CREDITO (TC)    ".
+           DISPLAY "   MODULO TARJETAS DE CREDITO           ".
            DISPLAY "========================================".
-           DISPLAY "1. Emision de Tarjeta".
-           DISPLAY "2. Consulta de Tarjeta".
-           DISPLAY "3. Cargo a Tarjeta (Consumo)".
-           DISPLAY "4. Pago de Tarjeta".
-           DISPLAY "5. Consulta de Deuda".
-           DISPLAY "6. Bloqueo de Tarjeta".
-           DISPLAY "7. Baja (Cancelacion) de Tarjeta".
+           DISPLAY "1. Emitir Nueva Tarjeta".
+           DISPLAY "2. Consultar Tarjeta".
+           DISPLAY "3. Registrar Consumo".
+           DISPLAY "4. Realizar Pago".
+           DISPLAY "5. Consultar Estado de Deuda".
+           DISPLAY "6. Bloquear/Activar Tarjeta".
+           DISPLAY "7. Cancelar Tarjeta".
            DISPLAY "0. Volver al Menu Principal".
            DISPLAY "========================================".
-           DISPLAY "Seleccione operacion: ".
-           ACCEPT WS-OPCION-TARJ.
+           DISPLAY "Seleccione operacion: "
+           ACCEPT WS-OPCION-TARJ
 
            EVALUATE WS-OPCION-TARJ
                WHEN 1
@@ -88,237 +96,451 @@
                WHEN 0
                    MOVE 'N' TO WS-CONTINUAR-TARJ
                WHEN OTHER
-                   DISPLAY "Opcion invalida."
+                   DISPLAY "Opcion invalida. Intente de nuevo."
            END-EVALUATE.
 
        2000-EMISION-TARJETA.
            DISPLAY "--- EMISION DE NUEVA TARJETA ---".
-           PERFORM 9000-BUSCAR-CLIENTE.
-      *    Validar que el cliente exista y este activo
-           IF LK-COD-RETORNO = 0
-      * Regla de Negocio: 1 Tarjeta por cliente
-               IF CUSM-TARJETA = 1
-                   DISPLAY "ERROR: EL CLIENTE YA POSEE UNA TARJETA."
+           PERFORM 9000-BUSCAR-CLIENTE
+
+           IF LK-COD-RETORNO NOT = 0
+               DISPLAY "ERROR: " LK-MENSAJE
+           ELSE
+               IF CUSM-CTA-ACTIVA = 0
+                   DISPLAY "ERROR: CLIENTE INACTIVO."
+                   DISPLAY "NO SE PUEDE EMITIR TARJETA."
                ELSE
-                   INITIALIZE REG-TARJ
-      * LOGICA DE GENERACION: Prefijo '4555' + ID_CLIENTE + Random
-                   MOVE CUSM-ID-CLIENTE TO TARJ-ID-CLIENTE
-
-                   PERFORM 9200-GENERAR-NUMERO-TARJETA
-
-                   ACCEPT WS-FECHA-SISTEMA FROM DATE YYYYMMDD
-
-                   STRING WS-ANIO "-" WS-MES "-" WS-DIA
-                          DELIMITED BY SIZE INTO TARJ-FECHA-EMISION
-
-                   ADD 4 TO WS-ANIO GIVING WS-ANIO-VENC
-                   STRING WS-ANIO-VENC "-" WS-MES "-" WS-DIA
-                          DELIMITED BY SIZE INTO TARJ-FECHA-VENCIM
-
-                   DISPLAY "TARJETA GENERADA: " TARJ-NRO-TARJETA
-                   DISPLAY "EMISION: " TARJ-FECHA-EMISION
-                   DISPLAY "VENCE  : " TARJ-FECHA-VENCIM
-
-                   DISPLAY "LIMITE DE CREDITO: "
-                   ACCEPT WS-ENTRADA-MONTO
-                   MOVE FUNCTION NUMVAL(WS-ENTRADA-MONTO)
-                   TO TARJ-LIMITE-TARJETA
-
-                   MOVE 'A'          TO TARJ-ESTADO
-                   MOVE ZERO         TO TARJ-ACUM-MES
-                   MOVE ZERO         TO TARJ-LIQUIDACION-MES
-
-      * PASO 1: Emitir Tarjeta
-                   MOVE 'A' TO LK-ACCION-DB
-                   CALL WS-PGM-DBIOTARJ USING REG-TARJ,
-                   LK-DATOS-TRANSACCION
-
-                   IF LK-COD-RETORNO = 0
-      * PASO 2: Actualizar Flag en Maestro de Clientes
-                       MOVE 1 TO CUSM-TARJETA
-                       MOVE 'M' TO LK-ACCION-DB
-                       CALL WS-PGM-DBIOCUSM USING REG-CUSM,
-                       LK-DATOS-TRANSACCION
-
-                       CALL WS-PGM-TRAN USING 'C'
-                       DISPLAY "TARJETA EMITIDA CON EXITO."
+                   IF CUSM-TARJETA = 1
+                       DISPLAY "ERROR: CLIENTE YA TIENE TARJETA."
+                       DISPLAY "NO SE PUEDE EMITIR OTRA TARJETA."
                    ELSE
-                       CALL WS-PGM-TRAN USING 'R'
-                       DISPLAY "ERROR EN EMISION: " LK-MENSAJE
+                       INITIALIZE REG-TARJ
+                       MOVE CUSM-ID-CLIENTE TO TARJ-ID-CLIENTE
+
+                       PERFORM 9200-GENERAR-NUMERO-TARJETA
+
+                       ACCEPT WS-FECHA-SISTEMA FROM DATE YYYYMMDD
+                       STRING WS-ANIO "-" WS-MES "-" WS-DIA
+                           DELIMITED BY SIZE
+                           INTO TARJ-FECHA-EMISION
+                       END-STRING
+
+                       ADD 4 TO WS-ANIO GIVING WS-ANIO-VENC
+
+                       STRING WS-ANIO-VENC "-" WS-MES "-" WS-DIA
+                           DELIMITED BY SIZE
+                           INTO TARJ-FECHA-VENCIM
+                       END-STRING
+
+                       DISPLAY "TARJETA : " TARJ-NRO-TARJETA
+                       DISPLAY "EMISION : " TARJ-FECHA-EMISION
+                       DISPLAY "VENCE   : " TARJ-FECHA-VENCIM
+                       DISPLAY "LIMITE DE CREDITO ($): "
+                       ACCEPT WS-ENTRADA-MONTO
+
+                       MOVE FUNCTION NUMVAL(WS-ENTRADA-MONTO)
+                           TO TARJ-LIMITE-TARJETA
+
+                       IF TARJ-LIMITE-TARJETA <= 0
+                           DISPLAY "ERROR: LIMITE DEBE SER > 0."
+                       ELSE
+                           MOVE 'A'  TO TARJ-ESTADO
+                           MOVE ZERO TO TARJ-ACUM-MES
+                           MOVE ZERO TO TARJ-LIQUIDACION-MES
+
+                           MOVE 'A' TO LK-ACCION-DB
+                           CALL WS-PGM-DBIOTARJ
+                               USING REG-TARJ,
+                                     LK-DATOS-TRANSACCION
+
+                           IF LK-COD-RETORNO = 0
+                               CALL WS-PGM-TRAN USING 'C'
+                               DISPLAY "TARJETA EMITIDA CON EXITO."
+                               DISPLAY "NRO: " TARJ-NRO-TARJETA
+                           ELSE
+                               CALL WS-PGM-TRAN USING 'R'
+                               DISPLAY "ERROR: " LK-MENSAJE
+                           END-IF
+                       END-IF
                    END-IF
                END-IF
-           ELSE
-               DISPLAY "ERROR: " LK-MENSAJE
            END-IF.
 
        3000-CONSULTA-TARJETA.
+           DISPLAY "--- CONSULTA DE TARJETA ---".
+           PERFORM 9100-BUSCAR-TARJETA
 
-
-           PERFORM 9100-BUSCAR-TARJETA.
-           IF LK-COD-RETORNO = 0
-               DISPLAY "--------------------------------------"
-               DISPLAY "TARJETA: " TARJ-NRO-TARJETA
-               DISPLAY "ID-Cliente: " TARJ-ID-CLIENTE
-               DISPLAY "ESTADO: " TARJ-ESTADO
-               DISPLAY "LIMITE : " TARJ-LIMITE-TARJETA
-               DISPLAY "DEUDA ACUMULADA: " TARJ-ACUM-MES
+           IF LK-COD-RETORNO NOT = 0
+               DISPLAY "ERROR: " LK-MENSAJE
+           ELSE
                COMPUTE WS-DISPONIBLE =
-               TARJ-LIMITE-TARJETA - TARJ-ACUM-MES
+                   TARJ-LIMITE-TARJETA - TARJ-ACUM-MES
+
+               DISPLAY "========================================"
+               DISPLAY "TITULAR   : " CUSM-NOMBRE
+               DISPLAY "APELLIDO  : " CUSM-APELLIDOS
+               DISPLAY "TARJETA   : " TARJ-NRO-TARJETA
+               DISPLAY "ESTADO    : " TARJ-ESTADO
+               DISPLAY "EMISION   : " TARJ-FECHA-EMISION
+               DISPLAY "VENCE     : " TARJ-FECHA-VENCIM
+               DISPLAY "LIMITE    : " TARJ-LIMITE-TARJETA
                DISPLAY "DISPONIBLE: " WS-DISPONIBLE
-               DISPLAY "--------------------------------------"
+               DISPLAY "========================================"
            END-IF.
 
        4000-CARGO-TARJETA.
-           DISPLAY "--- CARGO A TARJETA (CONSUMO) ---".
-           PERFORM 9100-BUSCAR-TARJETA.
+           DISPLAY "--- REGISTRAR CONSUMO ---".
+           PERFORM 9100-BUSCAR-TARJETA
 
-           IF LK-COD-RETORNO = 0 AND TARJ-ESTADO = 'A'
-               DISPLAY "MONTO DEL CONSUMO: "
-               ACCEPT WS-ENTRADA-MONTO
-               MOVE FUNCTION NUMVAL(WS-ENTRADA-MONTO)
-               TO TARJ-IMPORTE-MOV
-
-               IF TARJ-IMPORTE-MOV >
-                   (TARJ-LIMITE-TARJETA - TARJ-ACUM-MES)
-                   DISPLAY "ERROR: EXCEDE LIMITE DE CREDITO."
+           IF LK-COD-RETORNO NOT = 0
+               DISPLAY "ERROR: " LK-MENSAJE
+           ELSE
+               IF CUSM-CTA-ACTIVA = 0
+                   DISPLAY "ERROR: CLIENTE INACTIVO."
                ELSE
-                   ADD TARJ-IMPORTE-MOV TO TARJ-ACUM-MES
-                   MOVE 'M' TO LK-ACCION-DB
-                   CALL WS-PGM-DBIOTARJ
-                   USING REG-TARJ, LK-DATOS-TRANSACCION
-
-                   IF LK-COD-RETORNO = 0
-                       CALL WS-PGM-TRAN USING 'C'
-                       DISPLAY "CONSUMO REGISTRADO."
+                   IF TARJ-ESTADO NOT = 'A'
+                       DISPLAY "ERROR: TARJETA NO ACTIVA."
+                       DISPLAY "ESTADO: " TARJ-ESTADO
                    ELSE
-                       CALL WS-PGM-TRAN USING 'R'
+                       COMPUTE WS-DISPONIBLE =
+                           TARJ-LIMITE-TARJETA - TARJ-ACUM-MES
+
+                       DISPLAY "DISPONIBLE ($): "
+                       DISPLAY WS-DISPONIBLE
+                       DISPLAY "MONTO CONSUMO ($): "
+                       ACCEPT WS-ENTRADA-MONTO
+
+                       MOVE FUNCTION NUMVAL(WS-ENTRADA-MONTO)
+                           TO TARJ-IMPORTE-MOV
+
+                       IF TARJ-IMPORTE-MOV <= 0
+                           DISPLAY "ERROR: MONTO DEBE SER > 0."
+                       ELSE
+                           IF TARJ-IMPORTE-MOV > WS-DISPONIBLE
+                               DISPLAY "ERROR: EXCEDE LIMITE."
+                               DISPLAY "DISPONIBLE: "
+                               DISPLAY WS-DISPONIBLE
+                           ELSE
+                               ADD TARJ-IMPORTE-MOV TO TARJ-ACUM-MES
+
+                               MOVE 'M' TO LK-ACCION-DB
+                               CALL WS-PGM-DBIOTARJ
+                                   USING REG-TARJ,
+                                         LK-DATOS-TRANSACCION
+
+                               IF LK-COD-RETORNO = 0
+                                   CALL WS-PGM-TRAN USING 'C'
+                                   DISPLAY "CONSUMO REGISTRADO."
+
+                                   COMPUTE WS-DISPONIBLE =
+                                       TARJ-LIMITE-TARJETA -
+                                       TARJ-ACUM-MES
+
+                                   DISPLAY "NUEVO DISPONIBLE: "
+                                   DISPLAY WS-DISPONIBLE
+                               ELSE
+                                   CALL WS-PGM-TRAN USING 'R'
+                                   DISPLAY "ERROR: " LK-MENSAJE
+                               END-IF
+                           END-IF
+                       END-IF
                    END-IF
                END-IF
            END-IF.
 
        5000-PAGO-TARJETA.
            DISPLAY "--- PAGO DE TARJETA ---".
-           PERFORM 9100-BUSCAR-TARJETA.
+           PERFORM 9100-BUSCAR-TARJETA
 
-           IF LK-COD-RETORNO = 0
+           IF LK-COD-RETORNO NOT = 0
+               DISPLAY "ERROR: " LK-MENSAJE
+           ELSE
                IF TARJ-ESTADO = 'I'
-                   DISPLAY "ERROR: LA TARJETA ESTA CANCELADA."
+                   DISPLAY "ERROR: TARJETA CANCELADA."
                ELSE
-                   COMPUTE WS-DEUDA-TOTAL = TARJ-ACUM-MES +
-                                            TARJ-LIQUIDACION-MES
-                   DISPLAY "DEUDA TOTAL A LA FECHA: " WS-DEUDA-TOTAL
-                   DISPLAY "INGRESE MONTO DEL PAGO: "
-                   ACCEPT WS-ENTRADA-MONTO
-                   MOVE FUNCTION NUMVAL(WS-ENTRADA-MONTO) TO WS-MONTO-TX
+                   COMPUTE WS-DEUDA-TOTAL =
+                       TARJ-ACUM-MES + TARJ-LIQUIDACION-MES
 
-      * Lógica: El pago cubre primero la liquidación del mes anterior
-                   IF WS-MONTO-TX > TARJ-LIQUIDACION-MES
-                       SUBTRACT TARJ-LIQUIDACION-MES FROM WS-MONTO-TX
-                       MOVE ZERO TO TARJ-LIQUIDACION-MES
-                       SUBTRACT WS-MONTO-TX FROM TARJ-ACUM-MES
+                   IF WS-DEUDA-TOTAL <= 0
+                       DISPLAY "NO TIENE DEUDA PENDIENTE."
                    ELSE
-                       SUBTRACT WS-MONTO-TX FROM TARJ-LIQUIDACION-MES
-                   END-IF
+                       DISPLAY "==============================="
+                       DISPLAY "CONSUMOS MES ACTUAL : "
+                       DISPLAY TARJ-ACUM-MES
+                       DISPLAY "DEUDA MES ANTERIOR  : "
+                       DISPLAY TARJ-LIQUIDACION-MES
+                       DISPLAY "TOTAL A PAGAR       : "
+                       DISPLAY WS-DEUDA-TOTAL
+                       DISPLAY "==============================="
+                       DISPLAY "MONTO DEL PAGO ($): "
+                       ACCEPT WS-ENTRADA-MONTO
 
-                   MOVE 'M' TO LK-ACCION-DB
-                   CALL WS-PGM-DBIOTARJ USING REG-TARJ,
-                   LK-DATOS-TRANSACCION
-                   IF LK-COD-RETORNO = 0
-                       CALL WS-PGM-TRAN USING 'C'
-                       DISPLAY "PAGO PROCESADO EXITOSAMENTE."
+                       MOVE FUNCTION NUMVAL(WS-ENTRADA-MONTO)
+                           TO WS-MONTO-TX
+
+                       IF WS-MONTO-TX <= 0
+                           DISPLAY "ERROR: MONTO DEBE SER > 0."
+                       ELSE
+                           IF WS-MONTO-TX > WS-DEUDA-TOTAL
+                               DISPLAY "ERROR: PAGO EXCEDE DEUDA."
+                               DISPLAY "DEUDA TOTAL: "
+                               DISPLAY WS-DEUDA-TOTAL
+                           ELSE
+                               IF WS-MONTO-TX >= TARJ-LIQUIDACION-MES
+                                   SUBTRACT TARJ-LIQUIDACION-MES
+                                       FROM WS-MONTO-TX
+                                   MOVE ZERO TO TARJ-LIQUIDACION-MES
+                                   SUBTRACT WS-MONTO-TX
+                                       FROM TARJ-ACUM-MES
+                               ELSE
+                                   SUBTRACT WS-MONTO-TX
+                                       FROM TARJ-LIQUIDACION-MES
+                               END-IF
+
+                               MOVE 'M' TO LK-ACCION-DB
+                               CALL WS-PGM-DBIOTARJ
+                                   USING REG-TARJ,
+                                         LK-DATOS-TRANSACCION
+
+                               IF LK-COD-RETORNO = 0
+                                   CALL WS-PGM-TRAN USING 'C'
+                                   DISPLAY "PAGO PROCESADO."
+
+                                   COMPUTE WS-DEUDA-TOTAL =
+                                       TARJ-ACUM-MES +
+                                       TARJ-LIQUIDACION-MES
+
+                                   DISPLAY "DEUDA RESTANTE: "
+                                   DISPLAY WS-DEUDA-TOTAL
+                               ELSE
+                                   CALL WS-PGM-TRAN USING 'R'
+                                   DISPLAY "ERROR: " LK-MENSAJE
+                               END-IF
+                           END-IF
+                       END-IF
                    END-IF
                END-IF
            END-IF.
 
        6000-CONSULTA-DEUDA.
            DISPLAY "--- ESTADO DE DEUDA ---".
-           PERFORM 9100-BUSCAR-TARJETA.
-           IF LK-COD-RETORNO = 0
-               COMPUTE WS-DEUDA-TOTAL = TARJ-ACUM-MES +
-                                        TARJ-LIQUIDACION-MES
-               COMPUTE WS-DISPONIBLE  = TARJ-LIMITE-TARJETA -
-                                        TARJ-ACUM-MES
-               DISPLAY "========================================"
-               DISPLAY "TARJETA: " TARJ-NRO-TARJETA
-               DISPLAY "DEUDA MES ACTUAL    : " TARJ-ACUM-MES
-               DISPLAY "DEUDA MES ANTERIOR  : " TARJ-LIQUIDACION-MES
-               DISPLAY "----------------------------------------"
-               DISPLAY "TOTAL A PAGAR       : " WS-DEUDA-TOTAL
-               DISPLAY "CREDITO DISPONIBLE  : " WS-DISPONIBLE
-               DISPLAY "========================================"
+           PERFORM 9100-BUSCAR-TARJETA
+
+           IF LK-COD-RETORNO NOT = 0
+               DISPLAY "ERROR: " LK-MENSAJE
+           ELSE
+               COMPUTE WS-DEUDA-TOTAL =
+                   TARJ-ACUM-MES + TARJ-LIQUIDACION-MES
+
+               COMPUTE WS-DISPONIBLE =
+                   TARJ-LIMITE-TARJETA - TARJ-ACUM-MES
+
+               COMPUTE WS-TASA-MENSUAL =
+                   WS-TASA-ANUAL / 12 / 100
+
+               COMPUTE WS-INTERES =
+                   TARJ-LIQUIDACION-MES * WS-TASA-MENSUAL
+
+               DISPLAY "==============================="
+               DISPLAY "TITULAR    : " CUSM-NOMBRE
+               DISPLAY "TARJETA    : " TARJ-NRO-TARJETA
+               DISPLAY "ESTADO     : " TARJ-ESTADO
+               DISPLAY "-------------------------------"
+               DISPLAY "CONSUMOS MES ACTUAL : "
+               DISPLAY TARJ-ACUM-MES
+               DISPLAY "DEUDA MES ANTERIOR  : "
+               DISPLAY TARJ-LIQUIDACION-MES
+               DISPLAY "INTERES PROYECTADO  : "
+               DISPLAY WS-INTERES
+               DISPLAY "-------------------------------"
+               DISPLAY "TOTAL A PAGAR       : "
+               DISPLAY WS-DEUDA-TOTAL
+               DISPLAY "CREDITO DISPONIBLE  : "
+               DISPLAY WS-DISPONIBLE
+               DISPLAY "TASA ANUAL VIGENTE  : "
+               DISPLAY WS-TASA-ANUAL
+               DISPLAY "==============================="
            END-IF.
 
        7000-BLOQUEO-TARJETA.
-           DISPLAY "--- GESTION DE ESTADO (BLOQUEO) ---".
-           PERFORM 9100-BUSCAR-TARJETA.
-           IF LK-COD-RETORNO = 0
+           DISPLAY "--- BLOQUEO/ACTIVACION ---".
+           PERFORM 9100-BUSCAR-TARJETA
+
+           IF LK-COD-RETORNO NOT = 0
+               DISPLAY "ERROR: " LK-MENSAJE
+           ELSE
                IF TARJ-ESTADO = 'I'
-                   DISPLAY "ERROR: TARJETA CANCELADA DEFINITIVAMENTE."
+                   DISPLAY "ERROR: TARJETA CANCELADA."
                ELSE
                    IF TARJ-ESTADO = 'B'
-                   DISPLAY "TARJETA BLOQUEADA. DESEA ACTIVAR? (S/N): "
+                       DISPLAY "TARJETA BLOQUEADA."
+                       DISPLAY "DESEA ACTIVARLA? (S/N): "
                        ACCEPT WS-CONFIRMA
-                       IF WS-CONFIRMA = 'S' OR 's' MOVE 'A'
-                           TO TARJ-ESTADO
-                   ELSE
-                       DISPLAY "TARJETA ACTIVA. DESEA BLOQUEAR? (S/N): "
-                       ACCEPT WS-CONFIRMA
-                       IF WS-CONFIRMA = 'S' OR 's' MOVE 'B'
-                           TO TARJ-ESTADO
-                   END-IF
 
-                   IF WS-CONFIRMA = 'S' OR 's'
-                       MOVE 'M' TO LK-ACCION-DB
-                       CALL WS-PGM-DBIOTARJ USING REG-TARJ,
-                                                  LK-DATOS-TRANSACCION
-                       CALL WS-PGM-TRAN USING 'C'
-                       DISPLAY "ESTADO ACTUALIZADO CON EXITO."
+                       IF WS-CONFIRMA = 'S' OR 's'
+                           MOVE 'A' TO TARJ-ESTADO
+                           MOVE 'M' TO LK-ACCION-DB
+
+                           CALL WS-PGM-DBIOTARJ
+                               USING REG-TARJ,
+                                     LK-DATOS-TRANSACCION
+
+                           IF LK-COD-RETORNO = 0
+                               CALL WS-PGM-TRAN USING 'C'
+                               DISPLAY "TARJETA ACTIVADA."
+                           ELSE
+                               CALL WS-PGM-TRAN USING 'R'
+                               DISPLAY "ERROR: " LK-MENSAJE
+                           END-IF
+                       ELSE
+                           DISPLAY "OPERACION CANCELADA."
+                       END-IF
+                   ELSE
+                       DISPLAY "TARJETA ACTIVA."
+                       DISPLAY "DESEA BLOQUEARLA? (S/N): "
+                       ACCEPT WS-CONFIRMA
+
+                       IF WS-CONFIRMA = 'S' OR 's'
+                           MOVE 'B' TO TARJ-ESTADO
+                           MOVE 'M' TO LK-ACCION-DB
+
+                           CALL WS-PGM-DBIOTARJ
+                               USING REG-TARJ,
+                                     LK-DATOS-TRANSACCION
+
+                           IF LK-COD-RETORNO = 0
+                               CALL WS-PGM-TRAN USING 'C'
+                               DISPLAY "TARJETA BLOQUEADA."
+                           ELSE
+                               CALL WS-PGM-TRAN USING 'R'
+                               DISPLAY "ERROR: " LK-MENSAJE
+                           END-IF
+                       ELSE
+                           DISPLAY "OPERACION CANCELADA."
+                       END-IF
                    END-IF
                END-IF
            END-IF.
 
        8000-BAJA-TARJETA.
            DISPLAY "--- CANCELACION DEFINITIVA ---".
-           PERFORM 9100-BUSCAR-TARJETA.
-           IF LK-COD-RETORNO = 0
-               COMPUTE WS-DEUDA-TOTAL = TARJ-ACUM-MES +
-                                        TARJ-LIQUIDACION-MES
+           PERFORM 9100-BUSCAR-TARJETA
 
-               *> Regla de negocio: No se puede cancelar con deuda
+           IF LK-COD-RETORNO NOT = 0
+               DISPLAY "ERROR: " LK-MENSAJE
+           ELSE
+               COMPUTE WS-DEUDA-TOTAL =
+                   TARJ-ACUM-MES + TARJ-LIQUIDACION-MES
+
                IF WS-DEUDA-TOTAL > 0
-               DISPLAY "ERROR: NO PUEDE CANCELAR CON DEUDA PENDIENTE."
-               DISPLAY "DEUDA ACTUAL: " WS-DEUDA-TOTAL
+                   DISPLAY "ERROR: NO PUEDE CANCELAR CON DEUDA."
+                   DISPLAY "DEUDA: " WS-DEUDA-TOTAL
                ELSE
-                   DISPLAY "CONFIRMA CANCELACION DEFINITIVA? (S/N): "
+                   DISPLAY "CONFIRMA CANCELACION? (S/N): "
                    ACCEPT WS-CONFIRMA
+
                    IF WS-CONFIRMA = 'S' OR 's'
-                       MOVE 'I' TO TARJ-ESTADO *> I = Inactiva/Cancelada
-                       MOVE 'M' TO LK-ACCION-DB
-                       CALL WS-PGM-DBIOTARJ USING REG-TARJ,
-                                                  LK-DATOS-TRANSACCION
-                       CALL WS-PGM-TRAN USING 'C'
-                       DISPLAY "TARJETA CANCELADA EXITOSAMENTE."
+                       MOVE 'B' TO LK-ACCION-DB
+
+                       CALL WS-PGM-DBIOTARJ
+                           USING REG-TARJ,
+                                 LK-DATOS-TRANSACCION
+
+                       IF LK-COD-RETORNO = 0
+                           CALL WS-PGM-TRAN USING 'C'
+                           DISPLAY "TARJETA CANCELADA."
+                       ELSE
+                           CALL WS-PGM-TRAN USING 'R'
+                           DISPLAY "ERROR: " LK-MENSAJE
+                       END-IF
+                   ELSE
+                       DISPLAY "OPERACION CANCELADA."
                    END-IF
                END-IF
            END-IF.
 
        9000-BUSCAR-CLIENTE.
-           INITIALIZE REG-CUSM.
-           DISPLAY "DOC (CEDULA) DEL CLIENTE: " ACCEPT CUSM-DOC-CLIENTE.
-           MOVE 'C' TO LK-ACCION-DB.
-           CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
+           INITIALIZE REG-CUSM
+           DISPLAY "Ingrese Cedula del Cliente: "
+           ACCEPT CUSM-DOC-CLIENTE
+
+           IF CUSM-DOC-CLIENTE = SPACES
+               DISPLAY "ERROR: Cedula no puede estar vacia."
+               MOVE 01 TO LK-COD-RETORNO
+               MOVE "CEDULA VACIA" TO LK-MENSAJE
+           ELSE
+               MOVE 'C' TO LK-ACCION-DB
+
+               CALL WS-PGM-DBIOCUSM
+                   USING REG-CUSM,
+                         LK-DATOS-TRANSACCION
+
+               IF LK-COD-RETORNO NOT = 0
+                   MOVE "CLIENTE NO ENCONTRADO" TO LK-MENSAJE
+               END-IF
+           END-IF.
 
        9100-BUSCAR-TARJETA.
-           PERFORM 9000-BUSCAR-CLIENTE.
+           PERFORM 9000-BUSCAR-CLIENTE
+
            IF LK-COD-RETORNO = 0
+               INITIALIZE REG-TARJ
                MOVE CUSM-ID-CLIENTE TO TARJ-ID-CLIENTE
-               DISPLAY "NUMERO DE TARJETA: " ACCEPT TARJ-NRO-TARJETA
-               MOVE 'C' TO LK-ACCION-DB
-               CALL WS-PGM-DBIOTARJ USING REG-TARJ, LK-DATOS-TRANSACCION
+
+               DISPLAY "Numero de Tarjeta: "
+               ACCEPT TARJ-NRO-TARJETA
+
+               IF TARJ-NRO-TARJETA = SPACES
+                   DISPLAY "ERROR: Numero de tarjeta vacio."
+                   MOVE 01 TO LK-COD-RETORNO
+                   MOVE "TARJETA VACIA" TO LK-MENSAJE
+               ELSE
+                   MOVE 'C' TO LK-ACCION-DB
+
+                   CALL WS-PGM-DBIOTARJ
+                       USING REG-TARJ,
+                             LK-DATOS-TRANSACCION
+
+                   IF LK-COD-RETORNO NOT = 0
+                       DISPLAY "ERROR: TARJETA NO ENCONTRADA."
+                   ELSE
+                       ACCEPT WS-FECHA-SISTEMA FROM DATE YYYYMMDD
+
+                       STRING WS-ANIO WS-MES WS-DIA
+                           DELIMITED BY SIZE
+                           INTO WS-FECHA-HOY
+                       END-STRING
+
+                       UNSTRING TARJ-FECHA-VENCIM
+                           DELIMITED BY '-'
+                           INTO WS-VENC-ANIO
+                                WS-VENC-MES
+                                WS-VENC-DIA
+                       END-UNSTRING
+
+                       STRING WS-VENC-ANIO WS-VENC-MES WS-VENC-DIA
+                           DELIMITED BY SIZE
+                           INTO WS-FECHA-VENC-8
+                       END-STRING
+
+                       IF WS-FECHA-VENC-8 < WS-FECHA-HOY
+                           DISPLAY "ERROR: TARJETA VENCIDA."
+                           DISPLAY "VENCIMIENTO: "
+                           DISPLAY TARJ-FECHA-VENCIM
+                           MOVE 01 TO LK-COD-RETORNO
+                           MOVE "TARJETA VENCIDA" TO LK-MENSAJE
+                       END-IF
+                   END-IF
+               END-IF
            END-IF.
 
        9200-GENERAR-NUMERO-TARJETA.
-           ACCEPT WS-SEMILLA FROM TIME.
-           COMPUTE WS-RANDOM = FUNCTION RANDOM(WS-SEMILLA) * 10000.
+           ACCEPT WS-SEMILLA FROM TIME
+
+           COMPUTE WS-RANDOM =
+               FUNCTION RANDOM(WS-SEMILLA) * 10000
+
            STRING "4555" CUSM-ID-CLIENTE WS-RANDOM
-                  DELIMITED BY SIZE INTO TARJ-NRO-TARJETA.
+               DELIMITED BY SIZE
+               INTO TARJ-NRO-TARJETA
+           END-STRING.
