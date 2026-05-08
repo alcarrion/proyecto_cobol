@@ -16,7 +16,7 @@
            05 BORM-SALDO-ACTUAL       PIC S9(13)V99.
            05 BORM-FECHA-VENCTO       PIC X(10).
            05 BORM-DIA-PAGO           PIC 9(02).
-           05 BORM-ESTADO             PIC X(10).
+           05 BORM-ESTADO             PIC X(20).
            05 BORM-CUOTA-MENSUAL      PIC S9(13)V99.
            05 BORM-MESES-MORA         PIC 9(03).
            05 BORM-FECHA-ULT-PAGO     PIC X(10).
