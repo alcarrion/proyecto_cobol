@@ -2,10 +2,11 @@
        PROGRAM-ID. TC0000.
       *================================================================*
       * PROGRAMA: MAINLINE TARJETAS DE CREDITO                         *
-      * FUNCION:  Gestiona Emision, Consulta, Cargos, Pagos y Bajas.   *
-      * REGLA:    Cliente debe existir y estar activo.                  *
-      * REGLA:    Tarjeta debe estar activa para operar.                *
-      * REGLA:    Un cliente solo puede tener una tarjeta de credito.   *
+      * FUNCION:  Emision, Consulta, Cargos, Pagos y Bajas.            *
+      *                                                                *
+      * CORRECCIONES:                                                  *
+      *   1. TRIM en cedula para que matchee en DB                     *
+      *   2. Interes calculado sobre deuda total (acum + liquidacion)  *
       *================================================================*
 
        ENVIRONMENT DIVISION.
@@ -205,8 +206,7 @@
                        COMPUTE WS-DISPONIBLE =
                            TARJ-LIMITE-TARJETA - TARJ-ACUM-MES
 
-                       DISPLAY "DISPONIBLE ($): "
-                       DISPLAY WS-DISPONIBLE
+                       DISPLAY "DISPONIBLE ($): " WS-DISPONIBLE
                        DISPLAY "MONTO CONSUMO ($): "
                        ACCEPT WS-ENTRADA-MONTO
 
@@ -218,8 +218,7 @@
                        ELSE
                            IF TARJ-IMPORTE-MOV > WS-DISPONIBLE
                                DISPLAY "ERROR: EXCEDE LIMITE."
-                               DISPLAY "DISPONIBLE: "
-                               DISPLAY WS-DISPONIBLE
+                               DISPLAY "DISPONIBLE: " WS-DISPONIBLE
                            ELSE
                                ADD TARJ-IMPORTE-MOV TO TARJ-ACUM-MES
 
@@ -231,11 +230,9 @@
                                IF LK-COD-RETORNO = 0
                                    CALL WS-PGM-TRAN USING 'C'
                                    DISPLAY "CONSUMO REGISTRADO."
-
                                    COMPUTE WS-DISPONIBLE =
                                        TARJ-LIMITE-TARJETA -
                                        TARJ-ACUM-MES
-
                                    DISPLAY "NUEVO DISPONIBLE: "
                                    DISPLAY WS-DISPONIBLE
                                ELSE
@@ -283,8 +280,7 @@
                        ELSE
                            IF WS-MONTO-TX > WS-DEUDA-TOTAL
                                DISPLAY "ERROR: PAGO EXCEDE DEUDA."
-                               DISPLAY "DEUDA TOTAL: "
-                               DISPLAY WS-DEUDA-TOTAL
+                               DISPLAY "DEUDA TOTAL: " WS-DEUDA-TOTAL
                            ELSE
                                IF WS-MONTO-TX >= TARJ-LIQUIDACION-MES
                                    SUBTRACT TARJ-LIQUIDACION-MES
@@ -305,11 +301,9 @@
                                IF LK-COD-RETORNO = 0
                                    CALL WS-PGM-TRAN USING 'C'
                                    DISPLAY "PAGO PROCESADO."
-
                                    COMPUTE WS-DEUDA-TOTAL =
                                        TARJ-ACUM-MES +
                                        TARJ-LIQUIDACION-MES
-
                                    DISPLAY "DEUDA RESTANTE: "
                                    DISPLAY WS-DEUDA-TOTAL
                                ELSE
@@ -335,11 +329,15 @@
                COMPUTE WS-DISPONIBLE =
                    TARJ-LIMITE-TARJETA - TARJ-ACUM-MES
 
+      *        Tasa mensual = tasa anual / 12 / 100
                COMPUTE WS-TASA-MENSUAL =
                    WS-TASA-ANUAL / 12 / 100
 
+      *        Interes proyectado sobre TODA la deuda pendiente
+      *        Si LIQUIDACION > 0: ya hay deuda del mes anterior
+      *        Si solo ACUM > 0: interes proyectado si no paga
                COMPUTE WS-INTERES =
-                   TARJ-LIQUIDACION-MES * WS-TASA-MENSUAL
+                   WS-DEUDA-TOTAL * WS-TASA-MENSUAL
 
                DISPLAY "==============================="
                DISPLAY "TITULAR    : " CUSM-NOMBRE
@@ -459,10 +457,17 @@
                END-IF
            END-IF.
 
+      *================================================================*
+      * 9000 - BUSCAR CLIENTE POR CEDULA                              *
+      * TRIM elimina espacios para que matchee correctamente en DB     *
+      *================================================================*
        9000-BUSCAR-CLIENTE.
            INITIALIZE REG-CUSM
            DISPLAY "Ingrese Cedula del Cliente: "
            ACCEPT CUSM-DOC-CLIENTE
+
+           MOVE FUNCTION TRIM(CUSM-DOC-CLIENTE)
+               TO CUSM-DOC-CLIENTE
 
            IF CUSM-DOC-CLIENTE = SPACES
                DISPLAY "ERROR: Cedula no puede estar vacia."
@@ -480,6 +485,9 @@
                END-IF
            END-IF.
 
+      *================================================================*
+      * 9100 - BUSCAR TARJETA                                         *
+      *================================================================*
        9100-BUSCAR-TARJETA.
            PERFORM 9000-BUSCAR-CLIENTE
 
@@ -525,8 +533,7 @@
 
                        IF WS-FECHA-VENC-8 < WS-FECHA-HOY
                            DISPLAY "ERROR: TARJETA VENCIDA."
-                           DISPLAY "VENCIMIENTO: "
-                           DISPLAY TARJ-FECHA-VENCIM
+                           DISPLAY "VENCIMIENTO: " TARJ-FECHA-VENCIM
                            MOVE 01 TO LK-COD-RETORNO
                            MOVE "TARJETA VENCIDA" TO LK-MENSAJE
                        END-IF
@@ -534,6 +541,9 @@
                END-IF
            END-IF.
 
+      *================================================================*
+      * 9200 - GENERAR NUMERO DE TARJETA                              *
+      *================================================================*
        9200-GENERAR-NUMERO-TARJETA.
            ACCEPT WS-SEMILLA FROM TIME
 

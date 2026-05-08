@@ -1,17 +1,11 @@
       *================================================================*
       * PROGRAMA : DBIOBORM.sqb                                       *
       * FUNCION  : Capa de Acceso a Datos - Hipotecas                 *
-      *                                                                *
-      * IMPORTANTE:                                                   *
-      * Este programa es llamado desde BR0000 con:                     *
-      * CALL 'DBIOBORM' USING LK-DATOS-TRANSACCION, BORM-REGISTRO     *
-      * Por eso debe tener PROCEDURE DIVISION USING esos dos registros.*
       *================================================================*
        IDENTIFICATION DIVISION.
        PROGRAM-ID. DBIOBORM.
 
        ENVIRONMENT DIVISION.
-
        DATA DIVISION.
        WORKING-STORAGE SECTION.
       **********************************************************************
@@ -116,16 +110,17 @@
       **********************************************************************
       *******          PRECOMPILER-GENERATED VARIABLES               *******
        01 SQLV-GEN-VARS.
-           05 SQL-VAR-0004  PIC S9(9) COMP-3.
-           05 SQL-VAR-0005  PIC S9(9) COMP-3.
-           05 SQL-VAR-0006  PIC S9(13)V9(2) COMP-3.
-           05 SQL-VAR-0007  PIC S9(3)V9(4) COMP-3.
-           05 SQL-VAR-0008  PIC S9(13)V9(2) COMP-3.
-           05 SQL-VAR-0009  PIC S9(3) COMP-3.
-           05 SQL-VAR-0010  PIC S9(13)V9(2) COMP-3.
-           05 SQL-VAR-0011  PIC S9(3) COMP-3.
+           05 SQL-VAR-0001  PIC S9(9) COMP-3.
+           05 SQL-VAR-0002  PIC S9(9) COMP-3.
+           05 SQL-VAR-0003  PIC S9(13)V9(2) COMP-3.
+           05 SQL-VAR-0004  PIC S9(3)V9(4) COMP-3.
+           05 SQL-VAR-0005  PIC S9(13)V9(2) COMP-3.
+           05 SQL-VAR-0006  PIC S9(3) COMP-3.
+           05 SQL-VAR-0007  PIC S9(13)V9(2) COMP-3.
+           05 SQL-VAR-0008  PIC S9(3) COMP-3.
       *******       END OF PRECOMPILER-GENERATED VARIABLES           *******
       **********************************************************************
+
       *    EXEC SQL INCLUDE SQLCA END-EXEC.
        01 SQLCA.
            05 SQLSTATE PIC X(5).
@@ -146,8 +141,33 @@
            05 FILLER   PIC X(4).
            05 SQL-HCONN USAGE POINTER VALUE NULL.
 
-       LINKAGE SECTION.
+      *----------------------------------------------------------------*
+      * Variables de trabajo internas para calculos                    *
+      *----------------------------------------------------------------*
+       01  WS-FECHA-ULT-CHECK     PIC X(10).
+
+      *----------------------------------------------------------------*
+      * DECLARE SECTION solo con variables simples sin COPY            *
+      * esqlOC necesita ver las variables host directamente            *
+      *----------------------------------------------------------------*
       *    EXEC SQL BEGIN DECLARE SECTION END-EXEC.
+
+       01  WS-ID-HIPOTECA         PIC 9(09).
+       01  WS-ID-CLIENTE          PIC 9(08).
+       01  WS-FECHA-INICIO        PIC X(10).
+       01  WS-MONTO-ORIGINAL      PIC S9(13)V99.
+       01  WS-TASA-INTERES        PIC S9(03)V9999.
+       01  WS-SALDO-ACTUAL        PIC S9(13)V99.
+       01  WS-FECHA-VENCTO        PIC X(10).
+       01  WS-DIA-PAGO            PIC 9(02).
+       01  WS-ESTADO              PIC X(10).
+       01  WS-CUOTA-MENSUAL       PIC S9(13)V99.
+       01  WS-MESES-MORA          PIC 9(03).
+       01  WS-FECHA-ULT-PAGO      PIC X(10).
+
+      *    EXEC SQL END DECLARE SECTION END-EXEC.
+
+       LINKAGE SECTION.
 
        01  LK-DATOS-TRANSACCION.
            05 LK-ACCION-DB             PIC X(01).
@@ -174,13 +194,11 @@
            05 BORM-MESES-MORA          PIC 9(03).
            05 BORM-FECHA-ULT-PAGO      PIC X(10).
 
-      *    EXEC SQL END DECLARE SECTION END-EXEC.
-
        PROCEDURE DIVISION USING LK-DATOS-TRANSACCION,
                                 BORM-REGISTRO.
 
        0000-PRINCIPAL.
-           MOVE 0 TO LK-COD-RETORNO.
+           MOVE 0      TO LK-COD-RETORNO.
            MOVE SPACES TO LK-MENSAJE.
 
            EVALUATE LK-ACCION-DB
@@ -194,16 +212,20 @@
                    PERFORM 3000-ACTUALIZAR-HIPOTECA
                WHEN OTHER
                    MOVE 98 TO LK-COD-RETORNO
-                   MOVE "ACCION DB NO SOPORTADA" TO LK-MENSAJE
+                   MOVE "ACCION DB NO SOPORTADA"
+                       TO LK-MENSAJE
            END-EVALUATE.
 
            EXIT PROGRAM.
 
+      *================================================================*
+      * 0500 - GENERAR SECUENCIA                                      *
+      *================================================================*
        0500-GENERAR-SECUENCIA.
       *    EXEC SQL
       *        UPDATE control_secuencias
-      *        SET ULTIMO_NUMERO = ULTIMO_NUMERO + 1
-      *        WHERE TIPO_PRODUCTO = 'HIPOTECA'
+      *        SET    ULTIMO_NUMERO = ULTIMO_NUMERO + 1
+      *        WHERE  TIPO_PRODUCTO = 'HIPOTECA'
       *    END-EXEC.
            IF SQL-PREP OF SQL-STMT-0 = 'N'
                MOVE 0 TO SQL-COUNT
@@ -215,19 +237,18 @@
            CALL 'OCSQLEXE' USING SQL-STMT-0
                                SQLCA
                    .
-
            PERFORM 9000-EVALUAR-SQL.
 
            IF LK-COD-RETORNO = 0
       *        EXEC SQL
       *            SELECT ULTIMO_NUMERO
-      *            INTO :BORM-ID-HIPOTECA
-      *            FROM control_secuencias
-      *            WHERE TIPO_PRODUCTO = 'HIPOTECA'
+      *            INTO   :WS-ID-HIPOTECA
+      *            FROM   control_secuencias
+      *            WHERE  TIPO_PRODUCTO = 'HIPOTECA'
       *        END-EXEC
            IF SQL-PREP OF SQL-STMT-1 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
-                 SQL-VAR-0004
+                 SQL-VAR-0001
                MOVE '3' TO SQL-TYPE(1)
                MOVE 5 TO SQL-LEN(1)
                MOVE X'00' TO SQL-PREC(1)
@@ -239,18 +260,33 @@
            END-IF
            CALL 'OCSQLEXE' USING SQL-STMT-1
                                SQLCA
-           MOVE SQL-VAR-0004 TO BORM-ID-HIPOTECA
-
+           MOVE SQL-VAR-0001 TO WS-ID-HIPOTECA
                PERFORM 9000-EVALUAR-SQL
-
                IF LK-COD-RETORNO = 0
+                   MOVE WS-ID-HIPOTECA TO BORM-ID-HIPOTECA
                    MOVE "SECUENCIA GENERADA" TO LK-MENSAJE
                END-IF
            END-IF.
 
+      *================================================================*
+      * 1000 - INSERTAR HIPOTECA                                      *
+      *================================================================*
        1000-INSERTAR-HIPOTECA.
-           IF BORM-FECHA-ULT-PAGO = "0000-00-00"
-              OR BORM-FECHA-ULT-PAGO = SPACES
+           MOVE BORM-ID-HIPOTECA    TO WS-ID-HIPOTECA.
+           MOVE BORM-ID-CLIENTE     TO WS-ID-CLIENTE.
+           MOVE BORM-FECHA-INICIO   TO WS-FECHA-INICIO.
+           MOVE BORM-MONTO-ORIGINAL TO WS-MONTO-ORIGINAL.
+           MOVE BORM-TASA-INTERES   TO WS-TASA-INTERES.
+           MOVE BORM-SALDO-ACTUAL   TO WS-SALDO-ACTUAL.
+           MOVE BORM-FECHA-VENCTO   TO WS-FECHA-VENCTO.
+           MOVE BORM-DIA-PAGO       TO WS-DIA-PAGO.
+           MOVE BORM-ESTADO         TO WS-ESTADO.
+           MOVE BORM-CUOTA-MENSUAL  TO WS-CUOTA-MENSUAL.
+           MOVE BORM-MESES-MORA     TO WS-MESES-MORA.
+           MOVE BORM-FECHA-ULT-PAGO TO WS-FECHA-ULT-CHECK.
+
+           IF WS-FECHA-ULT-CHECK = "0000-00-00"
+              OR WS-FECHA-ULT-CHECK = SPACES
       *        EXEC SQL
       *            INSERT INTO hipotecas (
       *                ID_HIPOTECA,
@@ -266,70 +302,70 @@
       *                MESES_MORA,
       *                FECHA_ULT_PAGO
       *            ) VALUES (
-      *                :BORM-ID-HIPOTECA,
-      *                :BORM-ID-CLIENTE,
-      *                :BORM-FECHA-INICIO,
-      *                :BORM-MONTO-ORIGINAL,
-      *                :BORM-TASA-INTERES,
-      *                :BORM-SALDO-ACTUAL,
-      *                :BORM-FECHA-VENCTO,
-      *                :BORM-DIA-PAGO,
-      *                :BORM-ESTADO,
-      *                :BORM-CUOTA-MENSUAL,
-      *                :BORM-MESES-MORA,
+      *                :WS-ID-HIPOTECA,
+      *                :WS-ID-CLIENTE,
+      *                :WS-FECHA-INICIO,
+      *                :WS-MONTO-ORIGINAL,
+      *                :WS-TASA-INTERES,
+      *                :WS-SALDO-ACTUAL,
+      *                :WS-FECHA-VENCTO,
+      *                :WS-DIA-PAGO,
+      *                :WS-ESTADO,
+      *                :WS-CUOTA-MENSUAL,
+      *                :WS-MESES-MORA,
       *                NULL
       *            )
       *        END-EXEC
            IF SQL-PREP OF SQL-STMT-2 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
-                 SQL-VAR-0004
+                 SQL-VAR-0001
                MOVE '3' TO SQL-TYPE(1)
                MOVE 5 TO SQL-LEN(1)
                MOVE X'00' TO SQL-PREC(1)
                SET SQL-ADDR(2) TO ADDRESS OF
-                 SQL-VAR-0005
+                 SQL-VAR-0002
                MOVE '3' TO SQL-TYPE(2)
                MOVE 5 TO SQL-LEN(2)
                MOVE X'00' TO SQL-PREC(2)
                SET SQL-ADDR(3) TO ADDRESS OF
-                 BORM-FECHA-INICIO
+                 WS-FECHA-INICIO
                MOVE 'X' TO SQL-TYPE(3)
                MOVE 10 TO SQL-LEN(3)
                SET SQL-ADDR(4) TO ADDRESS OF
-                 SQL-VAR-0006
+                 SQL-VAR-0003
                MOVE '3' TO SQL-TYPE(4)
                MOVE 8 TO SQL-LEN(4)
                MOVE X'02' TO SQL-PREC(4)
                SET SQL-ADDR(5) TO ADDRESS OF
-                 SQL-VAR-0007
+                 SQL-VAR-0004
                MOVE '3' TO SQL-TYPE(5)
                MOVE 4 TO SQL-LEN(5)
                MOVE X'04' TO SQL-PREC(5)
                SET SQL-ADDR(6) TO ADDRESS OF
-                 SQL-VAR-0008
+                 SQL-VAR-0005
                MOVE '3' TO SQL-TYPE(6)
                MOVE 8 TO SQL-LEN(6)
                MOVE X'02' TO SQL-PREC(6)
                SET SQL-ADDR(7) TO ADDRESS OF
-                 BORM-FECHA-VENCTO
+                 WS-FECHA-VENCTO
                MOVE 'X' TO SQL-TYPE(7)
                MOVE 10 TO SQL-LEN(7)
                SET SQL-ADDR(8) TO ADDRESS OF
-                 SQL-VAR-0009
+                 SQL-VAR-0006
                MOVE '3' TO SQL-TYPE(8)
                MOVE 2 TO SQL-LEN(8)
                MOVE X'00' TO SQL-PREC(8)
                SET SQL-ADDR(9) TO ADDRESS OF
-                 BORM-ESTADO
+                 WS-ESTADO
                MOVE 'X' TO SQL-TYPE(9)
                MOVE 10 TO SQL-LEN(9)
                SET SQL-ADDR(10) TO ADDRESS OF
-                 SQL-VAR-0010
+                 SQL-VAR-0007
                MOVE '3' TO SQL-TYPE(10)
                MOVE 8 TO SQL-LEN(10)
                MOVE X'02' TO SQL-PREC(10)
                SET SQL-ADDR(11) TO ADDRESS OF
-                 SQL-VAR-0011
+                 SQL-VAR-0008
                MOVE '3' TO SQL-TYPE(11)
                MOVE 2 TO SQL-LEN(11)
                MOVE X'00' TO SQL-PREC(11)
@@ -339,25 +375,26 @@
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
-           MOVE BORM-ID-HIPOTECA
+           MOVE WS-ID-HIPOTECA
+             TO SQL-VAR-0001
+           MOVE WS-ID-CLIENTE
+             TO SQL-VAR-0002
+           MOVE WS-MONTO-ORIGINAL
+             TO SQL-VAR-0003
+           MOVE WS-TASA-INTERES
              TO SQL-VAR-0004
-           MOVE BORM-ID-CLIENTE
+           MOVE WS-SALDO-ACTUAL
              TO SQL-VAR-0005
-           MOVE BORM-MONTO-ORIGINAL
+           MOVE WS-DIA-PAGO
              TO SQL-VAR-0006
-           MOVE BORM-TASA-INTERES
+           MOVE WS-CUOTA-MENSUAL
              TO SQL-VAR-0007
-           MOVE BORM-SALDO-ACTUAL
+           MOVE WS-MESES-MORA
              TO SQL-VAR-0008
-           MOVE BORM-DIA-PAGO
-             TO SQL-VAR-0009
-           MOVE BORM-CUOTA-MENSUAL
-             TO SQL-VAR-0010
-           MOVE BORM-MESES-MORA
-             TO SQL-VAR-0011
            CALL 'OCSQLEXE' USING SQL-STMT-2
                                SQLCA
            ELSE
+               MOVE BORM-FECHA-ULT-PAGO TO WS-FECHA-ULT-PAGO
       *        EXEC SQL
       *            INSERT INTO hipotecas (
       *                ID_HIPOTECA,
@@ -373,75 +410,75 @@
       *                MESES_MORA,
       *                FECHA_ULT_PAGO
       *            ) VALUES (
-      *                :BORM-ID-HIPOTECA,
-      *                :BORM-ID-CLIENTE,
-      *                :BORM-FECHA-INICIO,
-      *                :BORM-MONTO-ORIGINAL,
-      *                :BORM-TASA-INTERES,
-      *                :BORM-SALDO-ACTUAL,
-      *                :BORM-FECHA-VENCTO,
-      *                :BORM-DIA-PAGO,
-      *                :BORM-ESTADO,
-      *                :BORM-CUOTA-MENSUAL,
-      *                :BORM-MESES-MORA,
-      *                :BORM-FECHA-ULT-PAGO
+      *                :WS-ID-HIPOTECA,
+      *                :WS-ID-CLIENTE,
+      *                :WS-FECHA-INICIO,
+      *                :WS-MONTO-ORIGINAL,
+      *                :WS-TASA-INTERES,
+      *                :WS-SALDO-ACTUAL,
+      *                :WS-FECHA-VENCTO,
+      *                :WS-DIA-PAGO,
+      *                :WS-ESTADO,
+      *                :WS-CUOTA-MENSUAL,
+      *                :WS-MESES-MORA,
+      *                :WS-FECHA-ULT-PAGO
       *            )
       *        END-EXEC
            IF SQL-PREP OF SQL-STMT-3 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
-                 SQL-VAR-0004
+                 SQL-VAR-0001
                MOVE '3' TO SQL-TYPE(1)
                MOVE 5 TO SQL-LEN(1)
                MOVE X'00' TO SQL-PREC(1)
                SET SQL-ADDR(2) TO ADDRESS OF
-                 SQL-VAR-0005
+                 SQL-VAR-0002
                MOVE '3' TO SQL-TYPE(2)
                MOVE 5 TO SQL-LEN(2)
                MOVE X'00' TO SQL-PREC(2)
                SET SQL-ADDR(3) TO ADDRESS OF
-                 BORM-FECHA-INICIO
+                 WS-FECHA-INICIO
                MOVE 'X' TO SQL-TYPE(3)
                MOVE 10 TO SQL-LEN(3)
                SET SQL-ADDR(4) TO ADDRESS OF
-                 SQL-VAR-0006
+                 SQL-VAR-0003
                MOVE '3' TO SQL-TYPE(4)
                MOVE 8 TO SQL-LEN(4)
                MOVE X'02' TO SQL-PREC(4)
                SET SQL-ADDR(5) TO ADDRESS OF
-                 SQL-VAR-0007
+                 SQL-VAR-0004
                MOVE '3' TO SQL-TYPE(5)
                MOVE 4 TO SQL-LEN(5)
                MOVE X'04' TO SQL-PREC(5)
                SET SQL-ADDR(6) TO ADDRESS OF
-                 SQL-VAR-0008
+                 SQL-VAR-0005
                MOVE '3' TO SQL-TYPE(6)
                MOVE 8 TO SQL-LEN(6)
                MOVE X'02' TO SQL-PREC(6)
                SET SQL-ADDR(7) TO ADDRESS OF
-                 BORM-FECHA-VENCTO
+                 WS-FECHA-VENCTO
                MOVE 'X' TO SQL-TYPE(7)
                MOVE 10 TO SQL-LEN(7)
                SET SQL-ADDR(8) TO ADDRESS OF
-                 SQL-VAR-0009
+                 SQL-VAR-0006
                MOVE '3' TO SQL-TYPE(8)
                MOVE 2 TO SQL-LEN(8)
                MOVE X'00' TO SQL-PREC(8)
                SET SQL-ADDR(9) TO ADDRESS OF
-                 BORM-ESTADO
+                 WS-ESTADO
                MOVE 'X' TO SQL-TYPE(9)
                MOVE 10 TO SQL-LEN(9)
                SET SQL-ADDR(10) TO ADDRESS OF
-                 SQL-VAR-0010
+                 SQL-VAR-0007
                MOVE '3' TO SQL-TYPE(10)
                MOVE 8 TO SQL-LEN(10)
                MOVE X'02' TO SQL-PREC(10)
                SET SQL-ADDR(11) TO ADDRESS OF
-                 SQL-VAR-0011
+                 SQL-VAR-0008
                MOVE '3' TO SQL-TYPE(11)
                MOVE 2 TO SQL-LEN(11)
                MOVE X'00' TO SQL-PREC(11)
                SET SQL-ADDR(12) TO ADDRESS OF
-                 BORM-FECHA-ULT-PAGO
+                 WS-FECHA-ULT-PAGO
                MOVE 'X' TO SQL-TYPE(12)
                MOVE 10 TO SQL-LEN(12)
                MOVE 12 TO SQL-COUNT
@@ -450,22 +487,22 @@
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
-           MOVE BORM-ID-HIPOTECA
+           MOVE WS-ID-HIPOTECA
+             TO SQL-VAR-0001
+           MOVE WS-ID-CLIENTE
+             TO SQL-VAR-0002
+           MOVE WS-MONTO-ORIGINAL
+             TO SQL-VAR-0003
+           MOVE WS-TASA-INTERES
              TO SQL-VAR-0004
-           MOVE BORM-ID-CLIENTE
+           MOVE WS-SALDO-ACTUAL
              TO SQL-VAR-0005
-           MOVE BORM-MONTO-ORIGINAL
+           MOVE WS-DIA-PAGO
              TO SQL-VAR-0006
-           MOVE BORM-TASA-INTERES
+           MOVE WS-CUOTA-MENSUAL
              TO SQL-VAR-0007
-           MOVE BORM-SALDO-ACTUAL
+           MOVE WS-MESES-MORA
              TO SQL-VAR-0008
-           MOVE BORM-DIA-PAGO
-             TO SQL-VAR-0009
-           MOVE BORM-CUOTA-MENSUAL
-             TO SQL-VAR-0010
-           MOVE BORM-MESES-MORA
-             TO SQL-VAR-0011
            CALL 'OCSQLEXE' USING SQL-STMT-3
                                SQLCA
            END-IF.
@@ -475,13 +512,13 @@
            IF LK-COD-RETORNO = 0
       *        EXEC SQL
       *            UPDATE clientes
-      *            SET HIPOTECA = 1,
-      *                CREDITO = 1
-      *            WHERE ID_CLIENTE = :BORM-ID-CLIENTE
+      *            SET    HIPOTECA = 1,
+      *                   CREDITO  = 1
+      *            WHERE  ID_CLIENTE = :WS-ID-CLIENTE
       *        END-EXEC
            IF SQL-PREP OF SQL-STMT-4 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
-                 SQL-VAR-0005
+                 SQL-VAR-0002
                MOVE '3' TO SQL-TYPE(1)
                MOVE 5 TO SQL-LEN(1)
                MOVE X'00' TO SQL-PREC(1)
@@ -491,19 +528,22 @@
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
-           MOVE BORM-ID-CLIENTE
-             TO SQL-VAR-0005
+           MOVE WS-ID-CLIENTE
+             TO SQL-VAR-0002
            CALL 'OCSQLEXE' USING SQL-STMT-4
                                SQLCA
-
                PERFORM 9000-EVALUAR-SQL
-
                IF LK-COD-RETORNO = 0
                    MOVE "HIPOTECA REGISTRADA" TO LK-MENSAJE
                END-IF
            END-IF.
 
+      *================================================================*
+      * 2000 - CONSULTAR HIPOTECA                                     *
+      *================================================================*
        2000-CONSULTAR-HIPOTECA.
+           MOVE BORM-ID-HIPOTECA TO WS-ID-HIPOTECA.
+
       *    EXEC SQL
       *        SELECT ID_CLIENTE,
       *               FECHA_INICIO,
@@ -516,74 +556,74 @@
       *               CUOTA_MENSUAL,
       *               MESES_MORA,
       *               COALESCE(FECHA_ULT_PAGO, '0000-00-00')
-      *        INTO :BORM-ID-CLIENTE,
-      *             :BORM-FECHA-INICIO,
-      *             :BORM-MONTO-ORIGINAL,
-      *             :BORM-TASA-INTERES,
-      *             :BORM-SALDO-ACTUAL,
-      *             :BORM-FECHA-VENCTO,
-      *             :BORM-DIA-PAGO,
-      *             :BORM-ESTADO,
-      *             :BORM-CUOTA-MENSUAL,
-      *             :BORM-MESES-MORA,
-      *             :BORM-FECHA-ULT-PAGO
-      *        FROM hipotecas
-      *        WHERE ID_HIPOTECA = :BORM-ID-HIPOTECA
+      *        INTO   :WS-ID-CLIENTE,
+      *               :WS-FECHA-INICIO,
+      *               :WS-MONTO-ORIGINAL,
+      *               :WS-TASA-INTERES,
+      *               :WS-SALDO-ACTUAL,
+      *               :WS-FECHA-VENCTO,
+      *               :WS-DIA-PAGO,
+      *               :WS-ESTADO,
+      *               :WS-CUOTA-MENSUAL,
+      *               :WS-MESES-MORA,
+      *               :WS-FECHA-ULT-PAGO
+      *        FROM   hipotecas
+      *        WHERE  ID_HIPOTECA = :WS-ID-HIPOTECA
       *    END-EXEC.
            IF SQL-PREP OF SQL-STMT-5 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
-                 SQL-VAR-0005
+                 SQL-VAR-0002
                MOVE '3' TO SQL-TYPE(1)
                MOVE 5 TO SQL-LEN(1)
                MOVE X'00' TO SQL-PREC(1)
                SET SQL-ADDR(2) TO ADDRESS OF
-                 BORM-FECHA-INICIO
+                 WS-FECHA-INICIO
                MOVE 'X' TO SQL-TYPE(2)
                MOVE 10 TO SQL-LEN(2)
                SET SQL-ADDR(3) TO ADDRESS OF
-                 SQL-VAR-0006
+                 SQL-VAR-0003
                MOVE '3' TO SQL-TYPE(3)
                MOVE 8 TO SQL-LEN(3)
                MOVE X'02' TO SQL-PREC(3)
                SET SQL-ADDR(4) TO ADDRESS OF
-                 SQL-VAR-0007
+                 SQL-VAR-0004
                MOVE '3' TO SQL-TYPE(4)
                MOVE 4 TO SQL-LEN(4)
                MOVE X'04' TO SQL-PREC(4)
                SET SQL-ADDR(5) TO ADDRESS OF
-                 SQL-VAR-0008
+                 SQL-VAR-0005
                MOVE '3' TO SQL-TYPE(5)
                MOVE 8 TO SQL-LEN(5)
                MOVE X'02' TO SQL-PREC(5)
                SET SQL-ADDR(6) TO ADDRESS OF
-                 BORM-FECHA-VENCTO
+                 WS-FECHA-VENCTO
                MOVE 'X' TO SQL-TYPE(6)
                MOVE 10 TO SQL-LEN(6)
                SET SQL-ADDR(7) TO ADDRESS OF
-                 SQL-VAR-0009
+                 SQL-VAR-0006
                MOVE '3' TO SQL-TYPE(7)
                MOVE 2 TO SQL-LEN(7)
                MOVE X'00' TO SQL-PREC(7)
                SET SQL-ADDR(8) TO ADDRESS OF
-                 BORM-ESTADO
+                 WS-ESTADO
                MOVE 'X' TO SQL-TYPE(8)
                MOVE 10 TO SQL-LEN(8)
                SET SQL-ADDR(9) TO ADDRESS OF
-                 SQL-VAR-0010
+                 SQL-VAR-0007
                MOVE '3' TO SQL-TYPE(9)
                MOVE 8 TO SQL-LEN(9)
                MOVE X'02' TO SQL-PREC(9)
                SET SQL-ADDR(10) TO ADDRESS OF
-                 SQL-VAR-0011
+                 SQL-VAR-0008
                MOVE '3' TO SQL-TYPE(10)
                MOVE 2 TO SQL-LEN(10)
                MOVE X'00' TO SQL-PREC(10)
                SET SQL-ADDR(11) TO ADDRESS OF
-                 BORM-FECHA-ULT-PAGO
+                 WS-FECHA-ULT-PAGO
                MOVE 'X' TO SQL-TYPE(11)
                MOVE 10 TO SQL-LEN(11)
                SET SQL-ADDR(12) TO ADDRESS OF
-                 SQL-VAR-0004
+                 SQL-VAR-0001
                MOVE '3' TO SQL-TYPE(12)
                MOVE 5 TO SQL-LEN(12)
                MOVE X'00' TO SQL-PREC(12)
@@ -593,58 +633,79 @@
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
-           MOVE BORM-ID-HIPOTECA TO SQL-VAR-0004
+           MOVE WS-ID-HIPOTECA TO SQL-VAR-0001
            CALL 'OCSQLEXE' USING SQL-STMT-5
                                SQLCA
-           MOVE SQL-VAR-0005 TO BORM-ID-CLIENTE
-           MOVE SQL-VAR-0006 TO BORM-MONTO-ORIGINAL
-           MOVE SQL-VAR-0007 TO BORM-TASA-INTERES
-           MOVE SQL-VAR-0008 TO BORM-SALDO-ACTUAL
-           MOVE SQL-VAR-0009 TO BORM-DIA-PAGO
-           MOVE SQL-VAR-0010 TO BORM-CUOTA-MENSUAL
-           MOVE SQL-VAR-0011 TO BORM-MESES-MORA
+           MOVE SQL-VAR-0002 TO WS-ID-CLIENTE
+           MOVE SQL-VAR-0003 TO WS-MONTO-ORIGINAL
+           MOVE SQL-VAR-0004 TO WS-TASA-INTERES
+           MOVE SQL-VAR-0005 TO WS-SALDO-ACTUAL
+           MOVE SQL-VAR-0006 TO WS-DIA-PAGO
+           MOVE SQL-VAR-0007 TO WS-CUOTA-MENSUAL
+           MOVE SQL-VAR-0008 TO WS-MESES-MORA
                    .
-
            PERFORM 9000-EVALUAR-SQL.
 
            IF LK-COD-RETORNO = 0
+               MOVE WS-ID-CLIENTE     TO BORM-ID-CLIENTE
+               MOVE WS-FECHA-INICIO   TO BORM-FECHA-INICIO
+               MOVE WS-MONTO-ORIGINAL TO BORM-MONTO-ORIGINAL
+               MOVE WS-TASA-INTERES   TO BORM-TASA-INTERES
+               MOVE WS-SALDO-ACTUAL   TO BORM-SALDO-ACTUAL
+               MOVE WS-FECHA-VENCTO   TO BORM-FECHA-VENCTO
+               MOVE WS-DIA-PAGO       TO BORM-DIA-PAGO
+               MOVE WS-ESTADO         TO BORM-ESTADO
+               MOVE WS-CUOTA-MENSUAL  TO BORM-CUOTA-MENSUAL
+               MOVE WS-MESES-MORA     TO BORM-MESES-MORA
+               MOVE WS-FECHA-ULT-PAGO TO BORM-FECHA-ULT-PAGO
                MOVE "CONSULTA EXITOSA" TO LK-MENSAJE
            END-IF.
 
+      *================================================================*
+      * 3000 - ACTUALIZAR HIPOTECA                                    *
+      *================================================================*
        3000-ACTUALIZAR-HIPOTECA.
-           IF BORM-FECHA-ULT-PAGO = "0000-00-00"
-              OR BORM-FECHA-ULT-PAGO = SPACES
+           MOVE BORM-ID-HIPOTECA    TO WS-ID-HIPOTECA.
+           MOVE BORM-ID-CLIENTE     TO WS-ID-CLIENTE.
+           MOVE BORM-SALDO-ACTUAL   TO WS-SALDO-ACTUAL.
+           MOVE BORM-ESTADO         TO WS-ESTADO.
+           MOVE BORM-CUOTA-MENSUAL  TO WS-CUOTA-MENSUAL.
+           MOVE BORM-MESES-MORA     TO WS-MESES-MORA.
+           MOVE BORM-FECHA-ULT-PAGO TO WS-FECHA-ULT-CHECK.
+
+           IF WS-FECHA-ULT-CHECK = "0000-00-00"
+              OR WS-FECHA-ULT-CHECK = SPACES
       *        EXEC SQL
       *            UPDATE hipotecas
-      *            SET SALDO_ACTUAL = :BORM-SALDO-ACTUAL,
-      *                ESTADO = :BORM-ESTADO,
-      *                CUOTA_MENSUAL = :BORM-CUOTA-MENSUAL,
-      *                MESES_MORA = :BORM-MESES-MORA,
-      *                FECHA_ULT_PAGO = NULL
-      *            WHERE ID_HIPOTECA = :BORM-ID-HIPOTECA
+      *            SET    SALDO_ACTUAL   = :WS-SALDO-ACTUAL,
+      *                   ESTADO         = :WS-ESTADO,
+      *                   CUOTA_MENSUAL  = :WS-CUOTA-MENSUAL,
+      *                   MESES_MORA     = :WS-MESES-MORA,
+      *                   FECHA_ULT_PAGO = NULL
+      *            WHERE  ID_HIPOTECA    = :WS-ID-HIPOTECA
       *        END-EXEC
            IF SQL-PREP OF SQL-STMT-6 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
-                 SQL-VAR-0008
+                 SQL-VAR-0005
                MOVE '3' TO SQL-TYPE(1)
                MOVE 8 TO SQL-LEN(1)
                MOVE X'02' TO SQL-PREC(1)
                SET SQL-ADDR(2) TO ADDRESS OF
-                 BORM-ESTADO
+                 WS-ESTADO
                MOVE 'X' TO SQL-TYPE(2)
                MOVE 10 TO SQL-LEN(2)
                SET SQL-ADDR(3) TO ADDRESS OF
-                 SQL-VAR-0010
+                 SQL-VAR-0007
                MOVE '3' TO SQL-TYPE(3)
                MOVE 8 TO SQL-LEN(3)
                MOVE X'02' TO SQL-PREC(3)
                SET SQL-ADDR(4) TO ADDRESS OF
-                 SQL-VAR-0011
+                 SQL-VAR-0008
                MOVE '3' TO SQL-TYPE(4)
                MOVE 2 TO SQL-LEN(4)
                MOVE X'00' TO SQL-PREC(4)
                SET SQL-ADDR(5) TO ADDRESS OF
-                 SQL-VAR-0004
+                 SQL-VAR-0001
                MOVE '3' TO SQL-TYPE(5)
                MOVE 5 TO SQL-LEN(5)
                MOVE X'00' TO SQL-PREC(5)
@@ -654,52 +715,53 @@
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
-           MOVE BORM-SALDO-ACTUAL
+           MOVE WS-SALDO-ACTUAL
+             TO SQL-VAR-0005
+           MOVE WS-CUOTA-MENSUAL
+             TO SQL-VAR-0007
+           MOVE WS-MESES-MORA
              TO SQL-VAR-0008
-           MOVE BORM-CUOTA-MENSUAL
-             TO SQL-VAR-0010
-           MOVE BORM-MESES-MORA
-             TO SQL-VAR-0011
-           MOVE BORM-ID-HIPOTECA
-             TO SQL-VAR-0004
+           MOVE WS-ID-HIPOTECA
+             TO SQL-VAR-0001
            CALL 'OCSQLEXE' USING SQL-STMT-6
                                SQLCA
            ELSE
+               MOVE BORM-FECHA-ULT-PAGO TO WS-FECHA-ULT-PAGO
       *        EXEC SQL
       *            UPDATE hipotecas
-      *            SET SALDO_ACTUAL = :BORM-SALDO-ACTUAL,
-      *                ESTADO = :BORM-ESTADO,
-      *                CUOTA_MENSUAL = :BORM-CUOTA-MENSUAL,
-      *                MESES_MORA = :BORM-MESES-MORA,
-      *                FECHA_ULT_PAGO = :BORM-FECHA-ULT-PAGO
-      *            WHERE ID_HIPOTECA = :BORM-ID-HIPOTECA
+      *            SET    SALDO_ACTUAL   = :WS-SALDO-ACTUAL,
+      *                   ESTADO         = :WS-ESTADO,
+      *                   CUOTA_MENSUAL  = :WS-CUOTA-MENSUAL,
+      *                   MESES_MORA     = :WS-MESES-MORA,
+      *                   FECHA_ULT_PAGO = :WS-FECHA-ULT-PAGO
+      *            WHERE  ID_HIPOTECA    = :WS-ID-HIPOTECA
       *        END-EXEC
            IF SQL-PREP OF SQL-STMT-7 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
-                 SQL-VAR-0008
+                 SQL-VAR-0005
                MOVE '3' TO SQL-TYPE(1)
                MOVE 8 TO SQL-LEN(1)
                MOVE X'02' TO SQL-PREC(1)
                SET SQL-ADDR(2) TO ADDRESS OF
-                 BORM-ESTADO
+                 WS-ESTADO
                MOVE 'X' TO SQL-TYPE(2)
                MOVE 10 TO SQL-LEN(2)
                SET SQL-ADDR(3) TO ADDRESS OF
-                 SQL-VAR-0010
+                 SQL-VAR-0007
                MOVE '3' TO SQL-TYPE(3)
                MOVE 8 TO SQL-LEN(3)
                MOVE X'02' TO SQL-PREC(3)
                SET SQL-ADDR(4) TO ADDRESS OF
-                 SQL-VAR-0011
+                 SQL-VAR-0008
                MOVE '3' TO SQL-TYPE(4)
                MOVE 2 TO SQL-LEN(4)
                MOVE X'00' TO SQL-PREC(4)
                SET SQL-ADDR(5) TO ADDRESS OF
-                 BORM-FECHA-ULT-PAGO
+                 WS-FECHA-ULT-PAGO
                MOVE 'X' TO SQL-TYPE(5)
                MOVE 10 TO SQL-LEN(5)
                SET SQL-ADDR(6) TO ADDRESS OF
-                 SQL-VAR-0004
+                 SQL-VAR-0001
                MOVE '3' TO SQL-TYPE(6)
                MOVE 5 TO SQL-LEN(6)
                MOVE X'00' TO SQL-PREC(6)
@@ -709,14 +771,14 @@
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
-           MOVE BORM-SALDO-ACTUAL
+           MOVE WS-SALDO-ACTUAL
+             TO SQL-VAR-0005
+           MOVE WS-CUOTA-MENSUAL
+             TO SQL-VAR-0007
+           MOVE WS-MESES-MORA
              TO SQL-VAR-0008
-           MOVE BORM-CUOTA-MENSUAL
-             TO SQL-VAR-0010
-           MOVE BORM-MESES-MORA
-             TO SQL-VAR-0011
-           MOVE BORM-ID-HIPOTECA
-             TO SQL-VAR-0004
+           MOVE WS-ID-HIPOTECA
+             TO SQL-VAR-0001
            CALL 'OCSQLEXE' USING SQL-STMT-7
                                SQLCA
            END-IF.
@@ -727,12 +789,12 @@
                IF BORM-ESTADO = "CANCELADO"
       *            EXEC SQL
       *                UPDATE clientes
-      *                SET HIPOTECA = 0
-      *                WHERE ID_CLIENTE = :BORM-ID-CLIENTE
+      *                SET    HIPOTECA = 0
+      *                WHERE  ID_CLIENTE = :WS-ID-CLIENTE
       *            END-EXEC
            IF SQL-PREP OF SQL-STMT-8 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
-                 SQL-VAR-0005
+                 SQL-VAR-0002
                MOVE '3' TO SQL-TYPE(1)
                MOVE 5 TO SQL-LEN(1)
                MOVE X'00' TO SQL-PREC(1)
@@ -742,82 +804,55 @@
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
-           MOVE BORM-ID-CLIENTE
-             TO SQL-VAR-0005
+           MOVE WS-ID-CLIENTE
+             TO SQL-VAR-0002
            CALL 'OCSQLEXE' USING SQL-STMT-8
                                SQLCA
-
                    PERFORM 9000-EVALUAR-SQL
                END-IF
-
                IF LK-COD-RETORNO = 0
                    MOVE "HIPOTECA ACTUALIZADA" TO LK-MENSAJE
                END-IF
            END-IF.
 
+      *================================================================*
+      * 9000 - EVALUAR SQLCODE                                        *
+      *================================================================*
        9000-EVALUAR-SQL.
            EVALUATE SQLCODE
                WHEN 0
                    MOVE 00 TO LK-COD-RETORNO
                    IF LK-MENSAJE = SPACES
-                       MOVE "OPERACION EXITOSA" TO LK-MENSAJE
+                       MOVE "OPERACION EXITOSA"
+                           TO LK-MENSAJE
                    END-IF
                WHEN 100
                    MOVE 01 TO LK-COD-RETORNO
-                   MOVE "HIPOTECA NO ENCONTRADA" TO LK-MENSAJE
+                   MOVE "HIPOTECA NO ENCONTRADA"
+                       TO LK-MENSAJE
                WHEN -803
                    MOVE 02 TO LK-COD-RETORNO
-                   MOVE "HIPOTECA DUPLICADA" TO LK-MENSAJE
+                   MOVE "HIPOTECA DUPLICADA"
+                       TO LK-MENSAJE
                WHEN OTHER
                    MOVE 99 TO LK-COD-RETORNO
-                   MOVE "ERROR TECNICO EN DB HIPOTECAS" TO LK-MENSAJE
+                   MOVE "ERROR TECNICO EN DB HIPOTECAS"
+                       TO LK-MENSAJE
            END-EVALUATE.
       **********************************************************************
       *  : ESQL for GnuCOBOL/OpenCOBOL Version 3 (2024.04.30) Build May 10 2024
 
       *******               EMBEDDED SQL VARIABLES USAGE             *******
-      *  BORM-CUOTA-MENSUAL       IN USE THROUGH TEMP VAR SQL-VAR-0010 DECIMAL(15,2)
-      *  BORM-DIA-PAGO            IN USE THROUGH TEMP VAR SQL-VAR-0009 DECIMAL(3,0)
-      *  BORM-ESTADO              IN USE CHAR(10)
-      *  BORM-FECHA-INICIO        IN USE CHAR(10)
-      *  BORM-FECHA-ULT-PAGO      IN USE CHAR(10)
-      *  BORM-FECHA-VENCTO        IN USE CHAR(10)
-      *  BORM-ID-CLIENTE          IN USE THROUGH TEMP VAR SQL-VAR-0005 DECIMAL(9,0)
-      *  BORM-ID-HIPOTECA         IN USE THROUGH TEMP VAR SQL-VAR-0004 DECIMAL(9,0)
-      *  BORM-MESES-MORA          IN USE THROUGH TEMP VAR SQL-VAR-0011 DECIMAL(3,0)
-      *  BORM-MONTO-ORIGINAL      IN USE THROUGH TEMP VAR SQL-VAR-0006 DECIMAL(15,2)
-      *  BORM-REGISTRO        NOT IN USE
-      *  BORM-REGISTRO.BORM-CUOTA-MENSUAL NOT IN USE
-      *  BORM-REGISTRO.BORM-DIA-PAGO NOT IN USE
-      *  BORM-REGISTRO.BORM-ESTADO NOT IN USE
-      *  BORM-REGISTRO.BORM-FECHA-INICIO NOT IN USE
-      *  BORM-REGISTRO.BORM-FECHA-ULT-PAGO NOT IN USE
-      *  BORM-REGISTRO.BORM-FECHA-VENCTO NOT IN USE
-      *  BORM-REGISTRO.BORM-ID-CLIENTE NOT IN USE
-      *  BORM-REGISTRO.BORM-ID-HIPOTECA NOT IN USE
-      *  BORM-REGISTRO.BORM-MESES-MORA NOT IN USE
-      *  BORM-REGISTRO.BORM-MONTO-ORIGINAL NOT IN USE
-      *  BORM-REGISTRO.BORM-SALDO-ACTUAL NOT IN USE
-      *  BORM-REGISTRO.BORM-TASA-INTERES NOT IN USE
-      *  BORM-SALDO-ACTUAL        IN USE THROUGH TEMP VAR SQL-VAR-0008 DECIMAL(15,2)
-      *  BORM-TASA-INTERES        IN USE THROUGH TEMP VAR SQL-VAR-0007 DECIMAL(7,4)
-      *  LK-ACCION-DB         NOT IN USE
-      *  LK-COD-RETORNO       NOT IN USE
-      *  LK-DATOS-TRANSACCION NOT IN USE
-      *  LK-DATOS-TRANSACCION.LK-ACCION-DB NOT IN USE
-      *  LK-DATOS-TRANSACCION.LK-COD-RETORNO NOT IN USE
-      *  LK-DATOS-TRANSACCION.LK-FECHA-PROCESO NOT IN USE
-      *  LK-DATOS-TRANSACCION.LK-ID-CLIENTE NOT IN USE
-      *  LK-DATOS-TRANSACCION.LK-IMPORTE-TRANSACCION NOT IN USE
-      *  LK-DATOS-TRANSACCION.LK-MENSAJE NOT IN USE
-      *  LK-DATOS-TRANSACCION.LK-MODO-OPERACION NOT IN USE
-      *  LK-DATOS-TRANSACCION.LK-TERMINAL-ID NOT IN USE
-      *  LK-DATOS-TRANSACCION.LK-USUARIO-ID NOT IN USE
-      *  LK-FECHA-PROCESO     NOT IN USE
-      *  LK-ID-CLIENTE        NOT IN USE
-      *  LK-IMPORTE-TRANSACCION NOT IN USE
-      *  LK-MENSAJE           NOT IN USE
-      *  LK-MODO-OPERACION    NOT IN USE
-      *  LK-TERMINAL-ID       NOT IN USE
-      *  LK-USUARIO-ID        NOT IN USE
+      *  WS-CUOTA-MENSUAL         IN USE THROUGH TEMP VAR SQL-VAR-0007 DECIMAL(15,2)
+      *  WS-DIA-PAGO              IN USE THROUGH TEMP VAR SQL-VAR-0006 DECIMAL(3,0)
+      *  WS-ESTADO                IN USE CHAR(10)
+      *  WS-FECHA-INICIO          IN USE CHAR(10)
+      *  WS-FECHA-ULT-PAGO        IN USE CHAR(10)
+      *  WS-FECHA-VENCTO          IN USE CHAR(10)
+      *  WS-ID-CLIENTE            IN USE THROUGH TEMP VAR SQL-VAR-0002 DECIMAL(9,0)
+      *  WS-ID-HIPOTECA           IN USE THROUGH TEMP VAR SQL-VAR-0001 DECIMAL(9,0)
+      *  WS-MESES-MORA            IN USE THROUGH TEMP VAR SQL-VAR-0008 DECIMAL(3,0)
+      *  WS-MONTO-ORIGINAL        IN USE THROUGH TEMP VAR SQL-VAR-0003 DECIMAL(15,2)
+      *  WS-SALDO-ACTUAL          IN USE THROUGH TEMP VAR SQL-VAR-0005 DECIMAL(15,2)
+      *  WS-TASA-INTERES          IN USE THROUGH TEMP VAR SQL-VAR-0004 DECIMAL(7,4)
       **********************************************************************
