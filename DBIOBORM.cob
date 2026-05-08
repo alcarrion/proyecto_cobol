@@ -160,7 +160,7 @@
        01  WS-SALDO-ACTUAL        PIC S9(13)V99.
        01  WS-FECHA-VENCTO        PIC X(10).
        01  WS-DIA-PAGO            PIC 9(02).
-       01  WS-ESTADO              PIC X(10).
+       01  WS-ESTADO              PIC X(20).
        01  WS-CUOTA-MENSUAL       PIC S9(13)V99.
        01  WS-MESES-MORA          PIC 9(03).
        01  WS-FECHA-ULT-PAGO      PIC X(10).
@@ -189,7 +189,7 @@
            05 BORM-SALDO-ACTUAL        PIC S9(13)V99.
            05 BORM-FECHA-VENCTO        PIC X(10).
            05 BORM-DIA-PAGO            PIC 9(02).
-           05 BORM-ESTADO              PIC X(10).
+           05 BORM-ESTADO              PIC X(20).
            05 BORM-CUOTA-MENSUAL       PIC S9(13)V99.
            05 BORM-MESES-MORA          PIC 9(03).
            05 BORM-FECHA-ULT-PAGO      PIC X(10).
@@ -358,7 +358,7 @@
                SET SQL-ADDR(9) TO ADDRESS OF
                  WS-ESTADO
                MOVE 'X' TO SQL-TYPE(9)
-               MOVE 10 TO SQL-LEN(9)
+               MOVE 20 TO SQL-LEN(9)
                SET SQL-ADDR(10) TO ADDRESS OF
                  SQL-VAR-0007
                MOVE '3' TO SQL-TYPE(10)
@@ -466,7 +466,7 @@
                SET SQL-ADDR(9) TO ADDRESS OF
                  WS-ESTADO
                MOVE 'X' TO SQL-TYPE(9)
-               MOVE 10 TO SQL-LEN(9)
+               MOVE 20 TO SQL-LEN(9)
                SET SQL-ADDR(10) TO ADDRESS OF
                  SQL-VAR-0007
                MOVE '3' TO SQL-TYPE(10)
@@ -607,7 +607,7 @@
                SET SQL-ADDR(8) TO ADDRESS OF
                  WS-ESTADO
                MOVE 'X' TO SQL-TYPE(8)
-               MOVE 10 TO SQL-LEN(8)
+               MOVE 20 TO SQL-LEN(8)
                SET SQL-ADDR(9) TO ADDRESS OF
                  SQL-VAR-0007
                MOVE '3' TO SQL-TYPE(9)
@@ -693,7 +693,7 @@
                SET SQL-ADDR(2) TO ADDRESS OF
                  WS-ESTADO
                MOVE 'X' TO SQL-TYPE(2)
-               MOVE 10 TO SQL-LEN(2)
+               MOVE 20 TO SQL-LEN(2)
                SET SQL-ADDR(3) TO ADDRESS OF
                  SQL-VAR-0007
                MOVE '3' TO SQL-TYPE(3)
@@ -745,7 +745,7 @@
                SET SQL-ADDR(2) TO ADDRESS OF
                  WS-ESTADO
                MOVE 'X' TO SQL-TYPE(2)
-               MOVE 10 TO SQL-LEN(2)
+               MOVE 20 TO SQL-LEN(2)
                SET SQL-ADDR(3) TO ADDRESS OF
                  SQL-VAR-0007
                MOVE '3' TO SQL-TYPE(3)
@@ -845,7 +845,7 @@
       *******               EMBEDDED SQL VARIABLES USAGE             *******
       *  WS-CUOTA-MENSUAL         IN USE THROUGH TEMP VAR SQL-VAR-0007 DECIMAL(15,2)
       *  WS-DIA-PAGO              IN USE THROUGH TEMP VAR SQL-VAR-0006 DECIMAL(3,0)
-      *  WS-ESTADO                IN USE CHAR(10)
+      *  WS-ESTADO                IN USE CHAR(20)
       *  WS-FECHA-INICIO          IN USE CHAR(10)
       *  WS-FECHA-ULT-PAGO        IN USE CHAR(10)
       *  WS-FECHA-VENCTO          IN USE CHAR(10)
