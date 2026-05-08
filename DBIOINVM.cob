@@ -34,30 +34,30 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 103.
-           05 SQL-STMT   PIC X(103) VALUE 'SELECT COD_ULT_MOV,FECHA_ULT_
-      -    'MOV,IMPORTE_MOV,SALDO_ACTUAL FROM ctactes WHERE TRIM(ID_CLIE
-      -    'NTE) = TRIM(?)'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 91.
+           05 SQL-STMT   PIC X(91) VALUE 'SELECT COD_ULT_MOV,FECHA_ULT_M
+      -    'OV,IMPORTE_MOV,SALDO_ACTUAL FROM ctactes WHERE ID_CLIENTE = 
+      -    '?'.
       **********************************************************************
        01 SQL-STMT-2.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 114.
-           05 SQL-STMT   PIC X(114) VALUE 'SELECT COD_ULT_MOV,FECHA_ULT_
-      -    'MOV,IMPORTE_MOV,SALDO_ACTUAL FROM ctactes WHERE TRIM(ID_CLIE
-      -    'NTE) = TRIM(?) FOR UPDATE'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 102.
+           05 SQL-STMT   PIC X(102) VALUE 'SELECT COD_ULT_MOV,FECHA_ULT_
+      -    'MOV,IMPORTE_MOV,SALDO_ACTUAL FROM ctactes WHERE ID_CLIENTE =
+      -    ' ? FOR UPDATE'.
       **********************************************************************
        01 SQL-STMT-3.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 4.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 126.
-           05 SQL-STMT   PIC X(126) VALUE 'UPDATE ctactes SET COD_ULT_MO
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 114.
+           05 SQL-STMT   PIC X(114) VALUE 'UPDATE ctactes SET COD_ULT_MO
       -    'V = ?,FECHA_ULT_MOV = CURDATE(),IMPORTE_MOV = ?,SALDO_ACTUAL
-      -    ' = ? WHERE TRIM(ID_CLIENTE) = TRIM(?)'.
+      -    ' = ? WHERE ID_CLIENTE = ?'.
       **********************************************************************
       *******          PRECOMPILER-GENERATED VARIABLES               *******
        01 SQLV-GEN-VARS.
@@ -193,7 +193,7 @@
       *             :INVM-IMPORTE-MOV,
       *             :INVM-SALDO-ACTUAL
       *        FROM ctactes
-      *        WHERE TRIM(ID_CLIENTE) = TRIM(:INVM-ID-CLIENTE)
+      *        WHERE ID_CLIENTE = :INVM-ID-CLIENTE
       *    END-EXEC.
            IF SQL-PREP OF SQL-STMT-1 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -247,7 +247,7 @@
       *             :INVM-IMPORTE-MOV,
       *             :INVM-SALDO-ACTUAL
       *        FROM ctactes
-      *        WHERE TRIM(ID_CLIENTE) = TRIM(:INVM-ID-CLIENTE)
+      *        WHERE ID_CLIENTE = :INVM-ID-CLIENTE
       *        FOR UPDATE
       *    END-EXEC.
            IF SQL-PREP OF SQL-STMT-2 = 'N'
@@ -297,7 +297,7 @@
       *            FECHA_ULT_MOV = CURDATE(),
       *            IMPORTE_MOV = :INVM-IMPORTE-MOV,
       *            SALDO_ACTUAL = :INVM-SALDO-ACTUAL
-      *        WHERE TRIM(ID_CLIENTE) = TRIM(:INVM-ID-CLIENTE)
+      *        WHERE ID_CLIENTE = :INVM-ID-CLIENTE
       *    END-EXEC.
            IF SQL-PREP OF SQL-STMT-3 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF

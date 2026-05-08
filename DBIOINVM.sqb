@@ -75,7 +75,7 @@
                     :INVM-IMPORTE-MOV,
                     :INVM-SALDO-ACTUAL
                FROM ctactes
-               WHERE TRIM(ID_CLIENTE) = TRIM(:INVM-ID-CLIENTE)
+               WHERE ID_CLIENTE = :INVM-ID-CLIENTE
            END-EXEC.
            PERFORM 9000-EVALUAR-SQL.
            IF LK-COD-RETORNO = 0
@@ -91,7 +91,7 @@
                     :INVM-IMPORTE-MOV,
                     :INVM-SALDO-ACTUAL
                FROM ctactes
-               WHERE TRIM(ID_CLIENTE) = TRIM(:INVM-ID-CLIENTE)
+               WHERE ID_CLIENTE = :INVM-ID-CLIENTE
                FOR UPDATE
            END-EXEC.
            PERFORM 9000-EVALUAR-SQL.
@@ -103,7 +103,7 @@
                    FECHA_ULT_MOV = CURDATE(),
                    IMPORTE_MOV = :INVM-IMPORTE-MOV,
                    SALDO_ACTUAL = :INVM-SALDO-ACTUAL
-               WHERE TRIM(ID_CLIENTE) = TRIM(:INVM-ID-CLIENTE)
+               WHERE ID_CLIENTE = :INVM-ID-CLIENTE
            END-EXEC.
            PERFORM 9000-EVALUAR-SQL.
            IF LK-COD-RETORNO = 0

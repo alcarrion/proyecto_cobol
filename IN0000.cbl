@@ -26,6 +26,11 @@
                88  ES-NUMERO       VALUE 'S'.
                88  NO-ES-NUMERO    VALUE 'N'.
 
+       01  WS-AUXILIARES-VALIDACION.
+           05 WS-I                PIC 9(02).
+           05 WS-DOC-LEN          PIC 9(02).
+           05 WS-DOC-VALIDO       PIC X(01) VALUE 'N'.
+
        LINKAGE SECTION.
            COPY LKCIF.
 
@@ -83,7 +88,7 @@
            IF LK-COD-RETORNO = 0
                *> Validamos estado antes de pedir dinero
                IF CUSM-CTA-ACTIVA = 0
-                   PERFORM 9100-MOSTRAR-ERROR-INACTIVA
+                   PERFORM 9110-MOSTRAR-ERROR-INACTIVA
                    CALL 'DBIOTRAN' USING 'R'
                ELSE
 
@@ -120,7 +125,7 @@
 
            IF LK-COD-RETORNO = 0
                IF CUSM-CTA-ACTIVA = 0
-                   PERFORM 9100-MOSTRAR-ERROR-INACTIVA
+                   PERFORM 9110-MOSTRAR-ERROR-INACTIVA
 
                ELSE
                    MOVE CUSM-ID-CLIENTE TO INVM-ID-CLIENTE
@@ -129,7 +134,7 @@
                    REG-INVM, LK-DATOS-TRANSACCION
 
                    IF LK-COD-RETORNO = 0
-                       *> 4. Reglas de negocio cr韙icas (con la DB bloqueada)
+                       *> 4. Reglas de negocio cr锟絫icas (con la DB bloqueada)
                        DISPLAY "SALDO DISPONIBLE: " INVM-SALDO-ACTUAL
 
                        IF WS-MONTO-TX <= INVM-SALDO-ACTUAL
@@ -144,7 +149,7 @@
                            PERFORM 9200-GESTIONAR-TRANSACCION
                        ELSE
                            DISPLAY "ERROR: FONDOS INSUFICIENTES."
-                           *> IBERAR EL LOCK INMEDIATAMENTE!
+                           *> 锟絃IBERAR EL LOCK INMEDIATAMENTE!
                            CALL 'DBIOTRAN' USING 'R'
                        END-IF
                    ELSE
@@ -160,8 +165,7 @@
       *    Busca primero al cliente para obtener el ID interno via Cedula
            INITIALIZE REG-CUSM.
 
-           DISPLAY "INGRESE DOC DEL CLIENTE: "
-           ACCEPT CUSM-DOC-CLIENTE.
+           PERFORM 9100-VALIDAR-DOC-CAPTURA.
 
            MOVE LK-ACCION-DB TO WS-CONTINUAR-INVM.
            MOVE 'C' TO LK-ACCION-DB.
@@ -173,13 +177,50 @@
 
                MOVE WS-CONTINUAR-INVM TO LK-ACCION-DB
                CALL WS-PGM-DBIOINVM USING REG-INVM, LK-DATOS-TRANSACCION
-`
+
            ELSE
                MOVE "CLIENTE NO EXISTE" TO LK-MENSAJE
                MOVE 01 TO LK-COD-RETORNO
            END-IF.
 
-       9100-MOSTRAR-ERROR-INACTIVA.
+       9100-VALIDAR-DOC-CAPTURA.
+           MOVE 'N' TO WS-DOC-VALIDO.
+
+           PERFORM UNTIL WS-DOC-VALIDO = 'S'
+               DISPLAY "----------------------------------------------"
+               DISPLAY "INGRESE DOCUMENTO (8 CED / 12 PAS): "
+               ACCEPT CUSM-DOC-CLIENTE
+
+      * Calcular longitud real (eliminando espacios a la derecha)
+               MOVE 0 TO WS-DOC-LEN
+               MOVE 12 TO WS-I
+               PERFORM UNTIL WS-I = 0 OR CUSM-DOC-CLIENTE(WS-I:1)
+               NOT = SPACE
+                   SUBTRACT 1 FROM WS-I
+               END-PERFORM
+               MOVE WS-I TO WS-DOC-LEN
+
+      * L贸gica de Validaci贸n y Asignaci贸n Autom谩tica
+               IF WS-DOC-LEN >= 8 AND WS-DOC-LEN <= 12
+                   MOVE 'S' TO WS-DOC-VALIDO
+
+      * Identificaci贸n autom谩tica
+                   IF WS-DOC-LEN = 8
+                       MOVE "CED" TO CUSM-TIPO-DOC
+                   ELSE
+                       MOVE "PAS" TO CUSM-TIPO-DOC
+                   END-IF
+
+                   DISPLAY ">>> SISTEMA: DOCUMENTO VALIDO"
+                   DISPLAY ">>> TIPO ASIGNADO: " CUSM-TIPO-DOC
+               ELSE
+                   DISPLAY "ERROR: LONGITUD INVALIDA (" WS-DOC-LEN ")"
+                   DISPLAY "DEBE TENER ENTRE 8 Y 12 CARACTERES."
+                   DISPLAY "POR FAVOR, INTENTE DE NUEVO."
+               END-IF
+           END-PERFORM.
+
+       9110-MOSTRAR-ERROR-INACTIVA.
            DISPLAY "******************************************"
            DISPLAY "ERROR: CUENTA CERRADA / INACTIVA"
            DISPLAY "OPERACION NO PERMITIDA."
