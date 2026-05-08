@@ -1,47 +1,827 @@
+      *================================================================*
+      * PROGRAMA : BAT000.sqb                                         *
+      * FUNCION  : PROCESO BATCH DE CIERRE MENSUAL                    *
+      *            - CONSOLIDACION                                    *
+      *            - PROCESAR MORA EN HIPOTECAS                       *
+      *            - DESCONTAR CUOTA DE CUENTA SI HAY FONDOS          *
+      *            - DAR DE BAJA TARJETAS VENCIDAS                    *
+      *            - RESET OPERATIVO DE TARJETAS                      *
+      *            - ROLLBACK si algo falla*
+      * LLAMADO  : BANCSMENU (OPCION 5)                               *
+      * PRECOMP  : esqlOC BAT000.sqb  ->  BAT000.cob                  *
+      *================================================================*
        IDENTIFICATION DIVISION.
        PROGRAM-ID. BAT000.
-      *================================================================*
-      * MODULO: Cierre Mensual Batch                                   *
-      *================================================================*
+
        ENVIRONMENT DIVISION.
+
        DATA DIVISION.
        WORKING-STORAGE SECTION.
+
            EXEC SQL INCLUDE SQLCA END-EXEC.
-           
+
+      *================================================================*
+      *   DECLARE SECTION - VARIABLES HOST SQL                        *
+      *================================================================*
            EXEC SQL BEGIN DECLARE SECTION END-EXEC.
-       01  WS-TARJETAS-PROCESADAS PIC 9(05).
+
+      *    Control de periodo
+       01  WS-PERIODO              PIC X(6).
+
+      *    Variables host - AUDIT_MAESTRA / clientes + ctactes
+       01  WS-HOST-MAESTRA.
+           05 HV-ID-CLIENTE        PIC 9(8).
+           05 HV-TIPO-DOC          PIC X(3).
+           05 HV-DOC-CLIENTE       PIC X(12).
+           05 HV-FECHA-ALTA        PIC X(10).
+           05 HV-NOMBRE            PIC X(25).
+           05 HV-APELLIDOS         PIC X(25).
+           05 HV-SALDO-CLI         PIC S9(10)V99.
+           05 HV-CTA-ACTIVA        PIC 9(1).
+           05 HV-TIENE-TARJETA     PIC 9(1).
+           05 HV-TIENE-HIPOTECA    PIC 9(1).
+           05 HV-SALDO-CTA         PIC S9(10)V99.
+           05 HV-COD-ULT-MOV       PIC 9(2).
+           05 HV-FECHA-ULT-MOV     PIC X(10).
+           05 HV-IMPORTE-MOV       PIC S9(10)V99.
+      *    Indicadores de NULL para el LEFT JOIN con ctactes
+           05 HV-IND-SALDO-CTA     PIC S9(4) COMP-5.
+           05 HV-IND-COD-MOV       PIC S9(4) COMP-5.
+           05 HV-IND-FECHA-MOV     PIC S9(4) COMP-5.
+           05 HV-IND-IMPORTE-MOV   PIC S9(4) COMP-5.
+
+      *    Variables host - AUDIT_TARJETAS
+       01  WS-HOST-TARJETAS.
+           05 HV-TARJ-ID-CLI       PIC 9(8).
+           05 HV-TARJ-NRO          PIC X(16).
+           05 HV-TARJ-LIMITE       PIC S9(10)V99.
+           05 HV-TARJ-ACUM         PIC S9(10)V99.
+           05 HV-TARJ-LIQUID       PIC S9(10)V99.
+           05 HV-TARJ-ESTADO       PIC X(1).
+
+      *    Variables host - AUDIT_HIPOTECAS
+       01  WS-HOST-HIPOTECAS.
+           05 HV-HIPO-ID-HIPO      PIC 9(9).
+           05 HV-HIPO-ID-CLI       PIC 9(8).
+           05 HV-HIPO-MONTO-ORIG   PIC S9(13)V99.
+           05 HV-HIPO-TASA         PIC S9(3)V9999.
+           05 HV-HIPO-SALDO        PIC S9(13)V99.
+           05 HV-HIPO-FECHA-VENC   PIC X(10).
+           05 HV-HIPO-ESTADO       PIC X(20).
+
+      *    Variables host - PROCESAMIENTO DE MORA
+       01  WS-HOST-MORA.
+           05 HV-MORA-ID-HIPO      PIC 9(9).
+           05 HV-MORA-ID-CLI       PIC 9(8).
+           05 HV-MORA-SALDO-ACT    PIC S9(13)V99.
+           05 HV-MORA-MONTO-ORIG   PIC S9(13)V99.
+           05 HV-MORA-ESTADO       PIC X(20).
+           05 HV-MORA-MESES-TOT    PIC 9(4).
+           05 HV-MORA-MESES-TRANS  PIC 9(4).
+           05 HV-MORA-PAGO-MENS    PIC S9(13)V99.
+           05 HV-MORA-SALDO-ESP    PIC S9(13)V99.
+           05 HV-MORA-MESES-MORA   PIC 9(4).
+
+      *    Variables host para UPDATE de estado hipoteca y descuento
+           05 HV-MORA-NUEVO-ESTADO PIC X(20).
+           05 HV-MORA-CLI-SALDO    PIC S9(10)V99.
+
+      *    Verificacion de periodo duplicado
+       01  HV-COUNT-PERIODO        PIC 9(6).
+
            EXEC SQL END DECLARE SECTION END-EXEC.
 
-       LINKAGE SECTION.
-       COPY LKCIF.
+      *================================================================*
+      *   DECLARACION DE CURSORES                                      *
+      *================================================================*
 
+           EXEC SQL DECLARE CUR-MAESTRA CURSOR FOR
+               SELECT C.ID_CLIENTE,
+                      C.TIPO_DOC,
+                      C.DOC_CLIENTE,
+                      C.FECHA_ALTA,
+                      C.NOMBRE_CLIENTE,
+                      C.APELLIDOS_CLIENTE,
+                      C.SALDO_CLIENTE,
+                      C.CTA_ACTIVA,
+                      C.TARJETA,
+                      C.HIPOTECA,
+                      I.SALDO_ACTUAL,
+                      I.COD_ULT_MOV,
+                      I.FECHA_ULT_MOV,
+                      I.IMPORTE_MOV
+               FROM   clientes C
+               LEFT JOIN ctactes I
+                      ON C.ID_CLIENTE = I.ID_CLIENTE
+               ORDER BY C.ID_CLIENTE
+           END-EXEC.
+
+           EXEC SQL DECLARE CUR-TARJETAS CURSOR FOR
+               SELECT ID_CLIENTE,
+                      NRO_TARJETA,
+                      LIMITE_TARJETA,
+                      ACUM_MES,
+                      LIQUIDACION_MES,
+                      ESTADO
+               FROM   TARJETAS
+               ORDER BY ID_CLIENTE, NRO_TARJETA
+           END-EXEC.
+
+           EXEC SQL DECLARE CUR-HIPOTECAS CURSOR FOR
+               SELECT ID_HIPOTECA,
+                      ID_CLIENTE,
+                      MONTO_ORIGINAL,
+                      TASA_INTERES,
+                      SALDO_ACTUAL,
+                      FECHA_VENCTO,
+                      ESTADO
+               FROM   HIPOTECAS
+               ORDER BY ID_CLIENTE, ID_HIPOTECA
+           END-EXEC.
+
+      *    Cursor de mora: MySQL calcula todos los valores necesarios
+           EXEC SQL DECLARE CUR-MORA CURSOR FOR
+               SELECT H.ID_HIPOTECA,
+                      H.ID_CLIENTE,
+                      H.SALDO_ACTUAL,
+                      H.MONTO_ORIGINAL,
+                      H.ESTADO,
+                      TIMESTAMPDIFF(MONTH,
+                          H.FECHA_INICIO, H.FECHA_VENCTO),
+                      TIMESTAMPDIFF(MONTH,
+                          H.FECHA_INICIO, CURDATE()),
+                      (H.MONTO_ORIGINAL * H.TASA_INTERES) /
+                      TIMESTAMPDIFF(MONTH,
+                          H.FECHA_INICIO, H.FECHA_VENCTO),
+                      H.MONTO_ORIGINAL -
+                      ((H.MONTO_ORIGINAL * H.TASA_INTERES) /
+                      TIMESTAMPDIFF(MONTH,
+                          H.FECHA_INICIO, H.FECHA_VENCTO)) *
+                      TIMESTAMPDIFF(MONTH,
+                          H.FECHA_INICIO, CURDATE()),
+                      (SELECT COUNT(*) FROM AUDIT_HIPOTECAS A
+                       WHERE  A.ID_HIPOTECA = H.ID_HIPOTECA
+                       AND    A.ESTADO      = 'MOROSO')
+               FROM   HIPOTECAS H
+               WHERE  H.ESTADO IN ('ACTIVO', 'MOROSO')
+               ORDER BY H.ID_CLIENTE, H.ID_HIPOTECA
+           END-EXEC.
+
+      *================================================================*
+      *   WORKING STORAGE - CONTROL INTERNO                            *
+      *================================================================*
+       01  WS-FECHA-SISTEMA.
+           05 WS-ANIO              PIC X(4).
+           05 WS-MES               PIC X(2).
+           05 WS-DIA               PIC X(2).
+           05 FILLER               PIC X(13).
+
+       01  WS-FECHA-HOY            PIC X(10).
+
+       01  WS-CONTROL.
+           05 WS-ABORT             PIC X VALUE 'N'.
+           05 WS-FIN-MAESTRA       PIC X VALUE 'N'.
+           05 WS-FIN-TARJETAS      PIC X VALUE 'N'.
+           05 WS-FIN-HIPOTECAS     PIC X VALUE 'N'.
+           05 WS-FIN-MORA          PIC X VALUE 'N'.
+
+       01  WS-CONTADORES.
+           05 WS-CTR-CLIENTES      PIC 9(6) VALUE 0.
+           05 WS-CTR-TARJETAS      PIC 9(6) VALUE 0.
+           05 WS-CTR-HIPOTECAS     PIC 9(6) VALUE 0.
+           05 WS-CTR-ERRORES       PIC 9(6) VALUE 0.
+           05 WS-CTR-MOROSAS       PIC 9(6) VALUE 0.
+           05 WS-CTR-CASTIGADAS    PIC 9(6) VALUE 0.
+           05 WS-CTR-TARJ-BAJA     PIC 9(6) VALUE 0.
+
+      *================================================================*
+      *   LINKAGE SECTION                                              *
+      *================================================================*
+       LINKAGE SECTION.
+           COPY LKCIF.
+
+      *================================================================*
+      *   PROCEDURE DIVISION                                           *
+      *================================================================*
        PROCEDURE DIVISION USING LK-DATOS-TRANSACCION.
 
        0000-PRINCIPAL.
-           DISPLAY "========================================".
-           DISPLAY "    INICIANDO PROCESO BATCH (CIERRE)    ".
-           DISPLAY "========================================".
+           MOVE 0       TO LK-COD-RETORNO
+           MOVE SPACES  TO LK-MENSAJE
+
+           PERFORM 1000-INICIALIZAR
+           IF WS-ABORT = 'N'
+               PERFORM 2000-VALIDAR-PERIODO
+           END-IF
+           IF WS-ABORT = 'N'
+               PERFORM 3000-SNAPSHOT-MAESTRA
+           END-IF
+           IF WS-ABORT = 'N'
+               PERFORM 4000-SNAPSHOT-TARJETAS
+           END-IF
+           IF WS-ABORT = 'N'
+               PERFORM 5000-SNAPSHOT-HIPOTECAS
+           END-IF
+           IF WS-ABORT = 'N'
+               PERFORM 5100-PROCESAR-MORA-HIPOTECAS
+           END-IF
+           IF WS-ABORT = 'N'
+               PERFORM 5200-BAJA-TARJETAS-VENCIDAS
+           END-IF
+           IF WS-ABORT = 'N'
+               PERFORM 6000-RESET-OPERATIVO
+           END-IF
+           PERFORM 7000-FINALIZAR
+
+           EXIT PROGRAM.
+
+      *================================================================*
+      *   1000 - INICIALIZAR: FECHA Y PERIODO                         *
+      *================================================================*
+       1000-INICIALIZAR.
+           MOVE FUNCTION CURRENT-DATE TO WS-FECHA-SISTEMA
+
+           STRING WS-ANIO DELIMITED SIZE
+                  WS-MES  DELIMITED SIZE
+                  INTO WS-PERIODO
+           END-STRING
+
+           STRING WS-ANIO DELIMITED SIZE
+                  '-'     DELIMITED SIZE
+                  WS-MES  DELIMITED SIZE
+                  '-'     DELIMITED SIZE
+                  WS-DIA  DELIMITED SIZE
+                  INTO WS-FECHA-HOY
+           END-STRING
+
+           DISPLAY '================================================'
+           DISPLAY ' BAT000 - PROCESO DE CIERRE MENSUAL'
+           DISPLAY ' PERIODO : ' WS-PERIODO
+           DISPLAY ' FECHA   : ' WS-FECHA-HOY
+           DISPLAY '================================================'.
+
+      *================================================================*
+      *   2000 - VALIDAR QUE EL PERIODO NO EXISTA YA EN AUDITORIA     *
+      *================================================================*
+       2000-VALIDAR-PERIODO.
+           MOVE 0 TO HV-COUNT-PERIODO
+
+           EXEC SQL
+               SELECT COUNT(*)
+               INTO   :HV-COUNT-PERIODO
+               FROM   AUDIT_MAESTRA
+               WHERE  PERIODO = :WS-PERIODO
+           END-EXEC
+
+           PERFORM 9000-EVALUAR-SQL
+
+           IF LK-COD-RETORNO = 99
+               DISPLAY 'ERROR AL VERIFICAR PERIODO. SQLCODE: '
+                       SQLCODE
+               MOVE 'S' TO WS-ABORT
+           ELSE
+               IF HV-COUNT-PERIODO > 0
+                   DISPLAY 'ADVERTENCIA: PERIODO ' WS-PERIODO
+                           ' YA FUE PROCESADO.'
+                   MOVE 10 TO LK-COD-RETORNO
+                   MOVE 'PERIODO YA PROCESADO. CIERRE CANCELADO.'
+                       TO LK-MENSAJE
+                   MOVE 'S' TO WS-ABORT
+               ELSE
+                   MOVE 0 TO LK-COD-RETORNO
+                   DISPLAY 'PERIODO ' WS-PERIODO ' HABILITADO OK.'
+               END-IF
+           END-IF.
+
+      *================================================================*
+      *   3000 - SNAPSHOT AUDIT_MAESTRA (CLIENTES + CTACTES)          *
+      *================================================================*
+       3000-SNAPSHOT-MAESTRA.
+           DISPLAY '>>> INICIANDO SNAPSHOT AUDIT_MAESTRA...'
+
+           EXEC SQL OPEN CUR-MAESTRA END-EXEC
+
+           IF SQLCODE NOT = 0
+               DISPLAY 'ERROR ABRIENDO CUR-MAESTRA: ' SQLCODE
+               MOVE 99 TO LK-COD-RETORNO
+               MOVE 'ERROR CRITICO ABRIENDO CURSOR CLIENTES'
+                   TO LK-MENSAJE
+               MOVE 'S' TO WS-ABORT
+               EXIT PARAGRAPH
+           END-IF
+
+           MOVE 'N' TO WS-FIN-MAESTRA
+
+           PERFORM UNTIL WS-FIN-MAESTRA = 'S'
+
+               EXEC SQL
+                   FETCH CUR-MAESTRA INTO
+                       :HV-ID-CLIENTE,
+                       :HV-TIPO-DOC,
+                       :HV-DOC-CLIENTE,
+                       :HV-FECHA-ALTA,
+                       :HV-NOMBRE,
+                       :HV-APELLIDOS,
+                       :HV-SALDO-CLI,
+                       :HV-CTA-ACTIVA,
+                       :HV-TIENE-TARJETA,
+                       :HV-TIENE-HIPOTECA,
+                       :HV-SALDO-CTA      :HV-IND-SALDO-CTA,
+                       :HV-COD-ULT-MOV    :HV-IND-COD-MOV,
+                       :HV-FECHA-ULT-MOV  :HV-IND-FECHA-MOV,
+                       :HV-IMPORTE-MOV    :HV-IND-IMPORTE-MOV
+               END-EXEC
+
+               EVALUATE SQLCODE
+                   WHEN 0
+                       IF HV-IND-SALDO-CTA   < 0
+                           MOVE ZERO   TO HV-SALDO-CTA
+                       END-IF
+                       IF HV-IND-COD-MOV     < 0
+                           MOVE ZERO   TO HV-COD-ULT-MOV
+                       END-IF
+                       IF HV-IND-FECHA-MOV   < 0
+                           MOVE SPACES TO HV-FECHA-ULT-MOV
+                       END-IF
+                       IF HV-IND-IMPORTE-MOV < 0
+                           MOVE ZERO   TO HV-IMPORTE-MOV
+                       END-IF
+
+                       EXEC SQL
+                           INSERT INTO AUDIT_MAESTRA (
+                               PERIODO,           ID_CLIENTE,
+                               TIPO_DOC,          DOC_CLIENTE,
+                               FECHA_ALTA,        NOMBRE_CLIENTE,
+                               APELLIDOS_CLIENTE,
+                               SALDO_CLIENTE,     CTA_ACTIVA,
+                               TIENE_TARJETA,     TIENE_HIPOTECA,
+                               SALDO_CTA,         COD_ULT_MOV,
+                               FECHA_ULT_MOV,     IMPORTE_MOV
+                           ) VALUES (
+                               :WS-PERIODO,       :HV-ID-CLIENTE,
+                               :HV-TIPO-DOC,      :HV-DOC-CLIENTE,
+                               :HV-FECHA-ALTA,    :HV-NOMBRE,
+                               :HV-APELLIDOS,
+                               :HV-SALDO-CLI,     :HV-CTA-ACTIVA,
+                               :HV-TIENE-TARJETA, :HV-TIENE-HIPOTECA,
+                               :HV-SALDO-CTA,     :HV-COD-ULT-MOV,
+                               :HV-FECHA-ULT-MOV, :HV-IMPORTE-MOV
+                           )
+                       END-EXEC
+
+                       IF SQLCODE = 0
+                           ADD 1 TO WS-CTR-CLIENTES
+                       ELSE
+                           DISPLAY 'ERROR INSERT MAESTRA ID: '
+                                   HV-ID-CLIENTE
+                                   ' SQLCODE: ' SQLCODE
+                           ADD 1   TO WS-CTR-ERRORES
+                           MOVE 'S' TO WS-ABORT
+                           MOVE 'S' TO WS-FIN-MAESTRA
+                       END-IF
+
+                   WHEN 100
+                       MOVE 'S' TO WS-FIN-MAESTRA
+
+                   WHEN OTHER
+                       DISPLAY 'ERROR FETCH CUR-MAESTRA: ' SQLCODE
+                       ADD 1   TO WS-CTR-ERRORES
+                       MOVE 'S' TO WS-ABORT
+                       MOVE 'S' TO WS-FIN-MAESTRA
+               END-EVALUATE
+
+           END-PERFORM
+
+           EXEC SQL CLOSE CUR-MAESTRA END-EXEC
+
+           IF WS-ABORT = 'N'
+               DISPLAY ' AUDIT_MAESTRA  : ' WS-CTR-CLIENTES
+                       ' REGISTROS INSERTADOS.'
+           ELSE
+               MOVE 99 TO LK-COD-RETORNO
+               MOVE 'ERROR EN SNAPSHOT MAESTRA - SE HARA ROLLBACK'
+                   TO LK-MENSAJE
+           END-IF.
+
+      *================================================================*
+      *   4000 - SNAPSHOT AUDIT_TARJETAS                              *
+      *================================================================*
+       4000-SNAPSHOT-TARJETAS.
+           DISPLAY '>>> INICIANDO SNAPSHOT AUDIT_TARJETAS...'
+
+           EXEC SQL OPEN CUR-TARJETAS END-EXEC
+
+           IF SQLCODE NOT = 0
+               DISPLAY 'ERROR ABRIENDO CUR-TARJETAS: ' SQLCODE
+               MOVE 99 TO LK-COD-RETORNO
+               MOVE 'ERROR CRITICO ABRIENDO CURSOR TARJETAS'
+                   TO LK-MENSAJE
+               MOVE 'S' TO WS-ABORT
+               EXIT PARAGRAPH
+           END-IF
+
+           MOVE 'N' TO WS-FIN-TARJETAS
+
+           PERFORM UNTIL WS-FIN-TARJETAS = 'S'
+
+               EXEC SQL
+                   FETCH CUR-TARJETAS INTO
+                       :HV-TARJ-ID-CLI,
+                       :HV-TARJ-NRO,
+                       :HV-TARJ-LIMITE,
+                       :HV-TARJ-ACUM,
+                       :HV-TARJ-LIQUID,
+                       :HV-TARJ-ESTADO
+               END-EXEC
+
+               EVALUATE SQLCODE
+                   WHEN 0
+                       EXEC SQL
+                           INSERT INTO AUDIT_TARJETAS (
+                               PERIODO,       ID_CLIENTE,
+                               NRO_TARJETA,   LIMITE_TARJETA,
+                               ACUM_MES,      LIQUIDACION_MES,
+                               ESTADO
+                           ) VALUES (
+                               :WS-PERIODO,   :HV-TARJ-ID-CLI,
+                               :HV-TARJ-NRO,  :HV-TARJ-LIMITE,
+                               :HV-TARJ-ACUM, :HV-TARJ-LIQUID,
+                               :HV-TARJ-ESTADO
+                           )
+                       END-EXEC
+
+                       IF SQLCODE = 0
+                           ADD 1 TO WS-CTR-TARJETAS
+                       ELSE
+                           DISPLAY 'ERROR INSERT TARJETA NRO: '
+                                   HV-TARJ-NRO
+                                   ' SQLCODE: ' SQLCODE
+                           ADD 1   TO WS-CTR-ERRORES
+                           MOVE 'S' TO WS-ABORT
+                           MOVE 'S' TO WS-FIN-TARJETAS
+                       END-IF
+
+                   WHEN 100
+                       MOVE 'S' TO WS-FIN-TARJETAS
+
+                   WHEN OTHER
+                       DISPLAY 'ERROR FETCH CUR-TARJETAS: ' SQLCODE
+                       ADD 1   TO WS-CTR-ERRORES
+                       MOVE 'S' TO WS-ABORT
+                       MOVE 'S' TO WS-FIN-TARJETAS
+               END-EVALUATE
+
+           END-PERFORM
+
+           EXEC SQL CLOSE CUR-TARJETAS END-EXEC
+
+           IF WS-ABORT = 'N'
+               DISPLAY ' AUDIT_TARJETAS : ' WS-CTR-TARJETAS
+                       ' REGISTROS INSERTADOS.'
+           ELSE
+               MOVE 99 TO LK-COD-RETORNO
+               MOVE 'ERROR EN SNAPSHOT TARJETAS - SE HARA ROLLBACK'
+                   TO LK-MENSAJE
+           END-IF.
+
+      *================================================================*
+      *   5000 - SNAPSHOT AUDIT_HIPOTECAS                             *
+      *================================================================*
+       5000-SNAPSHOT-HIPOTECAS.
+           DISPLAY '>>> INICIANDO SNAPSHOT AUDIT_HIPOTECAS...'
+
+           EXEC SQL OPEN CUR-HIPOTECAS END-EXEC
+
+           IF SQLCODE NOT = 0
+               DISPLAY 'ERROR ABRIENDO CUR-HIPOTECAS: ' SQLCODE
+               MOVE 99 TO LK-COD-RETORNO
+               MOVE 'ERROR CRITICO ABRIENDO CURSOR HIPOTECAS'
+                   TO LK-MENSAJE
+               MOVE 'S' TO WS-ABORT
+               EXIT PARAGRAPH
+           END-IF
+
+           MOVE 'N' TO WS-FIN-HIPOTECAS
+
+           PERFORM UNTIL WS-FIN-HIPOTECAS = 'S'
+
+               EXEC SQL
+                   FETCH CUR-HIPOTECAS INTO
+                       :HV-HIPO-ID-HIPO,
+                       :HV-HIPO-ID-CLI,
+                       :HV-HIPO-MONTO-ORIG,
+                       :HV-HIPO-TASA,
+                       :HV-HIPO-SALDO,
+                       :HV-HIPO-FECHA-VENC,
+                       :HV-HIPO-ESTADO
+               END-EXEC
+
+               EVALUATE SQLCODE
+                   WHEN 0
+                       EXEC SQL
+                           INSERT INTO AUDIT_HIPOTECAS (
+                               PERIODO,             ID_HIPOTECA,
+                               ID_CLIENTE,          MONTO_ORIGINAL,
+                               TASA_INTERES,        SALDO_ACTUAL,
+                               FECHA_VENCTO,        ESTADO
+                           ) VALUES (
+                               :WS-PERIODO,         :HV-HIPO-ID-HIPO,
+                               :HV-HIPO-ID-CLI,     :HV-HIPO-MONTO-ORIG,
+                               :HV-HIPO-TASA,       :HV-HIPO-SALDO,
+                               :HV-HIPO-FECHA-VENC, :HV-HIPO-ESTADO
+                           )
+                       END-EXEC
+
+                       IF SQLCODE = 0
+                           ADD 1 TO WS-CTR-HIPOTECAS
+                       ELSE
+                           DISPLAY 'ERROR INSERT HIPOTECA ID: '
+                                   HV-HIPO-ID-HIPO
+                                   ' SQLCODE: ' SQLCODE
+                           ADD 1   TO WS-CTR-ERRORES
+                           MOVE 'S' TO WS-ABORT
+                           MOVE 'S' TO WS-FIN-HIPOTECAS
+                       END-IF
+
+                   WHEN 100
+                       MOVE 'S' TO WS-FIN-HIPOTECAS
+
+                   WHEN OTHER
+                       DISPLAY 'ERROR FETCH CUR-HIPOTECAS: ' SQLCODE
+                       ADD 1   TO WS-CTR-ERRORES
+                       MOVE 'S' TO WS-ABORT
+                       MOVE 'S' TO WS-FIN-HIPOTECAS
+               END-EVALUATE
+
+           END-PERFORM
+
+           EXEC SQL CLOSE CUR-HIPOTECAS END-EXEC
+
+           IF WS-ABORT = 'N'
+               DISPLAY ' AUDIT_HIPOTECAS: ' WS-CTR-HIPOTECAS
+                       ' REGISTROS INSERTADOS.'
+           ELSE
+               MOVE 99 TO LK-COD-RETORNO
+               MOVE 'ERROR EN SNAPSHOT HIPOTECAS - SE HARA ROLLBACK'
+                   TO LK-MENSAJE
+           END-IF.
+
+      *================================================================*
+      *   5100 - PROCESAR MORA EN HIPOTECAS                           *
+      *================================================================*
+       5100-PROCESAR-MORA-HIPOTECAS.
+           DISPLAY '>>> PROCESANDO MORA EN HIPOTECAS...'
+
+           EXEC SQL OPEN CUR-MORA END-EXEC
+
+           IF SQLCODE NOT = 0
+               DISPLAY 'ERROR ABRIENDO CUR-MORA: ' SQLCODE
+               MOVE 99 TO LK-COD-RETORNO
+               MOVE 'ERROR CRITICO ABRIENDO CURSOR MORA'
+                   TO LK-MENSAJE
+               MOVE 'S' TO WS-ABORT
+               EXIT PARAGRAPH
+           END-IF
+
+           MOVE 'N' TO WS-FIN-MORA
+
+           PERFORM UNTIL WS-FIN-MORA = 'S'
+
+               EXEC SQL
+                   FETCH CUR-MORA INTO
+                       :HV-MORA-ID-HIPO,
+                       :HV-MORA-ID-CLI,
+                       :HV-MORA-SALDO-ACT,
+                       :HV-MORA-MONTO-ORIG,
+                       :HV-MORA-ESTADO,
+                       :HV-MORA-MESES-TOT,
+                       :HV-MORA-MESES-TRANS,
+                       :HV-MORA-PAGO-MENS,
+                       :HV-MORA-SALDO-ESP,
+                       :HV-MORA-MESES-MORA
+               END-EXEC
+
+               EVALUATE SQLCODE
+                   WHEN 0
+      *                Verificar si el saldo actual es mayor al esperado
+                       IF HV-MORA-SALDO-ACT > HV-MORA-SALDO-ESP
+
+      *                    Determinar nuevo estado segun meses en mora
+                           IF HV-MORA-MESES-MORA >= 3
+                               MOVE 'CASTIGADO' TO HV-MORA-NUEVO-ESTADO
+                               ADD 1 TO WS-CTR-CASTIGADAS
+                               DISPLAY ' HIPOTECA CASTIGADA: '
+                                       HV-MORA-ID-HIPO
+                                       ' CLIENTE: '
+                                       HV-MORA-ID-CLI
+                           ELSE
+                               MOVE 'MOROSO' TO HV-MORA-NUEVO-ESTADO
+                               ADD 1 TO WS-CTR-MOROSAS
+                               DISPLAY ' HIPOTECA MOROSA: '
+                                       HV-MORA-ID-HIPO
+                                       ' CLIENTE: '
+                                       HV-MORA-ID-CLI
+                           END-IF
+
+      *                    Actualizar estado de la hipoteca
+                           EXEC SQL
+                               UPDATE HIPOTECAS
+                               SET    ESTADO = :HV-MORA-NUEVO-ESTADO
+                               WHERE  ID_HIPOTECA = :HV-MORA-ID-HIPO
+                           END-EXEC
+
+                           IF SQLCODE NOT = 0
+                               DISPLAY 'ERROR UPDATE ESTADO HIPOTECA: '
+                                       HV-MORA-ID-HIPO
+                                       ' SQLCODE: ' SQLCODE
+                               ADD 1 TO WS-CTR-ERRORES
+                               MOVE 'S' TO WS-ABORT
+                               MOVE 'S' TO WS-FIN-MORA
+                           END-IF
+
+      *                    Consultar saldo actual del cliente
+                           EXEC SQL
+                               SELECT SALDO_CLIENTE
+                               INTO   :HV-MORA-CLI-SALDO
+                               FROM   clientes
+                               WHERE  ID_CLIENTE = :HV-MORA-ID-CLI
+                           END-EXEC
+
+                           IF SQLCODE = 0
+      *                        Si el cliente tiene fondos descontar
+                               IF HV-MORA-CLI-SALDO >=
+                                  HV-MORA-PAGO-MENS
+                                   EXEC SQL
+                                       UPDATE clientes
+                                       SET    SALDO_CLIENTE =
+                                              SALDO_CLIENTE -
+                                              :HV-MORA-PAGO-MENS
+                                       WHERE  ID_CLIENTE =
+                                              :HV-MORA-ID-CLI
+                                   END-EXEC
+                                   IF SQLCODE NOT = 0
+                                       DISPLAY 'ERROR DESCUENTO CLI: '
+                                               HV-MORA-ID-CLI
+                                               ' SQLCODE: ' SQLCODE
+                                       ADD 1 TO WS-CTR-ERRORES
+                                       MOVE 'S' TO WS-ABORT
+                                       MOVE 'S' TO WS-FIN-MORA
+                                   ELSE
+                                       DISPLAY ' DESCUENTO APLICADO'
+                                               ' CLI: '
+                                               HV-MORA-ID-CLI
+                                               ' MONTO: '
+                                               HV-MORA-PAGO-MENS
+                                   END-IF
+                               ELSE
+                                   DISPLAY ' SIN FONDOS CLI: '
+                                           HV-MORA-ID-CLI
+                                           ' SALDO: '
+                                           HV-MORA-CLI-SALDO
+                               END-IF
+                           ELSE
+                               DISPLAY 'ERROR CONSULTA SALDO CLI: '
+                                       HV-MORA-ID-CLI
+                                       ' SQLCODE: ' SQLCODE
+                               ADD 1 TO WS-CTR-ERRORES
+                           END-IF
+
+                       ELSE
+      *                    Saldo correcto, hipoteca activa
+                           IF HV-MORA-ESTADO NOT = 'ACTIVO'
+                               EXEC SQL
+                                   UPDATE HIPOTECAS
+                                   SET    ESTADO = 'ACTIVO'
+                                   WHERE  ID_HIPOTECA =
+                                          :HV-MORA-ID-HIPO
+                               END-EXEC
+                           END-IF
+                       END-IF
+
+                   WHEN 100
+                       MOVE 'S' TO WS-FIN-MORA
+
+                   WHEN OTHER
+                       DISPLAY 'ERROR FETCH CUR-MORA: ' SQLCODE
+                       ADD 1   TO WS-CTR-ERRORES
+                       MOVE 'S' TO WS-ABORT
+                       MOVE 'S' TO WS-FIN-MORA
+               END-EVALUATE
+
+           END-PERFORM
+
+           EXEC SQL CLOSE CUR-MORA END-EXEC
+
+           IF WS-ABORT = 'N'
+               DISPLAY ' HIPOTECAS MOROSAS   : ' WS-CTR-MOROSAS
+               DISPLAY ' HIPOTECAS CASTIGADAS: ' WS-CTR-CASTIGADAS
+           ELSE
+               MOVE 99 TO LK-COD-RETORNO
+               MOVE 'ERROR EN PROC. MORA - SE HARA ROLLBACK'
+                   TO LK-MENSAJE
+           END-IF.
+
+      *================================================================*
+      *   5200 - DAR DE BAJA TARJETAS VENCIDAS                        *
+      *                                                                *
+      *================================================================*
+       5200-BAJA-TARJETAS-VENCIDAS.
+           DISPLAY '>>> BAJA DE TARJETAS VENCIDAS...'
 
            EXEC SQL
                UPDATE TARJETAS
-               SET LIQUIDACION_MES = LIQUIDACION_MES + ACUM_MES,
-                   ACUM_MES = 0
-               WHERE ESTADO = 'A' OR ESTADO = 'B'
-           END-EXEC.
+               SET    ESTADO = 'I'
+               WHERE  FECHA_VENCIMIENTO < CURDATE()
+               AND    ESTADO = 'A'
+           END-EXEC
 
-           IF SQLCODE = 0 OR SQLCODE = 100
-               DISPLAY "CIERRE DE TARJETAS COMPLETADO EXITOSAMENTE."
-               MOVE 0 TO LK-COD-RETORNO
-               MOVE "CIERRE BATCH EJECUTADO" TO LK-MENSAJE
+           IF SQLCODE = 0
+               MOVE SQLERRD(3)       TO WS-CTR-TARJ-BAJA
+               DISPLAY ' TARJETAS DADAS DE BAJA: '
+                       WS-CTR-TARJ-BAJA
            ELSE
-               DISPLAY "ERROR EN CIERRE DE TARJETAS. SQLCODE: " SQLCODE
+               DISPLAY 'ERROR EN BAJA TARJETAS: ' SQLCODE
                MOVE 99 TO LK-COD-RETORNO
-               MOVE "ERROR EN BATCH" TO LK-MENSAJE
+               MOVE 'ERROR EN BAJA TARJETAS - SE HARA ROLLBACK'
+                   TO LK-MENSAJE
+               MOVE 'S' TO WS-ABORT
+               ADD 1 TO WS-CTR-ERRORES
            END-IF.
 
-           DISPLAY "========================================".
-           DISPLAY "         FIN DE PROCESO BATCH           ".
-           DISPLAY "========================================".
+      *================================================================*
+      *   6000 - RESET OPERATIVO: CIERRE DE TARJETAS                  *
+      *   Mueve ACUM_MES a LIQUIDACION_MES y resetea ACUM_MES a 0    *
+      *   Solo aplica a tarjetas ACTIVAS (ESTADO = 'A')               *
+      *================================================================*
+       6000-RESET-OPERATIVO.
+           DISPLAY '>>> RESET OPERATIVO TARJETAS...'
 
-           GOBACK.
+           EXEC SQL
+               UPDATE TARJETAS
+               SET    LIQUIDACION_MES = ACUM_MES,
+                      ACUM_MES        = 0
+               WHERE  ESTADO = 'A'
+           END-EXEC
+
+           IF SQLCODE = 0
+               DISPLAY ' RESET TARJETAS: OK'
+           ELSE
+               DISPLAY 'ERROR EN RESET TARJETAS. SQLCODE: ' SQLCODE
+               MOVE 99 TO LK-COD-RETORNO
+               MOVE 'ERROR EN RESET OPERATIVO - SE HARA ROLLBACK'
+                   TO LK-MENSAJE
+               MOVE 'S' TO WS-ABORT
+               ADD 1 TO WS-CTR-ERRORES
+           END-IF.
+
+      *================================================================*
+      *   7000 - FINALIZAR: COMMIT GLOBAL O ROLLBACK                  *
+      *================================================================*
+       7000-FINALIZAR.
+           DISPLAY '================================================'
+           DISPLAY ' RESUMEN - CIERRE MENSUAL PERIODO: ' WS-PERIODO
+           DISPLAY ' CLIENTES  PROCESADOS : ' WS-CTR-CLIENTES
+           DISPLAY ' TARJETAS  PROCESADAS : ' WS-CTR-TARJETAS
+           DISPLAY ' HIPOTECAS PROCESADAS : ' WS-CTR-HIPOTECAS
+           DISPLAY ' HIPOTECAS MOROSAS    : ' WS-CTR-MOROSAS
+           DISPLAY ' HIPOTECAS CASTIGADAS : ' WS-CTR-CASTIGADAS
+           DISPLAY ' TARJETAS DADAS BAJA  : ' WS-CTR-TARJ-BAJA
+           DISPLAY ' ERRORES   DETECTADOS : ' WS-CTR-ERRORES
+           DISPLAY '================================================'
+
+           IF WS-ABORT = 'N' AND WS-CTR-ERRORES = 0
+               EXEC SQL COMMIT END-EXEC
+               MOVE 0  TO LK-COD-RETORNO
+               MOVE 'CIERRE MENSUAL COMPLETADO EXITOSAMENTE'
+                   TO LK-MENSAJE
+               DISPLAY 'COMMIT REALIZADO.'
+           ELSE
+               EXEC SQL ROLLBACK END-EXEC
+               IF LK-COD-RETORNO = 0
+                   MOVE 50 TO LK-COD-RETORNO
+               END-IF
+               MOVE 'CIERRE FALLIDO - DATOS REVERTIDOS'
+                   TO LK-MENSAJE
+               DISPLAY 'ROLLBACK EJECUTADO - DATOS REVERTIDOS.'
+           END-IF
+
+           DISPLAY ' RESULTADO: ' LK-MENSAJE
+           DISPLAY '================================================'.
+
+      *================================================================*
+      *   9000 - EVALUAR SQL             *
+      *================================================================*
+       9000-EVALUAR-SQL.
+           EVALUATE SQLCODE
+               WHEN 0
+                   MOVE 00 TO LK-COD-RETORNO
+               WHEN 100
+                   MOVE 01 TO LK-COD-RETORNO
+                   MOVE 'REGISTRO NO ENCONTRADO' TO LK-MENSAJE
+               WHEN OTHER
+                   MOVE 99 TO LK-COD-RETORNO
+                   MOVE 'ERROR CRITICO EN BASE DE DATOS'
+                       TO LK-MENSAJE
+           END-EVALUATE.
+
        END PROGRAM BAT000.
