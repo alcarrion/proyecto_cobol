@@ -1,6 +1,6 @@
       *================================================================*
       * PROGRAMA: DBIOTARJ.sqb                                         *
-      * FUNCION:  Capa de Acceso a Datos - Tarjetas de Crédito         *
+      * FUNCION:  Capa de Acceso a Datos - Tarjetas de Credito         *
       * ARQUITECTURA: Capa de Acceso a Datos (DBIO)                    *
       *================================================================*
        IDENTIFICATION DIVISION.
@@ -32,27 +32,34 @@
        0000-PRINCIPAL.
            MOVE 0 TO LK-COD-RETORNO
            MOVE SPACES TO LK-MENSAJE
-           DISPLAY "DEPURACION ID: " TARJ-ID-CLIENTE.
-           DISPLAY "DEPURACION NRO: " TARJ-NRO-TARJETA.
+
            EVALUATE LK-ACCION-DB
-               WHEN 'A' PERFORM 1000-INSERTAR-TARJETA
-               WHEN 'C' PERFORM 2000-CONSULTAR-TARJETA
-               WHEN 'M' PERFORM 3000-ACTUALIZAR-TARJETA
-               WHEN 'B' PERFORM 4000-CANCELAR-TARJETA
+               WHEN 'A'
+                   PERFORM 1000-INSERTAR-TARJETA
+               WHEN 'C'
+                   PERFORM 2000-CONSULTAR-TARJETA
+               WHEN 'M'
+                   PERFORM 3000-ACTUALIZAR-TARJETA
+               WHEN 'B'
+                   PERFORM 4000-CANCELAR-TARJETA
                WHEN OTHER
                    MOVE 98 TO LK-COD-RETORNO
                    MOVE "ACCION DB NO SOPORTADA" TO LK-MENSAJE
-           END-EVALUATE.
+           END-EVALUATE
 
            EXIT PROGRAM.
 
        1000-INSERTAR-TARJETA.
-      * Inserta el nuevo contrato generado en TC0000
            EXEC SQL
                INSERT INTO TARJETAS (
-                   ID_CLIENTE, NRO_TARJETA, FECHA_EMISION,
-                   FECHA_VENCIMIENTO, LIMITE_TARJETA, ACUM_MES,
-                   LIQUIDACION_MES, ESTADO
+                   ID_CLIENTE,
+                   NRO_TARJETA,
+                   FECHA_EMISION,
+                   FECHA_VENCIMIENTO,
+                   LIMITE_TARJETA,
+                   ACUM_MES,
+                   LIQUIDACION_MES,
+                   ESTADO
                ) VALUES (
                    :TARJ-ID-CLIENTE,
                    :TARJ-NRO-TARJETA,
@@ -63,14 +70,33 @@
                    :TARJ-LIQUIDACION-MES,
                    :TARJ-ESTADO
                )
-           END-EXEC.
-           PERFORM 9000-EVALUAR-SQL.
+           END-EXEC
+
+           PERFORM 9000-EVALUAR-SQL
+
+           IF LK-COD-RETORNO = 0
+               EXEC SQL
+                   UPDATE clientes
+                   SET TARJETA = 1
+                   WHERE ID_CLIENTE = :TARJ-ID-CLIENTE
+               END-EXEC
+
+               PERFORM 9000-EVALUAR-SQL
+
+               IF LK-COD-RETORNO = 0
+                   MOVE "TARJETA REGISTRADA" TO LK-MENSAJE
+               END-IF
+           END-IF.
 
        2000-CONSULTAR-TARJETA.
-      * Búsqueda directa por Número de Tarjeta (ID de Cuenta)
            EXEC SQL
-               SELECT ID_CLIENTE, FECHA_EMISION, FECHA_VENCIMIENTO,
-                      LIMITE_TARJETA, ACUM_MES, LIQUIDACION_MES, ESTADO
+               SELECT ID_CLIENTE,
+                      FECHA_EMISION,
+                      FECHA_VENCIMIENTO,
+                      LIMITE_TARJETA,
+                      ACUM_MES,
+                      LIQUIDACION_MES,
+                      ESTADO
                INTO :TARJ-ID-CLIENTE,
                     :TARJ-FECHA-EMISION,
                     :TARJ-FECHA-VENCIM,
@@ -80,28 +106,51 @@
                     :TARJ-ESTADO
                FROM TARJETAS
                WHERE NRO_TARJETA = :TARJ-NRO-TARJETA
-           END-EXEC.
-           PERFORM 9000-EVALUAR-SQL.
+           END-EXEC
+
+           PERFORM 9000-EVALUAR-SQL
+
+           IF LK-COD-RETORNO = 0
+               MOVE "CONSULTA EXITOSA" TO LK-MENSAJE
+           END-IF.
 
        3000-ACTUALIZAR-TARJETA.
-      * Se usa para Cargos (Consumos), Pagos o Bloqueos
            EXEC SQL
                UPDATE TARJETAS
                SET ACUM_MES = :TARJ-ACUM-MES,
                    LIQUIDACION_MES = :TARJ-LIQUIDACION-MES,
                    ESTADO = :TARJ-ESTADO
                WHERE NRO_TARJETA = :TARJ-NRO-TARJETA
-           END-EXEC.
-           PERFORM 9000-EVALUAR-SQL.
+           END-EXEC
+
+           PERFORM 9000-EVALUAR-SQL
+
+           IF LK-COD-RETORNO = 0
+               MOVE "TARJETA ACTUALIZADA" TO LK-MENSAJE
+           END-IF.
 
        4000-CANCELAR-TARJETA.
-      * Baja definitiva (Estado 'I' = Inactiva)
            EXEC SQL
                UPDATE TARJETAS
                SET ESTADO = 'I'
                WHERE NRO_TARJETA = :TARJ-NRO-TARJETA
-           END-EXEC.
-           PERFORM 9000-EVALUAR-SQL.
+           END-EXEC
+
+           PERFORM 9000-EVALUAR-SQL
+
+           IF LK-COD-RETORNO = 0
+               EXEC SQL
+                   UPDATE clientes
+                   SET TARJETA = 0
+                   WHERE ID_CLIENTE = :TARJ-ID-CLIENTE
+               END-EXEC
+
+               PERFORM 9000-EVALUAR-SQL
+
+               IF LK-COD-RETORNO = 0
+                   MOVE "TARJETA CANCELADA" TO LK-MENSAJE
+               END-IF
+           END-IF.
 
        9000-EVALUAR-SQL.
            EVALUATE SQLCODE
@@ -113,10 +162,9 @@
                WHEN 100
                    MOVE 01 TO LK-COD-RETORNO
                    MOVE "TARJETA NO ENCONTRADA" TO LK-MENSAJE
-               WHEN -803  *> Violación de índice UNIQUE (NRO_TARJETA)
+               WHEN -803
                    MOVE 02 TO LK-COD-RETORNO
-                   MOVE "ERROR: NUMERO DE TARJETA DUPLICADO"
-                   TO LK-MENSAJE
+                   MOVE "NRO DE TARJETA DUPLICADO" TO LK-MENSAJE
                WHEN OTHER
                    MOVE 99 TO LK-COD-RETORNO
                    MOVE "ERROR TECNICO EN DB TARJETAS" TO LK-MENSAJE
