@@ -23,3 +23,5 @@ bin/
 *.log
 *.tmp
 db_config.cfg
+DOCUMENTACION_COMPLETA.md
+DOCUMENTACION_COMPLETA.pdf

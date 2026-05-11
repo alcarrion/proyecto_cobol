@@ -23,7 +23,7 @@
            05 SQL-COUNT  PIC S9(9) COMP-5 VALUE ZERO.
            05 SQL-ADDR   POINTER OCCURS 2 TIMES VALUE NULL.
            05 SQL-LEN    PIC S9(9) COMP-5 OCCURS 2 TIMES VALUE ZERO.
-           05 SQL-TYPE   PIC X OCCURS 2 TIMES.
+5           05 SQL-TYPE   PIC X OCCURS 2 TIMES.
            05 SQL-PREC   PIC X OCCURS 2 TIMES.
       **********************************************************************
 
@@ -143,7 +143,7 @@
                "DRIVER={MySQL ODBC 8.0 ANSI Driver};"
                "SERVER=localhost;"
                "DATABASE=proyecto_cobol;"
-               "UID=root;PWD=12345;"
+               "UID=root;PWD=tata;"
                DELIMITED BY SIZE INTO DB-CONN-STR
            END-STRING.
            INSPECT DB-CONN-STR REPLACING TRAILING SPACES BY LOW-VALUES.

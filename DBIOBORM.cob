@@ -141,15 +141,8 @@
            05 FILLER   PIC X(4).
            05 SQL-HCONN USAGE POINTER VALUE NULL.
 
-      *----------------------------------------------------------------*
-      * Variables de trabajo internas para calculos                    *
-      *----------------------------------------------------------------*
        01  WS-FECHA-ULT-CHECK     PIC X(10).
 
-      *----------------------------------------------------------------*
-      * DECLARE SECTION solo con variables simples sin COPY            *
-      * esqlOC necesita ver las variables host directamente            *
-      *----------------------------------------------------------------*
       *    EXEC SQL BEGIN DECLARE SECTION END-EXEC.
 
        01  WS-ID-HIPOTECA         PIC 9(09).
@@ -218,9 +211,6 @@
 
            EXIT PROGRAM.
 
-      *================================================================*
-      * 0500 - GENERAR SECUENCIA                                      *
-      *================================================================*
        0500-GENERAR-SECUENCIA.
       *    EXEC SQL
       *        UPDATE control_secuencias
@@ -268,9 +258,6 @@
                END-IF
            END-IF.
 
-      *================================================================*
-      * 1000 - INSERTAR HIPOTECA                                      *
-      *================================================================*
        1000-INSERTAR-HIPOTECA.
            MOVE BORM-ID-HIPOTECA    TO WS-ID-HIPOTECA.
            MOVE BORM-ID-CLIENTE     TO WS-ID-CLIENTE.
@@ -538,9 +525,6 @@
                END-IF
            END-IF.
 
-      *================================================================*
-      * 2000 - CONSULTAR HIPOTECA                                     *
-      *================================================================*
        2000-CONSULTAR-HIPOTECA.
            MOVE BORM-ID-HIPOTECA TO WS-ID-HIPOTECA.
 
@@ -661,9 +645,6 @@
                MOVE "CONSULTA EXITOSA" TO LK-MENSAJE
            END-IF.
 
-      *================================================================*
-      * 3000 - ACTUALIZAR HIPOTECA                                    *
-      *================================================================*
        3000-ACTUALIZAR-HIPOTECA.
            MOVE BORM-ID-HIPOTECA    TO WS-ID-HIPOTECA.
            MOVE BORM-ID-CLIENTE     TO WS-ID-CLIENTE.
@@ -815,9 +796,6 @@
                END-IF
            END-IF.
 
-      *================================================================*
-      * 9000 - EVALUAR SQLCODE                                        *
-      *================================================================*
        9000-EVALUAR-SQL.
            EVALUATE SQLCODE
                WHEN 0

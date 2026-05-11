@@ -127,7 +127,7 @@
                ACCEPT CUSM-DIRECCION
                DISPLAY "Telefono     : "
                ACCEPT CUSM-TELEFONO
-               DISPLAY "E-mail       : "
+
 
                MOVE 'N' TO WS-EMAIL-OK
                PERFORM UNTIL WS-EMAIL-OK = 'S'

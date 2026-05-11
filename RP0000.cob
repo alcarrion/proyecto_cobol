@@ -1,11 +1,6 @@
       *================================================================*
       * PROGRAMA : RP0000.sqb                                         *
       * FUNCION  : MODULO DE REPORTES GERENCIALES                     *
-      *            - RPT_CLIENTES_YYYYMM.DAT                          *
-      *            - RPT_HIPOTECAS_YYYYMM.DAT                         *
-      *            - RPT_TARJETAS_YYYYMM.DAT                          *
-      *            - RPT_CUENTAS_YYYYMM.DAT                           *
-      *            - RPT_GENERAL_YYYYMM.DAT                           *
       * LLAMADO  : BANCSMENU (OPCION 6)                               *
       * PRECOMP  : esqlOC RP0000.sqb  ->  RP0000.cob                  *
       *================================================================*
@@ -519,7 +514,7 @@
            PERFORM 1100-ARMAR-FILTRO-LIKE.
 
       *    Armar filtro LIKE para clientes nuevos (YYYY-MM-%)
-      *    Se arma aqui y se rearma en 4000 antes del OPEN
+
            PERFORM 1100-ARMAR-FILTRO-LIKE.
 
        1100-ARMAR-FILTRO-LIKE.
@@ -626,8 +621,7 @@
        4000-RPT-CLIENTES.
            MOVE ZERO TO WS-CTR-CLIENTES-NVO
 
-      *    Rearmar filtro LIKE antes del OPEN para garantizar
-      *    que el precompilador lo tome con el valor correcto
+
            PERFORM 1100-ARMAR-FILTRO-LIKE
 
            STRING 'RPT_CLIENTES_' DELIMITED SIZE

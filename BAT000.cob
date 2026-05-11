@@ -1,14 +1,12 @@
       *================================================================*
       * PROGRAMA : BAT000.sqb                                         *
       * FUNCION  : PROCESO BATCH DE CIERRE MENSUAL                    *
-      *            - SNAPSHOT EN AUDIT_MAESTRA  (clientes + ctactes)  *
-      *            - SNAPSHOT EN AUDIT_TARJETAS (1:N)                 *
-      *            - SNAPSHOT EN AUDIT_HIPOTECAS (1:N)                *
+      *            - CONSOLIDACION                                    *
       *            - PROCESAR MORA EN HIPOTECAS                       *
       *            - DESCONTAR CUOTA DE CUENTA SI HAY FONDOS          *
       *            - DAR DE BAJA TARJETAS VENCIDAS                    *
       *            - RESET OPERATIVO DE TARJETAS                      *
-      *            - COMMIT global si todo OK / ROLLBACK si algo falla*
+      *            - ROLLBACK si algo falla*
       * LLAMADO  : BANCSMENU (OPCION 5)                               *
       * PRECOMP  : esqlOC BAT000.sqb  ->  BAT000.cob                  *
       *================================================================*
@@ -1201,22 +1199,6 @@
 
       *================================================================*
       *   5100 - PROCESAR MORA EN HIPOTECAS                           *
-      *                                                                *
-      *   LOGICA:                                                      *
-      *   MySQL calcula via TIMESTAMPDIFF:                             *
-      *   - MESES_TOTALES    = FECHA_VENCTO - FECHA_INICIO            *
-      *   - MESES_TRANS      = HOY - FECHA_INICIO                     *
-      *   - PAGO_MENSUAL     = (MONTO * TASA) / MESES_TOTALES         *
-      *   - SALDO_ESPERADO   = MONTO - (PAGO_MENS * MESES_TRANS)      *
-      *   - MESES_MORA       = COUNT en AUDIT_HIPOTECAS ESTADO=MOROSO  *
-      *                                                                *
-      *   COBOL evalua:                                                *
-      *   SI SALDO_ACTUAL > SALDO_ESPERADO                            *
-      *     SI MESES_MORA >= 3 -> CASTIGADO                           *
-      *     SI MESES_MORA  < 3 -> MOROSO                              *
-      *     Descontar PAGO_MENSUAL de SALDO_CLIENTE si hay fondos     *
-      *   SINO                                                         *
-      *     ACTIVO (pagó correctamente)                               *
       *================================================================*
        5100-PROCESAR-MORA-HIPOTECAS.
            DISPLAY '>>> PROCESANDO MORA EN HIPOTECAS...'
@@ -1526,10 +1508,6 @@
       *================================================================*
       *   5200 - DAR DE BAJA TARJETAS VENCIDAS                        *
       *                                                                *
-      *   LOGICA:                                                      *
-      *   Si FECHA_VENCIMIENTO < CURDATE() y ESTADO = 'A'             *
-      *   → poner ESTADO = 'I' (Inactiva)
-      *   Un solo UPDATE, sin cursor necesario                         *
       *================================================================*
        5200-BAJA-TARJETAS-VENCIDAS.
            DISPLAY '>>> BAJA DE TARJETAS VENCIDAS...'
@@ -1635,7 +1613,7 @@
            DISPLAY '================================================'.
 
       *================================================================*
-      *   9000 - EVALUAR SQL (MISMO PATRON QUE DBIOCUSM)              *
+      *   9000 - EVALUAR SQL             *
       *================================================================*
        9000-EVALUAR-SQL.
            EVALUATE SQLCODE
