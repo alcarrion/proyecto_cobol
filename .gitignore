@@ -1,5 +1,6 @@
 # --- Binarios y Ejecutables ---
-bin/
+bin/*
+!bin/*.bat
 *.exe
 *.dll
 *.so
@@ -22,6 +23,8 @@ bin/
 # --- Temporales y Logs ---
 *.log
 *.tmp
-db_config.cfg
+docs/logs/*
+!docs/logs/.gitkeep
+config/db_config.cfg
 DOCUMENTACION_COMPLETA.md
 DOCUMENTACION_COMPLETA.pdf
