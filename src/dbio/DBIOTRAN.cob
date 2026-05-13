@@ -2,6 +2,7 @@
        PROGRAM-ID. DBIOTRAN.
        DATA DIVISION.
        WORKING-STORAGE SECTION.
+       COPY PATHS-FILE FROM "..\copies".
       **********************************************************************
       *******                EMBEDDED SQL VARIABLES                  *******
        01 SQLV.

@@ -40,6 +40,7 @@
        01  FS-REG-GENERAL          PIC X(132).
 
        WORKING-STORAGE SECTION.
+       COPY PATHS-FILE FROM "..\copies".
       **********************************************************************
       *******                EMBEDDED SQL VARIABLES                  *******
        01 SQLV.

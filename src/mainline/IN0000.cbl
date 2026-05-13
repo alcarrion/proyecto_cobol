@@ -9,6 +9,7 @@
        ENVIRONMENT DIVISION.
        DATA DIVISION.
        WORKING-STORAGE SECTION.
+       COPY PATHS-FILE FROM "..\copies".
 
        01  WS-OPCION-INVM      PIC 9(01).
        01  WS-CONTINUAR-INVM   PIC X(01) VALUE 'S'.
@@ -17,8 +18,8 @@
        01  WS-PROGRAMAS.
            05 WS-PGM-DBIOINVM    PIC X(8) VALUE 'DBIOINVM'.
            05 WS-PGM-DBIOCUSM    PIC X(08) VALUE 'DBIOCUSM'.
-           COPY INVMREC.
-           COPY CUSMREC.
+           COPY INVMREC FROM "..\copies".
+           COPY CUSMREC FROM "..\copies".
 
        01  WS-VALIDACION.
            05  WS-MONTO-ENTRADA    PIC X(12).
@@ -184,7 +185,7 @@
 
            PERFORM 9100-VALIDAR-DOC-CAPTURA.
 
-           *> Resguardamos la intención original ('L' o 'C')
+           *> Resguardamos la intenciï¿½n original ('L' o 'C')
            MOVE LK-ACCION-DB TO WS-ACCION-TEMP.
 
            *> Buscamos primero al cliente (Siempre con 'C')
@@ -194,7 +195,7 @@
            IF LK-COD-RETORNO = 0
                MOVE CUSM-ID-CLIENTE TO INVM-ID-CLIENTE
 
-               *> Restauramos la acción para la cuenta
+               *> Restauramos la acciï¿½n para la cuenta
                MOVE WS-ACCION-TEMP TO LK-ACCION-DB
                CALL WS-PGM-DBIOINVM USING REG-INVM, LK-DATOS-TRANSACCION
 

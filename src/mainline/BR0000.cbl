@@ -10,6 +10,7 @@
        ENVIRONMENT DIVISION.
        DATA DIVISION.
        WORKING-STORAGE SECTION.
+       COPY PATHS-FILE FROM "..\copies".
 
        01  WS-OPTION              PIC 9(01) VALUE ZERO.
        01  WS-CONTINUAR           PIC X(01) VALUE 'S'.
@@ -23,8 +24,8 @@
            05 WS-TOTAL-FINANCIADO PIC S9(13)V99 VALUE ZERO.
            05 WS-INTERES-TOTAL    PIC S9(13)V99 VALUE ZERO.
 
-           COPY BORMREC.
-           COPY CUSMREC.
+           COPY BORMREC FROM "..\copies".
+           COPY CUSMREC FROM "..\copies".
 
        01  WS-PROGRAMAS.
            05 WS-PGM-DBIOCUSM     PIC X(8) VALUE 'DBIOCUSM'.
