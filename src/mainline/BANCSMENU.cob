@@ -8,7 +8,7 @@
        ENVIRONMENT DIVISION.
        INPUT-OUTPUT SECTION.
        FILE-CONTROL.
-           SELECT FS-CONFIG-FILE ASSIGN TO WS-RUTA-CONFIG-FILE
+           SELECT FS-CONFIG-FILE ASSIGN TO "db_config.cfg"
            ORGANIZATION is LINE SEQUENTIAL.
 
        DATA DIVISION.
@@ -16,9 +16,6 @@
        FD  FS-CONFIG-FILE.
        01  REG-CONFIG-LINE       PIC X(50).
        WORKING-STORAGE SECTION.
-       COPY PATHS-FILE FROM "..\copies".
-       
-       01  WS-RUTA-CONFIG-FILE   PIC X(200).
       **********************************************************************
       *******                EMBEDDED SQL VARIABLES                  *******
        01 SQLV.

@@ -12,15 +12,14 @@
        ENVIRONMENT DIVISION.
        DATA DIVISION.
        WORKING-STORAGE SECTION.
-       COPY PATHS-FILE FROM "..\copies".
 
        01  WS-OPCION-TARJ       PIC 9(01).
        01  WS-CONTINUAR-TARJ    PIC X(01) VALUE 'S'.
        01  WS-ENTRADA-MONTO     PIC X(13).
        01  WS-CONFIRMA          PIC X(01).
 
-           COPY TARJREC FROM "..\copies".
-           COPY CUSMREC FROM "..\copies".
+           COPY TARJREC.
+           COPY CUSMREC.
 
        01  WS-CALCULOS-TC.
            05 WS-MONTO-TX        PIC S9(10)V99 VALUE ZERO.

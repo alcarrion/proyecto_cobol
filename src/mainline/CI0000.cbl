@@ -8,7 +8,6 @@
        ENVIRONMENT DIVISION.
        DATA DIVISION.
        WORKING-STORAGE SECTION.
-       COPY PATHS-FILE FROM "..\copies".
 
        01  WS-OPCION-CIF       PIC 9(01).
        01  WS-CONTINUAR-CIF    PIC X(01) VALUE 'S'.
@@ -47,8 +46,8 @@
            05 WS-APELLIDO-OK      PIC X(01) VALUE 'N'.
            05 WS-EMAIL-OK         PIC X(01) VALUE 'N'.
 
-           COPY CUSMREC FROM "..\copies".
-           COPY INVMREC FROM "..\copies".
+           COPY CUSMREC.
+           COPY INVMREC.
        LINKAGE SECTION.
            COPY LKCIF.
 
@@ -308,11 +307,11 @@
                END-PERFORM
                MOVE WS-I TO WS-DOC-LEN
 
-      * Lï¿½gica de Validaciï¿½n y Asignaciï¿½n Automï¿½tica
+      * Lógica de Validación y Asignación Automática
                IF WS-DOC-LEN >= 8 AND WS-DOC-LEN <= 12
                    MOVE 'S' TO WS-DOC-VALIDO
 
-      * Identificaciï¿½n automï¿½tica
+      * Identificación automática
                    IF WS-DOC-LEN = 8
                        MOVE "CED" TO CUSM-TIPO-DOC
                    ELSE
@@ -355,7 +354,7 @@
                INTO WS-LOCAL-PART, WS-DOMAIN-PART
            END-UNSTRING
 
-           *> 4. Validar que local y dominio no estï¿½n vacï¿½os
+           *> 4. Validar que local y dominio no estén vacíos
            IF WS-LOCAL-PART = SPACES OR WS-DOMAIN-PART = SPACES
                SET EMAIL-ERR TO TRUE
                MOVE "FORMATO DE EMAIL INCOMPLETO" TO LK-MENSAJE
