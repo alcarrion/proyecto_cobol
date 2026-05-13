@@ -4,28 +4,18 @@
       * PROGRAMA : BR0000.cbl                                          *
       * MODULO   : HIPOTECAS                                           *
       * FUNCION  : Reglas de negocio. Alta, consulta y pago.           *
-      * NOTA     : La mora la evalua el batch de cierre mensual.       *
       *================================================================*
 
        ENVIRONMENT DIVISION.
        DATA DIVISION.
        WORKING-STORAGE SECTION.
-       COPY PATHS-FILE FROM "..\copies".
 
        01  WS-OPTION              PIC 9(01) VALUE ZERO.
        01  WS-CONTINUAR           PIC X(01) VALUE 'S'.
        01  WS-PUEDE-CONTINUAR     PIC X(01) VALUE 'S'.
 
-       01  WS-DATOS-CLIENTE.
-           05 WS-NOMBRE-CLIENTE   PIC X(25).
-           05 WS-APELLIDO-CLIENTE PIC X(25).
-
-       01  WS-RESUMEN-CREDITO.
-           05 WS-TOTAL-FINANCIADO PIC S9(13)V99 VALUE ZERO.
-           05 WS-INTERES-TOTAL    PIC S9(13)V99 VALUE ZERO.
-
-           COPY BORMREC FROM "..\copies".
-           COPY CUSMREC FROM "..\copies".
+           COPY BORMREC.
+           COPY CUSMREC.
 
        01  WS-PROGRAMAS.
            05 WS-PGM-DBIOCUSM     PIC X(8) VALUE 'DBIOCUSM'.
@@ -45,6 +35,7 @@
            05 WS-NUMERADOR        PIC S9(13)V9(9) VALUE ZERO.
            05 WS-DENOMINADOR      PIC S9(13)V9(9) VALUE ZERO.
 
+      *--- Fecha del sistema - se llena con FROM DATE YYYYMMDD ---
        01  WS-FECHA-HOY           PIC 9(08).
        01  WS-FECHA-WORK          REDEFINES WS-FECHA-HOY.
            05 WS-ANIO             PIC 9(04).
@@ -78,12 +69,14 @@
 
        PROCEDURE DIVISION USING LK-DATOS-TRANSACCION.
 
+      *================================================================*
        0000-MAIN.
            MOVE 'S' TO WS-CONTINUAR.
            PERFORM 1000-MOSTRAR-MENU
                UNTIL WS-CONTINUAR = 'N'.
            GOBACK.
 
+      *================================================================*
        1000-MOSTRAR-MENU.
            DISPLAY " ".
            DISPLAY "====================================".
@@ -112,23 +105,20 @@
                    DISPLAY "--------------------------------"
            END-EVALUATE.
 
+      *================================================================*
+      * 2100 - REGISTRAR ALTA                                         *
+      * Usa WS-PUEDE-CONTINUAR como flag para evitar GO TO            *
+      *================================================================*
        2100-REGISTRAR-ALTA.
            MOVE 'S' TO WS-PUEDE-CONTINUAR.
            DISPLAY "--- ALTA PRESTAMO HIPOTECARIO ---".
            INITIALIZE BORM-REGISTRO.
-           MOVE SPACES TO WS-NOMBRE-CLIENTE.
-           MOVE SPACES TO WS-APELLIDO-CLIENTE.
 
            PERFORM 9000-BUSCAR-CLIENTE.
 
            IF LK-COD-RETORNO NOT = 0
                PERFORM 9400-MSG-ERROR-CLIENTE
                MOVE 'N' TO WS-PUEDE-CONTINUAR
-           END-IF.
-
-           IF WS-PUEDE-CONTINUAR = 'S'
-               MOVE CUSM-NOMBRE    TO WS-NOMBRE-CLIENTE
-               MOVE CUSM-APELLIDOS TO WS-APELLIDO-CLIENTE
            END-IF.
 
            IF WS-PUEDE-CONTINUAR = 'S'
@@ -160,8 +150,7 @@
                    USING LK-DATOS-TRANSACCION,
                          BORM-REGISTRO
                IF LK-COD-RETORNO NOT = 0
-                   DISPLAY "ERROR GENERANDO NUMERO: "
-                   DISPLAY LK-MENSAJE
+                   DISPLAY "ERROR GENERANDO ID: " LK-MENSAJE
                    MOVE 'N' TO WS-PUEDE-CONTINUAR
                END-IF
            END-IF.
@@ -171,12 +160,15 @@
                PERFORM 2110-CAPTURAR-DATOS-ALTA
            END-IF.
 
+      *================================================================*
+      * 2110 - CAPTURAR Y VALIDAR DATOS DEL PRESTAMO                  *
+      *================================================================*
        2110-CAPTURAR-DATOS-ALTA.
            MOVE 'S' TO WS-PUEDE-CONTINUAR.
            DISPLAY "--------------------------------".
-           DISPLAY "CLIENTE : " WS-NOMBRE-CLIENTE.
-           DISPLAY "APELLIDO: " WS-APELLIDO-CLIENTE.
-           DISPLAY "NRO HIP.: " BORM-ID-HIPOTECA.
+           DISPLAY "CLIENTE : " CUSM-NOMBRE.
+           DISPLAY "APELLIDO: " CUSM-APELLIDOS.
+           DISPLAY "ID HIP. : " BORM-ID-HIPOTECA.
            DISPLAY "--------------------------------".
 
            DISPLAY "Monto del prestamo: ".
@@ -239,6 +231,9 @@
                PERFORM 2140-GUARDAR-HIPOTECA
            END-IF.
 
+      *================================================================*
+      * 2140 - GUARDAR HIPOTECA EN BASE DE DATOS                      *
+      *================================================================*
        2140-GUARDAR-HIPOTECA.
            MOVE BORM-MONTO-ORIGINAL TO BORM-SALDO-ACTUAL.
            MOVE "ACTIVO"     TO BORM-ESTADO.
@@ -252,25 +247,14 @@
 
            IF LK-COD-RETORNO = 0
                CALL WS-PGM-TRAN USING 'C'
-
-               COMPUTE WS-TOTAL-FINANCIADO =
-                   BORM-CUOTA-MENSUAL * WS-PLAZO-MESES
-
-               COMPUTE WS-INTERES-TOTAL =
-                   WS-TOTAL-FINANCIADO - BORM-MONTO-ORIGINAL
-
                DISPLAY "================================"
                DISPLAY " HIPOTECA REGISTRADA OK"
                DISPLAY "================================"
-               DISPLAY "NRO HIP. : " BORM-ID-HIPOTECA
-               DISPLAY "CLIENTE  : " WS-NOMBRE-CLIENTE
-               DISPLAY "APELLIDO : " WS-APELLIDO-CLIENTE
+               DISPLAY "ID HIP.  : " BORM-ID-HIPOTECA
+               DISPLAY "CLIENTE  : " BORM-ID-CLIENTE
                DISPLAY "MONTO    : " BORM-MONTO-ORIGINAL
                DISPLAY "TASA M.  : " BORM-TASA-INTERES
-               DISPLAY "PLAZO    : " WS-PLAZO-MESES
                DISPLAY "CUOTA M. : " BORM-CUOTA-MENSUAL
-               DISPLAY "INTERES  : " WS-INTERES-TOTAL
-               DISPLAY "TOTAL    : " WS-TOTAL-FINANCIADO
                DISPLAY "VENCE    : " BORM-FECHA-VENCTO
                DISPLAY "ESTADO   : " BORM-ESTADO
                DISPLAY "================================"
@@ -283,6 +267,9 @@
                DISPLAY "================================"
            END-IF.
 
+      *================================================================*
+      * 2200 - CONSULTAR HIPOTECA                                     *
+      *================================================================*
        2200-CONSULTAR-HIPOTECA.
            DISPLAY "--- CONSULTA DE HIPOTECA ---".
            PERFORM 9010-BUSCAR-HIPOTECA.
@@ -293,10 +280,8 @@
                DISPLAY "================================"
                DISPLAY "     ESTADO DE HIPOTECA"
                DISPLAY "================================"
-               DISPLAY "NRO HIP. : " BORM-ID-HIPOTECA
-               DISPLAY "CLIENTE  : " WS-NOMBRE-CLIENTE
-               DISPLAY "APELLIDO : " WS-APELLIDO-CLIENTE
-               DISPLAY "ID CLI.  : " BORM-ID-CLIENTE
+               DISPLAY "ID HIP.  : " BORM-ID-HIPOTECA
+               DISPLAY "CLIENTE  : " BORM-ID-CLIENTE
                DISPLAY "INICIO   : " BORM-FECHA-INICIO
                DISPLAY "VENCE    : " BORM-FECHA-VENCTO
                DISPLAY "MONTO    : " BORM-MONTO-ORIGINAL
@@ -310,6 +295,9 @@
                DISPLAY "================================"
            END-IF.
 
+      *================================================================*
+      * 2300 - PROCESAR PAGO                                          *
+      *================================================================*
        2300-PROCESAR-PAGO.
            MOVE 'S' TO WS-PUEDE-CONTINUAR.
            DISPLAY "--- PROCESAR PAGO DE CUOTA ---".
@@ -337,15 +325,12 @@
                    DISPLAY " AVISO - HIPOTECA CASTIGADA"
                    DISPLAY "================================"
                    DISPLAY "Puede abonar a la deuda."
-                   DISPLAY "La mora la actualiza el batch."
+                   DISPLAY "Pagando >= cuota: ACTIVO"
                    DISPLAY "================================"
                END-IF
            END-IF.
 
            IF WS-PUEDE-CONTINUAR = 'S'
-               DISPLAY "Cliente       : " WS-NOMBRE-CLIENTE
-               DISPLAY "Apellido      : " WS-APELLIDO-CLIENTE
-               DISPLAY "Nro hipoteca  : " BORM-ID-HIPOTECA
                DISPLAY "Saldo actual  : " BORM-SALDO-ACTUAL
                DISPLAY "Cuota mensual : " BORM-CUOTA-MENSUAL
                DISPLAY "Meses en mora : " BORM-MESES-MORA
@@ -383,6 +368,9 @@
                PERFORM 2310-APLICAR-PAGO
            END-IF.
 
+      *================================================================*
+      * 2310 - APLICAR PAGO Y ACTUALIZAR ESTADO                       *
+      *================================================================*
        2310-APLICAR-PAGO.
            SUBTRACT WS-MONTO-PAGO FROM BORM-SALDO-ACTUAL.
 
@@ -396,19 +384,14 @@
                WHEN BORM-SALDO-ACTUAL = 0
                    MOVE "CANCELADO" TO BORM-ESTADO
                    MOVE ZERO        TO BORM-MESES-MORA
-
                WHEN WS-MONTO-PAGO >= BORM-CUOTA-MENSUAL
                    MOVE "ACTIVO"    TO BORM-ESTADO
                    MOVE ZERO        TO BORM-MESES-MORA
-
                WHEN OTHER
-                   DISPLAY "================================"
-                   DISPLAY " AVISO - ABONO PARCIAL"
-                   DISPLAY "================================"
-                   DISPLAY "El pago no cubre la cuota mensual."
-                   DISPLAY "Se registra como abono a la deuda."
-                   DISPLAY "La mora sera evaluada por el batch."
-                   DISPLAY "================================"
+                   IF BORM-ESTADO NOT = "CASTIGADO"
+                       MOVE "MOROSO" TO BORM-ESTADO
+                   END-IF
+                   ADD 1 TO BORM-MESES-MORA
            END-EVALUATE.
 
            MOVE 'M' TO LK-ACCION-DB.
@@ -436,11 +419,15 @@
                DISPLAY "================================"
            END-IF.
 
+      *================================================================*
+      * 9000 - BUSCAR CLIENTE POR CEDULA                              *
+      *================================================================*
        9000-BUSCAR-CLIENTE.
            INITIALIZE REG-CUSM.
            DISPLAY "Ingrese cedula del cliente: ".
            ACCEPT CUSM-DOC-CLIENTE.
 
+      *    Eliminar espacios del ingreso para que el WHERE matchee
            MOVE FUNCTION TRIM(CUSM-DOC-CLIENTE)
                TO CUSM-DOC-CLIENTE.
 
@@ -455,51 +442,32 @@
                IF LK-COD-RETORNO NOT = 0
                    MOVE "CLIENTE NO ENCONTRADO"
                        TO LK-MENSAJE
-               ELSE
-                   MOVE CUSM-NOMBRE    TO WS-NOMBRE-CLIENTE
-                   MOVE CUSM-APELLIDOS TO WS-APELLIDO-CLIENTE
                END-IF
            END-IF.
 
+      *================================================================*
+      * 9010 - BUSCAR HIPOTECA POR ID                                 *
+      *================================================================*
        9010-BUSCAR-HIPOTECA.
-           MOVE 'S' TO WS-PUEDE-CONTINUAR.
            INITIALIZE BORM-REGISTRO.
-           MOVE SPACES TO WS-NOMBRE-CLIENTE.
-           MOVE SPACES TO WS-APELLIDO-CLIENTE.
+           DISPLAY "Ingrese ID de hipoteca: ".
+           ACCEPT BORM-ID-HIPOTECA.
 
-           PERFORM 9000-BUSCAR-CLIENTE.
-
-           IF LK-COD-RETORNO NOT = 0
-               MOVE 'N' TO WS-PUEDE-CONTINUAR
-           END-IF.
-
-           IF WS-PUEDE-CONTINUAR = 'S'
-               DISPLAY "Ingrese numero de hipoteca: "
-               ACCEPT BORM-ID-HIPOTECA
-
-               IF BORM-ID-HIPOTECA = ZERO
-                   MOVE 01 TO LK-COD-RETORNO
-                   MOVE "NUMERO DE HIPOTECA INVALIDO"
-                       TO LK-MENSAJE
-                   MOVE 'N' TO WS-PUEDE-CONTINUAR
-               END-IF
-           END-IF.
-
-           IF WS-PUEDE-CONTINUAR = 'S'
+           IF BORM-ID-HIPOTECA = ZERO
+               MOVE 01 TO LK-COD-RETORNO
+               MOVE "ID HIPOTECA INVALIDO" TO LK-MENSAJE
+           ELSE
                MOVE 'C' TO LK-ACCION-DB
                CALL WS-PGM-DBIOBORM
                    USING LK-DATOS-TRANSACCION,
                          BORM-REGISTRO
-
-               IF LK-COD-RETORNO = 0
-                   IF BORM-ID-CLIENTE NOT = CUSM-ID-CLIENTE
-                       MOVE 01 TO LK-COD-RETORNO
-                       MOVE "HIPOTECA NO PERTENECE AL CLIENTE"
-                           TO LK-MENSAJE
-                   END-IF
-               END-IF
            END-IF.
 
+      *================================================================*
+      * 9100 - ARMAR FECHA DE INICIO                                  *
+      * ACCEPT ... FROM DATE YYYYMMDD llena 8 digitos en WS-FECHA-HOY *
+      * REDEFINES divide automaticamente en ANIO/MES/DIA              *
+      *================================================================*
        9100-ARMAR-FECHA-INICIO.
            ACCEPT WS-FECHA-HOY FROM DATE YYYYMMDD.
            MOVE WS-ANIO TO WS-ED-ANIO.
@@ -507,6 +475,9 @@
            MOVE WS-DIA  TO WS-ED-DIA.
            MOVE WS-FECHA-EDITADA TO BORM-FECHA-INICIO.
 
+      *================================================================*
+      * 9120 - CALCULAR FECHA DE VENCIMIENTO                          *
+      *================================================================*
        9120-CALCULAR-VENCIMIENTO.
            MOVE WS-ANIO TO WS-CALC-ANIO.
            MOVE WS-MES  TO WS-CALC-MES.
@@ -531,6 +502,10 @@
            MOVE BORM-DIA-PAGO TO WS-ED-DIA.
            MOVE WS-FECHA-EDITADA TO BORM-FECHA-VENCTO.
 
+      *================================================================*
+      * 9130 - CALCULAR CUOTA - AMORTIZACION FRANCESA                 *
+      *   Cuota = P*(i*(1+i)^n) / ((1+i)^n - 1)                       *
+      *================================================================*
        9130-CALCULAR-CUOTA.
            COMPUTE WS-TASA-MENSUAL =
                BORM-TASA-INTERES / 100.
@@ -553,12 +528,16 @@
 
            IF WS-DENOMINADOR = 0
                COMPUTE BORM-CUOTA-MENSUAL =
-                   BORM-MONTO-ORIGINAL / WS-PLAZO-MESES
+                   BORM-MONTO-ORIGINAL +
+                   (BORM-MONTO-ORIGINAL * WS-TASA-MENSUAL)
            ELSE
                COMPUTE BORM-CUOTA-MENSUAL =
                    WS-NUMERADOR / WS-DENOMINADOR
            END-IF.
 
+      *================================================================*
+      * 9300 - VALIDAR NUMERO                                         *
+      *================================================================*
        9300-VALIDAR-NUMERO.
            MOVE 'S' TO WS-VAL-OK.
            MOVE ZERO TO WS-PUNTOS.
@@ -592,6 +571,9 @@
                END-IF
            END-IF.
 
+      *================================================================*
+      * 9400 - MENSAJE ERROR CLIENTE                                  *
+      *================================================================*
        9400-MSG-ERROR-CLIENTE.
            DISPLAY "================================".
            DISPLAY " ERROR - CLIENTE".
@@ -600,10 +582,13 @@
            DISPLAY "ACCION : Verifique la cedula.".
            DISPLAY "================================".
 
+      *================================================================*
+      * 9500 - MENSAJE ERROR HIPOTECA                                 *
+      *================================================================*
        9500-MSG-ERROR-HIPOTECA.
            DISPLAY "================================".
            DISPLAY " ERROR - HIPOTECA".
            DISPLAY "================================".
            DISPLAY "MOTIVO : " LK-MENSAJE.
-           DISPLAY "ACCION : Verifique el numero.".
+           DISPLAY "ACCION : Verifique el ID.".
            DISPLAY "================================".
