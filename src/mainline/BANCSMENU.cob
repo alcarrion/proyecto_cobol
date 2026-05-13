@@ -23,7 +23,7 @@
            05 SQL-COUNT  PIC S9(9) COMP-5 VALUE ZERO.
            05 SQL-ADDR   POINTER OCCURS 2 TIMES VALUE NULL.
            05 SQL-LEN    PIC S9(9) COMP-5 OCCURS 2 TIMES VALUE ZERO.
-5           05 SQL-TYPE   PIC X OCCURS 2 TIMES.
+           05 SQL-TYPE   PIC X OCCURS 2 TIMES.
            05 SQL-PREC   PIC X OCCURS 2 TIMES.
       **********************************************************************
 

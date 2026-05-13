@@ -62,10 +62,10 @@
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
-           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 54.
-           05 SQL-STMT   PIC X(54) VALUE 'UPDATE TARJETAS SET ESTADO = '
-      -    ''I'' WHERE NRO_TARJETA = ?'.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 2.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 52.
+           05 SQL-STMT   PIC X(52) VALUE 'UPDATE TARJETAS SET ESTADO = ?
+      -    ' WHERE NRO_TARJETA = ?'.
       **********************************************************************
        01 SQL-STMT-5.
            05 SQL-IPTR   POINTER VALUE NULL.
@@ -372,17 +372,22 @@
            END-IF.
 
        4000-CANCELAR-TARJETA.
+           MOVE 'I' TO TARJ-ESTADO
       *    EXEC SQL
       *        UPDATE TARJETAS
-      *        SET ESTADO = 'I'
+      *        SET ESTADO = :TARJ-ESTADO
       *        WHERE NRO_TARJETA = :TARJ-NRO-TARJETA
       *    END-EXEC
            IF SQL-PREP OF SQL-STMT-4 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
-                 TARJ-NRO-TARJETA
+                 TARJ-ESTADO
                MOVE 'X' TO SQL-TYPE(1)
-               MOVE 16 TO SQL-LEN(1)
-               MOVE 1 TO SQL-COUNT
+               MOVE 1 TO SQL-LEN(1)
+               SET SQL-ADDR(2) TO ADDRESS OF
+                 TARJ-NRO-TARJETA
+               MOVE 'X' TO SQL-TYPE(2)
+               MOVE 16 TO SQL-LEN(2)
+               MOVE 2 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
                                    SQL-STMT-4
                                    SQLCA
