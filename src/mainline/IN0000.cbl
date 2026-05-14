@@ -31,8 +31,20 @@
            05 WS-DOC-LEN          PIC 9(02).
            05 WS-DOC-VALIDO       PIC X(01) VALUE 'N'.
 
+       01  WS-CEDULA-VALID.
+           05 WS-CED-IDX          PIC 9(02) VALUE 0.
+           05 WS-CED-PROV         PIC 9(02) VALUE 0.
+           05 WS-CED-TERCERO      PIC 9(01) VALUE 0.
+           05 WS-CED-DIGITO       PIC 9(01) VALUE 0.
+           05 WS-CED-PRODUCTO     PIC 9(02) VALUE 0.
+           05 WS-CED-SUMA         PIC 9(03) VALUE 0.
+           05 WS-CED-VERIF-CALC   PIC 9(01) VALUE 0.
+           05 WS-CED-VERIF-DOC    PIC 9(01) VALUE 0.
+           05 WS-CED-VALIDA       PIC X(01) VALUE 'N'.
+
        01  WS-AUXILIARES.
            05  WS-ACCION-TEMP      PIC X(01).
+       01  WS-LOG-MSG               PIC X(80).
        LINKAGE SECTION.
            COPY LKCIF.
 
@@ -40,6 +52,7 @@
        PROCEDURE DIVISION USING LK-DATOS-TRANSACCION.
 
        0000-PRINCIPAL.
+           MOVE 'S' TO WS-CONTINUAR-INVM.
            PERFORM 1000-PROCESAR-OPCIONES
                    UNTIL WS-CONTINUAR-INVM = 'N' OR 'n'.
            GOBACK.
@@ -77,8 +90,15 @@
            IF LK-COD-RETORNO = 0
                DISPLAY "CLIENTE: " CUSM-NOMBRE " " CUSM-APELLIDOS
                DISPLAY "SALDO ACTUAL: " INVM-SALDO-ACTUAL
+               STRING "[OK  ] IN0000 CONSULTA SALDO ID:"
+                      INVM-ID-CLIENTE " SALDO:" INVM-SALDO-ACTUAL
+                      DELIMITED BY SIZE INTO WS-LOG-MSG
+               CALL 'SYSLOG' USING WS-LOG-MSG
            ELSE
                DISPLAY "ERROR: " LK-MENSAJE
+               STRING "[WARN] IN0000 CONSULTA FALLIDA " LK-MENSAJE
+                      DELIMITED BY SIZE INTO WS-LOG-MSG
+               CALL 'SYSLOG' USING WS-LOG-MSG
            END-IF.
 
        3000-DEPOSITO.
@@ -92,6 +112,10 @@
                IF CUSM-CTA-ACTIVA = 0
                    PERFORM 9110-MOSTRAR-ERROR-INACTIVA
                    CALL 'DBIOTRAN' USING 'R'
+                   STRING "[WARN] IN0000 DEPOSITO RECHAZADO"
+                          " CTA.INACTIVA ID:" INVM-ID-CLIENTE
+                          DELIMITED BY SIZE INTO WS-LOG-MSG
+                   CALL 'SYSLOG' USING WS-LOG-MSG
                ELSE
 
                    PERFORM 9300-VALIDAR-MONTO
@@ -117,6 +141,10 @@
                        ELSE
                            CALL 'DBIOTRAN' USING 'R'
                            DISPLAY "ERROR AL ACTUALIZAR CUENTA."
+                           STRING "[ERR ] IN0000 DEPOSITO ERROR BD "
+                                  LK-MENSAJE
+                                  DELIMITED BY SIZE INTO WS-LOG-MSG
+                           CALL 'SYSLOG' USING WS-LOG-MSG
                        END-IF
 
                    ELSE
@@ -125,6 +153,9 @@
                END-IF
            ELSE
                DISPLAY "ERROR: " LK-MENSAJE
+               STRING "[WARN] IN0000 DEPOSITO FALLIDO " LK-MENSAJE
+                      DELIMITED BY SIZE INTO WS-LOG-MSG
+               CALL 'SYSLOG' USING WS-LOG-MSG
            END-IF.
 
        4000-EXTRACCION.
@@ -136,6 +167,10 @@
                IF CUSM-CTA-ACTIVA = 0
                    PERFORM 9110-MOSTRAR-ERROR-INACTIVA
                    CALL 'DBIOTRAN' USING 'R'
+                   STRING "[WARN] IN0000 RETIRO RECHAZADO"
+                          " CTA.INACTIVA ID:" INVM-ID-CLIENTE
+                          DELIMITED BY SIZE INTO WS-LOG-MSG
+                   CALL 'SYSLOG' USING WS-LOG-MSG
                ELSE
                    DISPLAY "SALDO DISPONIBLE: " INVM-SALDO-ACTUAL
                    PERFORM 9300-VALIDAR-MONTO
@@ -153,7 +188,7 @@
                            USING REG-INVM, LK-DATOS-TRANSACCION
 
                            IF LK-COD-RETORNO = 0
-                               *> 2. SINCRONIZAR SALDO MAESTRO DEL CLIENTE
+                               *> 2. SINCRONIZAR SALDO MAESTRO
                                SUBTRACT WS-MONTO-TX
                                         FROM CUSM-SALDO-CLIENTE ROUNDED
 
@@ -170,6 +205,10 @@
                        ELSE
                            DISPLAY "ERROR: FONDOS INSUFICIENTES."
                            CALL 'DBIOTRAN' USING 'R'
+                           STRING "[WARN] IN0000 RETIRO RECHAZADO"
+                                  " FONDOS INSUF ID:" INVM-ID-CLIENTE
+                                  DELIMITED BY SIZE INTO WS-LOG-MSG
+                           CALL 'SYSLOG' USING WS-LOG-MSG
                        END-IF
                    ELSE
                        DISPLAY "ERROR: EL MONTO DEBE SER MAYOR A CERO."
@@ -184,7 +223,7 @@
 
            PERFORM 9100-VALIDAR-DOC-CAPTURA.
 
-           *> Resguardamos la intención original ('L' o 'C')
+           *> Resguardamos la intenciï¿½n original ('L' o 'C')
            MOVE LK-ACCION-DB TO WS-ACCION-TEMP.
 
            *> Buscamos primero al cliente (Siempre con 'C')
@@ -194,7 +233,7 @@
            IF LK-COD-RETORNO = 0
                MOVE CUSM-ID-CLIENTE TO INVM-ID-CLIENTE
 
-               *> Restauramos la acción para la cuenta
+               *> Restauramos la acciï¿½n para la cuenta
                MOVE WS-ACCION-TEMP TO LK-ACCION-DB
                CALL WS-PGM-DBIOINVM USING REG-INVM, LK-DATOS-TRANSACCION
 
@@ -211,35 +250,37 @@
            MOVE 'N' TO WS-DOC-VALIDO.
 
            PERFORM UNTIL WS-DOC-VALIDO = 'S'
-               DISPLAY "----------------------------------------------"
-               DISPLAY "INGRESE DOCUMENTO (8 CED / 12 PAS): "
+               DISPLAY "  Cedula (10 digitos) o Pasaporte (6-12): "
                ACCEPT CUSM-DOC-CLIENTE
 
-      * Calcular longitud real (eliminando espacios a la derecha)
                MOVE 0 TO WS-DOC-LEN
                MOVE 12 TO WS-I
-               PERFORM UNTIL WS-I = 0 OR CUSM-DOC-CLIENTE(WS-I:1)
-               NOT = SPACE
+               PERFORM UNTIL WS-I = 0 OR
+                       CUSM-DOC-CLIENTE(WS-I:1) NOT = SPACE
                    SUBTRACT 1 FROM WS-I
                END-PERFORM
                MOVE WS-I TO WS-DOC-LEN
 
-
-               IF WS-DOC-LEN >= 8 AND WS-DOC-LEN <= 12
-                   MOVE 'S' TO WS-DOC-VALIDO
-
-                   IF WS-DOC-LEN = 8
-                       MOVE "CED" TO CUSM-TIPO-DOC
+               IF WS-DOC-LEN = 0
+                   DISPLAY "  Debe ingresar el documento."
+               ELSE IF CUSM-DOC-CLIENTE(1:1) IS NUMERIC
+                   IF WS-DOC-LEN = 10
+                       PERFORM 9150-VALIDAR-CEDULA-EC
+                       IF WS-CED-VALIDA = 'S'
+                           MOVE "CED" TO CUSM-TIPO-DOC
+                           MOVE 'S' TO WS-DOC-VALIDO
+                       ELSE
+                           DISPLAY "  " LK-MENSAJE
+                       END-IF
                    ELSE
-                       MOVE "PAS" TO CUSM-TIPO-DOC
+                       DISPLAY "  Cedula invalida: debe tener"
+                       DISPLAY "  exactamente 10 digitos."
                    END-IF
-
-                   DISPLAY ">>> SISTEMA: DOCUMENTO VALIDO"
-                   DISPLAY ">>> TIPO ASIGNADO: " CUSM-TIPO-DOC
+               ELSE IF WS-DOC-LEN >= 6 AND WS-DOC-LEN <= 12
+                   MOVE "PAS" TO CUSM-TIPO-DOC
+                   MOVE 'S' TO WS-DOC-VALIDO
                ELSE
-                   DISPLAY "ERROR: LONGITUD INVALIDA (" WS-DOC-LEN ")"
-                   DISPLAY "DEBE TENER ENTRE 8 Y 12 CARACTERES."
-                   DISPLAY "POR FAVOR, INTENTE DE NUEVO."
+                   DISPLAY "  Pasaporte invalido: 6 a 12 caracteres."
                END-IF
            END-PERFORM.
 
@@ -254,9 +295,75 @@
                CALL 'DBIOTRAN' USING 'C'
                DISPLAY "TRANSACCION EXITOSA. NUEVO SALDO: "
                        INVM-SALDO-ACTUAL
+               IF INVM-COD-ULT-MOV = 2
+                   STRING "[OK  ] IN0000 DEPOSITO ID:"
+                          INVM-ID-CLIENTE " MTO:" WS-MONTO-TX
+                          " SALDO:" INVM-SALDO-ACTUAL
+                          DELIMITED BY SIZE INTO WS-LOG-MSG
+               ELSE
+                   STRING "[OK  ] IN0000 RETIRO   ID:"
+                          INVM-ID-CLIENTE " MTO:" WS-MONTO-TX
+                          " SALDO:" INVM-SALDO-ACTUAL
+                          DELIMITED BY SIZE INTO WS-LOG-MSG
+               END-IF
+               CALL 'SYSLOG' USING WS-LOG-MSG
            ELSE
                CALL 'DBIOTRAN' USING 'R'
                DISPLAY "ERROR CRITICO AL REGISTRAR EN BD."
+               STRING "[ERR ] IN0000 TX ERROR BD " LK-MENSAJE
+                      DELIMITED BY SIZE INTO WS-LOG-MSG
+               CALL 'SYSLOG' USING WS-LOG-MSG
+           END-IF.
+
+       9150-VALIDAR-CEDULA-EC.
+           MOVE 'N' TO WS-CED-VALIDA.
+           MOVE SPACES TO LK-MENSAJE.
+
+      *    Provincia: 01 al 24
+           MOVE CUSM-DOC-CLIENTE(1:2) TO WS-CED-PROV.
+           IF WS-CED-PROV < 1 OR WS-CED-PROV > 24
+               MOVE "Cedula invalida: codigo de provincia"
+                   TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF.
+
+      *    3er digito 0-5 = persona natural
+           MOVE CUSM-DOC-CLIENTE(3:1) TO WS-CED-TERCERO.
+           IF WS-CED-TERCERO > 5
+               MOVE "Cedula invalida: tipo de persona incorrecto"
+                   TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF.
+
+      *    Algoritmo modulo 10
+           MOVE ZERO TO WS-CED-SUMA.
+           PERFORM VARYING WS-CED-IDX FROM 1 BY 1
+                   UNTIL WS-CED-IDX > 9
+               MOVE CUSM-DOC-CLIENTE(WS-CED-IDX:1)
+                   TO WS-CED-DIGITO
+               IF FUNCTION MOD(WS-CED-IDX, 2) = 1
+                   COMPUTE WS-CED-PRODUCTO = WS-CED-DIGITO * 2
+               ELSE
+                   MOVE WS-CED-DIGITO TO WS-CED-PRODUCTO
+               END-IF
+               IF WS-CED-PRODUCTO >= 10
+                   SUBTRACT 9 FROM WS-CED-PRODUCTO
+               END-IF
+               ADD WS-CED-PRODUCTO TO WS-CED-SUMA
+           END-PERFORM.
+
+      *    Verificar digito de control
+           COMPUTE WS-CED-VERIF-CALC =
+               FUNCTION MOD(WS-CED-SUMA, 10).
+           IF WS-CED-VERIF-CALC NOT = 0
+               COMPUTE WS-CED-VERIF-CALC = 10 - WS-CED-VERIF-CALC
+           END-IF.
+           MOVE CUSM-DOC-CLIENTE(10:1) TO WS-CED-VERIF-DOC.
+           IF WS-CED-VERIF-CALC = WS-CED-VERIF-DOC
+               MOVE 'S' TO WS-CED-VALIDA
+           ELSE
+               MOVE "Cedula invalida: digito verificador incorrecto"
+                   TO LK-MENSAJE
            END-IF.
 
        9300-VALIDAR-MONTO.

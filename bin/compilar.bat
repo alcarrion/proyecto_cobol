@@ -6,7 +6,7 @@ title Compilador - Sistema Bancario COBOL
 :: 1. Configurar las rutas
 set "COBOL_MAIN=C:\Program Files (x86)\OpenCobolIDE\GnuCOBOL"
 set "COBOL_BIN=%COBOL_MAIN%\bin"
-set "COBOL_LIBS_ESQL=C:\Program Files (x86)\OpenCobolIDE\binaries\win32\release"
+set "COBOL_LIBS_ESQL=%COBOL_MAIN%\binaries3\win32\release"
 
 :: Variables de entorno
 set "COB_MAIN_DIR=%COBOL_MAIN%"
@@ -54,6 +54,7 @@ echo ============================================
     "%MAINLINE_DIR%\DBIOTARJ.cob" ^
     "%MAINLINE_DIR%\DBIOBORM.cob" ^
     "%MAINLINE_DIR%\DBIOTRAN.cob" ^
+    "%MAINLINE_DIR%\SYSLOG.cbl" ^
     "%MAINLINE_DIR%\BNCR004.cob" ^
     "%MAINLINE_DIR%\TFMX.cob" ^
     "%MAINLINE_DIR%\RRD000.cob" ^

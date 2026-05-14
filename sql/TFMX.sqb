@@ -47,9 +47,10 @@
        0000-PRINCIPAL.
       * Construccion segura de la ruta para no exceder columna 72
            INITIALIZE WS-DIR-BASE
-           STRING "C:\Users\rocha\OneDrive\Documentos\PROYECTO CORE "
-                  "TATA\proyecto_cobol\src\proyecto_cobol\banco\"
-                  "spool\Interfaces\BATCH-UPLOAD-S\"
+           STRING "C:\Users\Alison\Desktop\proyecto_cobol\"
+                    "banco\spool\Interfaces\BATCH-UPLOAD-S\"
+                     
+                  
                   DELIMITED BY SIZE INTO WS-DIR-BASE
 
            INITIALIZE WS-RUTA-COMPLETA

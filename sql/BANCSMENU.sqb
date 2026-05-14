@@ -1,6 +1,6 @@
 ******************************************************************
       * Author: EQUIPO (LUIS. ALISON. FRANKLIN.)
-      * INTEGRACIÓN: TRICKLE FEED (FASE 00-40)
+      * INTEGRACIï¿½N: TRICKLE FEED (FASE 00-40)
       ******************************************************************
        IDENTIFICATION DIVISION.
        PROGRAM-ID. BANCSMENU.
@@ -40,6 +40,7 @@
                05 PGM-RP0000     PIC X(8).
       * NUEVO: Programa Orquestador del Trickle Feed
                05 PGM-TFTRCT     PIC X(8).
+           01 WS-LOG-MSG          PIC X(80).
 
            COPY LKCIF.
 
@@ -51,90 +52,130 @@
             MOVE 'BR0000' TO PGM-BR0000.
             MOVE 'BAT000' TO PGM-BAT000.
             MOVE 'RP0000' TO PGM-RP0000.
-      * NUEVO: Inicializar nombre del orquestador
             MOVE 'TFTRCT' TO PGM-TFTRCT.
 
             PERFORM 8000-CARGAR-CONFIG.
             PERFORM 8100-CONECTAR-BD.
             IF SQLCODE = 0
+                MOVE "[INFO] BANCSMENU SESION INICIADA" TO WS-LOG-MSG
+                CALL 'SYSLOG' USING WS-LOG-MSG
+                PERFORM 9000-PANTALLA-BIENVENIDA
                 PERFORM 001-MENU-OPCION
             ELSE
-                DISPLAY "ERROR: NO SE PUDO INICIAR EL SISTEMA."
+                DISPLAY "  ERROR CRITICO: No se pudo conectar a la "
+                DISPLAY "  base de datos. Verifique que MySQL este"
+                DISPLAY "  activo e intente nuevamente."
+                DISPLAY " "
             END-IF.
 
+            MOVE "[INFO] BANCSMENU SESION CERRADA" TO WS-LOG-MSG
+            CALL 'SYSLOG' USING WS-LOG-MSG
             EXEC SQL DISCONNECT CURRENT END-EXEC.
-            DISPLAY 'SALIENDO DEL PROGRAMA...'
+            DISPLAY " "
+            DISPLAY "  Sesion cerrada. Hasta pronto."
+            DISPLAY " "
             STOP RUN.
 
        001-MENU-OPCION.
            PERFORM UNTIL WS-CONTINUAR = 'N' OR 'n'
-               DISPLAY "========================================"
-               DISPLAY "   SISTEMA BANCARIO INTEGRADO v1.0"
-               DISPLAY "========================================"
-               DISPLAY "1. Gestion de Clientes"
-               DISPLAY "2. Cuentas Corrientes"
-               DISPLAY "3. Tarjetas de Credito"
-               DISPLAY "4. Hipotecas"
-               DISPLAY "5. Cierre Mensual"
-               DISPLAY "6. Reportes Gerenciales"
-               DISPLAY "7. PROCESAR TRICKLE FEED (LOTES)"
-               DISPLAY "0. Salir"
-               DISPLAY "========================================"
+               DISPLAY " "
+               DISPLAY "  +--------------------------------------+"
+               DISPLAY "  |   SISTEMA BANCARIO INTEGRADO  v1.0  |"
+               DISPLAY "  +--------------------------------------+"
+               DISPLAY "  |  1. Gestion de Clientes              |"
+               DISPLAY "  |  2. Cuentas Corrientes               |"
+               DISPLAY "  |  3. Tarjetas de Credito              |"
+               DISPLAY "  |  4. Hipotecas                        |"
+               DISPLAY "  |  5. Cierre Mensual                   |"
+               DISPLAY "  |  6. Reportes Gerenciales             |"
+               DISPLAY "  |  7. Procesamiento de Lotes (Batch)   |"
+               DISPLAY "  |  0. Salir                            |"
+               DISPLAY "  +--------------------------------------+"
+               DISPLAY "  Seleccione una opcion: "
                ACCEPT WS-OPCION
 
            EVALUATE WS-OPCION
                WHEN 1
+                   MOVE "[INFO] MENU OPCION:1 GESTION DE CLIENTES"
+                       TO WS-LOG-MSG
+                   CALL 'SYSLOG' USING WS-LOG-MSG
                    CALL PGM-CI0000 USING LK-DATOS-TRANSACCION
                WHEN 2
+                   MOVE "[INFO] MENU OPCION:2 CUENTAS CORRIENTES"
+                       TO WS-LOG-MSG
+                   CALL 'SYSLOG' USING WS-LOG-MSG
                    CALL PGM-IN0000 USING LK-DATOS-TRANSACCION
                WHEN 3
+                   MOVE "[INFO] MENU OPCION:3 TARJETAS DE CREDITO"
+                       TO WS-LOG-MSG
+                   CALL 'SYSLOG' USING WS-LOG-MSG
                    CALL PGM-TC0000 USING LK-DATOS-TRANSACCION
                WHEN 4
+                   MOVE "[INFO] MENU OPCION:4 HIPOTECAS"
+                       TO WS-LOG-MSG
+                   CALL 'SYSLOG' USING WS-LOG-MSG
                    CALL PGM-BR0000 USING LK-DATOS-TRANSACCION
                WHEN 5
+                   MOVE "[INFO] MENU OPCION:5 CIERRE MENSUAL"
+                       TO WS-LOG-MSG
+                   CALL 'SYSLOG' USING WS-LOG-MSG
                    CALL PGM-BAT000 USING LK-DATOS-TRANSACCION
                WHEN 6
+                   MOVE "[INFO] MENU OPCION:6 REPORTES GERENCIALES"
+                       TO WS-LOG-MSG
+                   CALL 'SYSLOG' USING WS-LOG-MSG
                    CALL PGM-RP0000 USING LK-DATOS-TRANSACCION
-      * NUEVO: Llamada al proceso de Trickle Feed
                WHEN 7
+                   MOVE "[INFO] MENU OPCION:7 PROCESAMIENTO BATCH"
+                       TO WS-LOG-MSG
+                   CALL 'SYSLOG' USING WS-LOG-MSG
                    CALL PGM-TFTRCT USING LK-DATOS-TRANSACCION
                WHEN 0
                    MOVE 'N' TO WS-CONTINUAR
                WHEN OTHER
-                   DISPLAY 'Opcion Invalida. Intente de nuevo...'
+                   DISPLAY "  Opcion no valida. Intente de nuevo."
            END-EVALUATE
 
                IF WS-OPCION NOT = 0 AND WS-CONTINUAR NOT = 'N'
-                   DISPLAY '------------------------------------'
-                   DISPLAY 'RESULTADO: ' LK-MENSAJE
-                   DISPLAY 'CODIGO:    ' LK-COD-RETORNO
-                   DISPLAY '------------------------------------'
-                   DISPLAY 'Presione una tecla para continuar...'
+                   DISPLAY " "
+                   IF LK-COD-RETORNO = 0
+                       DISPLAY "  [OK] " LK-MENSAJE
+                   ELSE
+                       DISPLAY "  [!!] " LK-MENSAJE
+                   END-IF
+                   DISPLAY " "
+                   DISPLAY "  Presione ENTER para continuar..."
                    ACCEPT WS-OPCION
                END-IF
            END-PERFORM.
 
        8000-CARGAR-CONFIG.
-      * Mantiene tu logica de conexion ODBC a MySQL...
            MOVE SPACES TO DB-CONN-STR.
            STRING
                "DRIVER={MySQL ODBC 8.0 ANSI Driver};"
                "SERVER=localhost;"
                "DATABASE=proyecto_cobol;"
-               "UID=root;PWD=tata;"
+               "UID=root;PWD=12345;"
                DELIMITED BY SIZE INTO DB-CONN-STR
            END-STRING.
            INSPECT DB-CONN-STR REPLACING TRAILING SPACES BY LOW-VALUES.
 
        8100-CONECTAR-BD.
-           DISPLAY "CONECTANDO A LA BASE..."
            EXEC SQL
                CONNECT TO :DB-CONN-STR
            END-EXEC.
            IF SQLCODE NOT = 0
-               DISPLAY "FALLO DE CONEXION. SQLCODE: " SQLCODE
-           ELSE
-               DISPLAY "CONEXION EXITOSA AL SISTEMA."
+               DISPLAY "  [ERROR] Fallo de conexion a la base de datos."
            END-IF.
+
+       9000-PANTALLA-BIENVENIDA.
+           DISPLAY " "
+           DISPLAY "  +--------------------------------------+"
+           DISPLAY "  |      BANCA SISTEMAS  -  COBOL        |"
+           DISPLAY "  |      Plataforma Bancaria Integral     |"
+           DISPLAY "  +--------------------------------------+"
+           DISPLAY "  |   Conexion establecida correctamente  |"
+           DISPLAY "  +--------------------------------------+"
+           DISPLAY " ".
 
        END PROGRAM BANCSMENU.

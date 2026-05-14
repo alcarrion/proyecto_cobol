@@ -1,7 +1,7 @@
        IDENTIFICATION DIVISION.
        PROGRAM-ID. XXXREP.
       *==========================================================
-      * FASE 30: GENERACIÓN DE ARCHIVO DE SALIDA CON RESULTADOS
+      * FASE 30: GENERACIï¿½N DE ARCHIVO DE SALIDA CON RESULTADOS
       *==========================================================
 
        ENVIRONMENT DIVISION.
@@ -48,9 +48,10 @@
        0000-PRINCIPAL.
       * Construccion segura de ruta de salida
            INITIALIZE WS-DIR-SALIDA
-           STRING "C:\Users\rocha\OneDrive\Documentos\PROYECTO CORE "
-                  "TATA\proyecto_cobol\src\proyecto_cobol\banco\"
-                  "spool\Interfaces\BATCH-UPLOAD-S\TRICKLE-FEED-REPORT\"
+           STRING "C:\Users\Alison\Desktop\proyecto_cobol\"
+                  "banco\spool\Interfaces\BATCH-UPLOAD-S\"
+                  "TRICKLE-FEED-REPORT\"
+                  
                   DELIMITED BY SIZE INTO WS-DIR-SALIDA
 
            INITIALIZE WS-RUTA-FINAL

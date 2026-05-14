@@ -27,6 +27,17 @@
            05 WS-DOC-LEN          PIC 9(02).
            05 WS-DOC-VALIDO       PIC X(01) VALUE 'N'.
 
+       01  WS-CEDULA-VALID.
+           05 WS-CED-IDX          PIC 9(02) VALUE 0.
+           05 WS-CED-PROV         PIC 9(02) VALUE 0.
+           05 WS-CED-TERCERO      PIC 9(01) VALUE 0.
+           05 WS-CED-DIGITO       PIC 9(01) VALUE 0.
+           05 WS-CED-PRODUCTO     PIC 9(02) VALUE 0.
+           05 WS-CED-SUMA         PIC 9(03) VALUE 0.
+           05 WS-CED-VERIF-CALC   PIC 9(01) VALUE 0.
+           05 WS-CED-VERIF-DOC    PIC 9(01) VALUE 0.
+           05 WS-CED-VALIDA       PIC X(01) VALUE 'N'.
+
 
        01  WS-EMAIL-VAL.
            05  WS-EMAIL-TEMP       PIC X(40).
@@ -40,11 +51,15 @@
                88 EMAIL-OK         VALUE 'S'.
                88 EMAIL-ERR        VALUE 'N'.
 
+       01  WS-LOG-MSG           PIC X(80).
+
       * BANDERAS DE REINTENTO
        01  WS-VAL-CAMPOS.
            05 WS-NOMBRE-OK        PIC X(01) VALUE 'N'.
            05 WS-APELLIDO-OK      PIC X(01) VALUE 'N'.
            05 WS-EMAIL-OK         PIC X(01) VALUE 'N'.
+           05 WS-TELEFONO-OK      PIC X(01) VALUE 'N'.
+           05 WS-DIGITOS-EN-CAMPO PIC 9(02) VALUE 0.
 
            COPY CUSMREC.
            COPY INVMREC.
@@ -54,6 +69,7 @@
        PROCEDURE DIVISION USING LK-DATOS-TRANSACCION.
 
        0000-PRINCIPAL.
+           MOVE 'S' TO WS-CONTINUAR-CIF.
            PERFORM 1000-PROCESAR-OPCIONES
                    UNTIL WS-CONTINUAR-CIF = 'N' OR 'n'.
            GOBACK.
@@ -100,15 +116,35 @@
 
            IF LK-COD-RETORNO = 0
                DISPLAY "ERROR: ESA CEDULA YA EXISTE EN EL SISTEMA."
+               STRING "[WARN] CI0000 ALTA RECHAZADA DUPLICADO DOC:"
+                      CUSM-DOC-CLIENTE
+                      DELIMITED BY SIZE INTO WS-LOG-MSG
+               CALL 'SYSLOG' USING WS-LOG-MSG
            ELSE
                MOVE 'N' TO WS-NOMBRE-OK
                PERFORM UNTIL WS-NOMBRE-OK = 'S'
                    DISPLAY "Nombre(s)    : "
                    ACCEPT CUSM-NOMBRE
                    IF CUSM-NOMBRE = SPACES
-                       DISPLAY "ERROR: El nombre no puede estar vacio."
+                       DISPLAY "ERROR: Nombre no puede estar vacio."
                    ELSE
-                       MOVE 'S' TO WS-NOMBRE-OK
+                       MOVE ZERO TO WS-DIGITOS-EN-CAMPO
+                       PERFORM VARYING WS-I FROM 1 BY 1
+                               UNTIL WS-I > 25
+                           IF CUSM-NOMBRE(WS-I:1) IS NUMERIC
+                              OR CUSM-NOMBRE(WS-I:1) = '@'
+                              OR CUSM-NOMBRE(WS-I:1) = '#'
+                              OR CUSM-NOMBRE(WS-I:1) = '$'
+                              OR CUSM-NOMBRE(WS-I:1) = '%'
+                              OR CUSM-NOMBRE(WS-I:1) = '!'
+                               ADD 1 TO WS-DIGITOS-EN-CAMPO
+                           END-IF
+                       END-PERFORM
+                       IF WS-DIGITOS-EN-CAMPO > 0
+                           DISPLAY "ERROR: Solo letras y espacios."
+                       ELSE
+                           MOVE 'S' TO WS-NOMBRE-OK
+                       END-IF
                    END-IF
                END-PERFORM
 
@@ -117,16 +153,68 @@
                    DISPLAY "Apellido(s)  : "
                    ACCEPT CUSM-APELLIDOS
                    IF CUSM-APELLIDOS = SPACES
-                      DISPLAY "ERROR: El apellido no puede estar vacio."
+                       DISPLAY "ERROR: Apellido no puede estar vacio."
                    ELSE
-                       MOVE 'S' TO WS-APELLIDO-OK
+                       MOVE ZERO TO WS-DIGITOS-EN-CAMPO
+                       PERFORM VARYING WS-I FROM 1 BY 1
+                               UNTIL WS-I > 25
+                           IF CUSM-APELLIDOS(WS-I:1) IS NUMERIC
+                              OR CUSM-APELLIDOS(WS-I:1) = '@'
+                              OR CUSM-APELLIDOS(WS-I:1) = '#'
+                              OR CUSM-APELLIDOS(WS-I:1) = '$'
+                              OR CUSM-APELLIDOS(WS-I:1) = '%'
+                              OR CUSM-APELLIDOS(WS-I:1) = '!'
+                               ADD 1 TO WS-DIGITOS-EN-CAMPO
+                           END-IF
+                       END-PERFORM
+                       IF WS-DIGITOS-EN-CAMPO > 0
+                           DISPLAY "ERROR: Solo letras y espacios."
+                       ELSE
+                           MOVE 'S' TO WS-APELLIDO-OK
+                       END-IF
                    END-IF
                END-PERFORM
 
-               DISPLAY "Direccion    : "
-               ACCEPT CUSM-DIRECCION
-               DISPLAY "Telefono     : "
-               ACCEPT CUSM-TELEFONO
+               MOVE 'N' TO WS-NOMBRE-OK
+               PERFORM UNTIL WS-NOMBRE-OK = 'S'
+                   DISPLAY "Direccion    : "
+                   ACCEPT CUSM-DIRECCION
+                   IF CUSM-DIRECCION = SPACES
+                       DISPLAY "ERROR: Direccion no puede estar vacia."
+                   ELSE
+                       MOVE 'S' TO WS-NOMBRE-OK
+                   END-IF
+               END-PERFORM
+
+               MOVE 'N' TO WS-TELEFONO-OK
+               PERFORM UNTIL WS-TELEFONO-OK = 'S'
+                   DISPLAY "Telefono     : "
+                   ACCEPT CUSM-TELEFONO
+                   IF CUSM-TELEFONO = SPACES
+                       DISPLAY "ERROR: Telefono no puede estar vacio."
+                   ELSE
+                       MOVE 12 TO WS-I
+                       PERFORM UNTIL WS-I = 0 OR
+                               CUSM-TELEFONO(WS-I:1) NOT = SPACE
+                           SUBTRACT 1 FROM WS-I
+                       END-PERFORM
+                       MOVE WS-I TO WS-DOC-LEN
+                       IF WS-DOC-LEN < 7 OR WS-DOC-LEN > 12
+                           DISPLAY "ERROR: Telefono: 7 a 12 digitos."
+                       ELSE
+                           MOVE 'S' TO WS-TELEFONO-OK
+                           PERFORM VARYING WS-I FROM 1 BY 1
+                                   UNTIL WS-I > WS-DOC-LEN
+                               IF CUSM-TELEFONO(WS-I:1) NOT NUMERIC
+                                   MOVE 'N' TO WS-TELEFONO-OK
+                               END-IF
+                           END-PERFORM
+                           IF WS-TELEFONO-OK = 'N'
+                               DISPLAY "ERROR: Solo digitos permitidos."
+                           END-IF
+                       END-IF
+                   END-IF
+               END-PERFORM
 
 
                MOVE 'N' TO WS-EMAIL-OK
@@ -173,13 +261,23 @@
                    IF LK-COD-RETORNO = 0
                        CALL 'DBIOTRAN' USING 'C'
                        DISPLAY "ALTA EXITOSA. ID: " CUSM-ID-CLIENTE
+                       STRING "[OK  ] CI0000 ALTA DOC:"
+                              CUSM-DOC-CLIENTE " ID:" CUSM-ID-CLIENTE
+                              DELIMITED BY SIZE INTO WS-LOG-MSG
+                       CALL 'SYSLOG' USING WS-LOG-MSG
                    ELSE
                        CALL 'DBIOTRAN' USING 'R'
                        DISPLAY "ERROR EN CUENTA. NADA SE GUARDO."
+                       MOVE "[ERR ] CI0000 ALTA ERROR CREANDO CTA.CTE"
+                           TO WS-LOG-MSG
+                       CALL 'SYSLOG' USING WS-LOG-MSG
                    END-IF
                ELSE
                    CALL 'DBIOTRAN' USING 'R'
                    DISPLAY "FALLO ALTA CLIENTE: " LK-MENSAJE
+                   STRING "[ERR ] CI0000 ALTA ERROR BD " LK-MENSAJE
+                          DELIMITED BY SIZE INTO WS-LOG-MSG
+                   CALL 'SYSLOG' USING WS-LOG-MSG
                END-IF
            END-IF.
 
@@ -204,8 +302,16 @@
                DISPLAY "SALDO CT  : " CUSM-SALDO-CLIENTE
                DISPLAY "CTA ACTIVA: " CUSM-CTA-ACTIVA
                DISPLAY "-----------------------------------"
+               STRING "[OK  ] CI0000 CONSULTA ID:" CUSM-ID-CLIENTE
+                      " DOC:" CUSM-DOC-CLIENTE
+                      DELIMITED BY SIZE INTO WS-LOG-MSG
+               CALL 'SYSLOG' USING WS-LOG-MSG
            ELSE
                DISPLAY "CLIENTE NO ENCONTRADO."
+               STRING "[WARN] CI0000 CONSULTA NO ENCONTRADO DOC:"
+                      CUSM-DOC-CLIENTE
+                      DELIMITED BY SIZE INTO WS-LOG-MSG
+               CALL 'SYSLOG' USING WS-LOG-MSG
            END-IF.
 
        4000-MODIFICA-CLIENTE.
@@ -222,11 +328,48 @@
                DISPLAY "Nueva Direccion  : "
                ACCEPT CUSM-DIRECCION
                DISPLAY "Telefono actual  : " CUSM-TELEFONO
-               DISPLAY "Nuevo Telefono   : "
-               ACCEPT CUSM-TELEFONO
+               MOVE 'N' TO WS-TELEFONO-OK
+               PERFORM UNTIL WS-TELEFONO-OK = 'S'
+                   DISPLAY "Nuevo Telefono   : "
+                   ACCEPT CUSM-TELEFONO
+                   IF CUSM-TELEFONO = SPACES
+                       DISPLAY "ERROR: Telefono no puede estar vacio."
+                   ELSE
+                       MOVE 12 TO WS-I
+                       PERFORM UNTIL WS-I = 0 OR
+                               CUSM-TELEFONO(WS-I:1) NOT = SPACE
+                           SUBTRACT 1 FROM WS-I
+                       END-PERFORM
+                       MOVE WS-I TO WS-DOC-LEN
+                       IF WS-DOC-LEN < 7 OR WS-DOC-LEN > 12
+                           DISPLAY "ERROR: Telefono: 7 a 12 digitos."
+                       ELSE
+                           MOVE 'S' TO WS-TELEFONO-OK
+                           PERFORM VARYING WS-I FROM 1 BY 1
+                                   UNTIL WS-I > WS-DOC-LEN
+                               IF CUSM-TELEFONO(WS-I:1) NOT NUMERIC
+                                   MOVE 'N' TO WS-TELEFONO-OK
+                               END-IF
+                           END-PERFORM
+                           IF WS-TELEFONO-OK = 'N'
+                               DISPLAY "ERROR: Solo digitos permitidos."
+                           END-IF
+                       END-IF
+                   END-IF
+               END-PERFORM
+
                DISPLAY "Email actual     : " CUSM-EMAIL
-               DISPLAY "Nuevo Email      : "
-               ACCEPT CUSM-EMAIL
+               MOVE 'N' TO WS-EMAIL-OK
+               PERFORM UNTIL WS-EMAIL-OK = 'S'
+                   DISPLAY "Nuevo Email      : "
+                   ACCEPT CUSM-EMAIL
+                   PERFORM 9200-VALIDAR-EMAIL
+                   IF EMAIL-ERR
+                       DISPLAY "ERROR: " LK-MENSAJE
+                   ELSE
+                       MOVE 'S' TO WS-EMAIL-OK
+                   END-IF
+               END-PERFORM
 
                MOVE 'M' TO LK-ACCION-DB
                CALL WS-PGM-DBIOCUSM USING REG-CUSM,
@@ -234,8 +377,15 @@
 
                IF LK-COD-RETORNO = 0
                    DISPLAY "CLIENTE ACTUALIZADO CORRECTAMENTE."
+                   STRING "[OK  ] CI0000 MODIF DOC:"
+                          CUSM-DOC-CLIENTE " ID:" CUSM-ID-CLIENTE
+                          DELIMITED BY SIZE INTO WS-LOG-MSG
+                   CALL 'SYSLOG' USING WS-LOG-MSG
                ELSE
                    DISPLAY "ERROR AL ACTUALIZAR: " LK-MENSAJE
+                   STRING "[ERR ] CI0000 MODIF ERROR BD " LK-MENSAJE
+                          DELIMITED BY SIZE INTO WS-LOG-MSG
+                   CALL 'SYSLOG' USING WS-LOG-MSG
                END-IF
            ELSE
                DISPLAY "CLIENTE NO EXISTE."
@@ -269,6 +419,10 @@
                DISPLAY "**********************************************"
                DISPLAY "SOLUCION: DEBE CANCELAR PRODUCTOS Y RETIRAR"
                DISPLAY "SALDO ANTES DE CONTINUAR."
+               STRING "[WARN] CI0000 BAJA RECHAZADA PRODUCTOS ACTIVOS"
+                      " ID:" CUSM-ID-CLIENTE
+                      DELIMITED BY SIZE INTO WS-LOG-MSG
+               CALL 'SYSLOG' USING WS-LOG-MSG
 
                    ELSE
                DISPLAY "CLIENTE  : " CUSM-NOMBRE " " CUSM-APELLIDOS
@@ -280,6 +434,20 @@
                            CALL WS-PGM-DBIOCUSM USING REG-CUSM,
                                                   LK-DATOS-TRANSACCION
                            DISPLAY ">>> " LK-MENSAJE
+                           IF LK-COD-RETORNO = 0
+                               STRING "[OK  ] CI0000 BAJA DOC:"
+                                      CUSM-DOC-CLIENTE
+                                      " ID:" CUSM-ID-CLIENTE
+                                      DELIMITED BY SIZE
+                                      INTO WS-LOG-MSG
+                               CALL 'SYSLOG' USING WS-LOG-MSG
+                           ELSE
+                               STRING "[ERR ] CI0000 BAJA ERROR BD "
+                                      LK-MENSAJE
+                                      DELIMITED BY SIZE
+                                      INTO WS-LOG-MSG
+                               CALL 'SYSLOG' USING WS-LOG-MSG
+                           END-IF
                        ELSE
                            DISPLAY "OPERACION CANCELADA POR EL USUARIO."
                        END-IF
@@ -287,6 +455,10 @@
                END-IF
            ELSE
               DISPLAY "ERROR: EL CLIENTE NO EXISTE EN LA BASE DE DATOS."
+              STRING "[WARN] CI0000 BAJA DOC NO ENCONTRADO:"
+                     CUSM-DOC-CLIENTE
+                     DELIMITED BY SIZE INTO WS-LOG-MSG
+              CALL 'SYSLOG' USING WS-LOG-MSG
            END-IF.
 
 
@@ -294,36 +466,37 @@
            MOVE 'N' TO WS-DOC-VALIDO.
 
            PERFORM UNTIL WS-DOC-VALIDO = 'S'
-               DISPLAY "----------------------------------------------"
-               DISPLAY "INGRESE DOCUMENTO (8 CED / 12 PAS): "
+               DISPLAY "  Cedula (10 digitos) o Pasaporte (6-12): "
                ACCEPT CUSM-DOC-CLIENTE
 
-      * Calcular longitud real (eliminando espacios a la derecha)
                MOVE 0 TO WS-DOC-LEN
                MOVE 12 TO WS-I
-               PERFORM UNTIL WS-I = 0 OR CUSM-DOC-CLIENTE(WS-I:1)
-               NOT = SPACE
+               PERFORM UNTIL WS-I = 0 OR
+                       CUSM-DOC-CLIENTE(WS-I:1) NOT = SPACE
                    SUBTRACT 1 FROM WS-I
                END-PERFORM
                MOVE WS-I TO WS-DOC-LEN
 
-      * Lógica de Validación y Asignación Automática
-               IF WS-DOC-LEN >= 8 AND WS-DOC-LEN <= 12
-                   MOVE 'S' TO WS-DOC-VALIDO
-
-      * Identificación automática
-                   IF WS-DOC-LEN = 8
-                       MOVE "CED" TO CUSM-TIPO-DOC
+               IF WS-DOC-LEN = 0
+                   DISPLAY "  Debe ingresar el documento."
+               ELSE IF CUSM-DOC-CLIENTE(1:1) IS NUMERIC
+                   IF WS-DOC-LEN = 10
+                       PERFORM 9150-VALIDAR-CEDULA-EC
+                       IF WS-CED-VALIDA = 'S'
+                           MOVE "CED" TO CUSM-TIPO-DOC
+                           MOVE 'S' TO WS-DOC-VALIDO
+                       ELSE
+                           DISPLAY "  " LK-MENSAJE
+                       END-IF
                    ELSE
-                       MOVE "PAS" TO CUSM-TIPO-DOC
+                       DISPLAY "  Cedula invalida: debe tener"
+                       DISPLAY "  exactamente 10 digitos."
                    END-IF
-
-                   DISPLAY ">>> SISTEMA: DOCUMENTO VALIDO"
-                   DISPLAY ">>> TIPO ASIGNADO: " CUSM-TIPO-DOC
+               ELSE IF WS-DOC-LEN >= 6 AND WS-DOC-LEN <= 12
+                   MOVE "PAS" TO CUSM-TIPO-DOC
+                   MOVE 'S' TO WS-DOC-VALIDO
                ELSE
-                   DISPLAY "ERROR: LONGITUD INVALIDA (" WS-DOC-LEN ")"
-                   DISPLAY "DEBE TENER ENTRE 8 Y 12 CARACTERES."
-                   DISPLAY "POR FAVOR, INTENTE DE NUEVO."
+                   DISPLAY "  Pasaporte invalido: 6 a 12 caracteres."
                END-IF
            END-PERFORM.
 
@@ -354,7 +527,7 @@
                INTO WS-LOCAL-PART, WS-DOMAIN-PART
            END-UNSTRING
 
-           *> 4. Validar que local y dominio no estén vacíos
+           *> 4. Validar que local y dominio no estï¿½n vacï¿½os
            IF WS-LOCAL-PART = SPACES OR WS-DOMAIN-PART = SPACES
                SET EMAIL-ERR TO TRUE
                MOVE "FORMATO DE EMAIL INCOMPLETO" TO LK-MENSAJE
@@ -367,4 +540,55 @@
            IF WS-DOT-COUNT < 1
                SET EMAIL-ERR TO TRUE
                MOVE "DOMINIO SIN PUNTO (EJ. .COM, .EC)" TO LK-MENSAJE
+           END-IF.
+
+       9150-VALIDAR-CEDULA-EC.
+           MOVE 'N' TO WS-CED-VALIDA.
+           MOVE SPACES TO LK-MENSAJE.
+
+      *    Provincia: 01 al 24
+           MOVE CUSM-DOC-CLIENTE(1:2) TO WS-CED-PROV.
+           IF WS-CED-PROV < 1 OR WS-CED-PROV > 24
+               MOVE "Cedula invalida: codigo de provincia"
+                   TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF.
+
+      *    3er digito 0-5 = persona natural
+           MOVE CUSM-DOC-CLIENTE(3:1) TO WS-CED-TERCERO.
+           IF WS-CED-TERCERO > 5
+               MOVE "Cedula invalida: tipo de persona incorrecto"
+                   TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF.
+
+      *    Algoritmo modulo 10
+           MOVE ZERO TO WS-CED-SUMA.
+           PERFORM VARYING WS-CED-IDX FROM 1 BY 1
+                   UNTIL WS-CED-IDX > 9
+               MOVE CUSM-DOC-CLIENTE(WS-CED-IDX:1)
+                   TO WS-CED-DIGITO
+               IF FUNCTION MOD(WS-CED-IDX, 2) = 1
+                   COMPUTE WS-CED-PRODUCTO = WS-CED-DIGITO * 2
+               ELSE
+                   MOVE WS-CED-DIGITO TO WS-CED-PRODUCTO
+               END-IF
+               IF WS-CED-PRODUCTO >= 10
+                   SUBTRACT 9 FROM WS-CED-PRODUCTO
+               END-IF
+               ADD WS-CED-PRODUCTO TO WS-CED-SUMA
+           END-PERFORM.
+
+      *    Verificar digito de control
+           COMPUTE WS-CED-VERIF-CALC =
+               FUNCTION MOD(WS-CED-SUMA, 10).
+           IF WS-CED-VERIF-CALC NOT = 0
+               COMPUTE WS-CED-VERIF-CALC = 10 - WS-CED-VERIF-CALC
+           END-IF.
+           MOVE CUSM-DOC-CLIENTE(10:1) TO WS-CED-VERIF-DOC.
+           IF WS-CED-VERIF-CALC = WS-CED-VERIF-DOC
+               MOVE 'S' TO WS-CED-VALIDA
+           ELSE
+               MOVE "Cedula invalida: digito verificador incorrecto"
+                   TO LK-MENSAJE
            END-IF.
