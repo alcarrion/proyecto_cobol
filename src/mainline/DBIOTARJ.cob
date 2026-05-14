@@ -9,8 +9,8 @@
        ENVIRONMENT DIVISION.
        DATA DIVISION.
        WORKING-STORAGE SECTION.
-      **********************************************************************
-      *******                EMBEDDED SQL VARIABLES                  *******
+      **************************************************
+      * EMBEDDED SQL VARIABLES *
        01 SQLV.
            05 SQL-ARRSZ  PIC S9(9) COMP-5 VALUE 8.
            05 SQL-COUNT  PIC S9(9) COMP-5 VALUE ZERO.
@@ -25,65 +25,65 @@
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 8.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 149.
-           05 SQL-STMT   PIC X(149) VALUE 'INSERT INTO TARJETAS (ID_CLIE
-      -    'NTE,NRO_TARJETA,FECHA_EMISION,FECHA_VENCIMIENTO,LIMITE_TARJE
-      -    'TA,ACUM_MES,LIQUIDACION_MES,ESTADO) VALUES (?,?,?,?,?,?,?,?)
-      -    ''.
-      **********************************************************************
+           05 SQL-STMT   PIC X(149) VALUE 
+      -    'INSERT INTO TARJETAS (ID_CLIENTE,NRO_TARJETA,FECHA_EMISION,'
+      -    'FECHA_VENCIMIENTO,LIMITE_TARJETA,ACUM_MES,LIQUIDACION_MES,'
+      -    'ESTADO) VALUES (?,?,?,?,?,?,?,?)'.
+      **************************************************
        01 SQL-STMT-1.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 52.
-           05 SQL-STMT   PIC X(52) VALUE 'UPDATE clientes SET TARJETA = 
-      -    '1 WHERE ID_CLIENTE = ?'.
-      **********************************************************************
+           05 SQL-STMT   PIC X(52) VALUE 
+      -    'UPDATE clientes SET TARJETA = 1 WHERE ID_CLIENTE = ?'.
+      **************************************************
        01 SQL-STMT-2.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 132.
-           05 SQL-STMT   PIC X(132) VALUE 'SELECT ID_CLIENTE,FECHA_EMISI
-      -    'ON,FECHA_VENCIMIENTO,LIMITE_TARJETA,ACUM_MES,LIQUIDACION_MES
-      -    ',ESTADO FROM TARJETAS WHERE NRO_TARJETA = ?'.
-      **********************************************************************
+           05 SQL-STMT   PIC X(132) VALUE 
+      -    'SELECT ID_CLIENTE,FECHA_EMISION,FECHA_VENCIMIENTO,'
+      -    'LIMITE_TARJETA,ACUM_MES,LIQUIDACION_MES,ESTADO '
+      -    'FROM TARJETAS WHERE NRO_TARJETA = ?'.
+      **************************************************
        01 SQL-STMT-3.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 4.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 85.
-           05 SQL-STMT   PIC X(85) VALUE 'UPDATE TARJETAS SET ACUM_MES =
-      -    ' ?,LIQUIDACION_MES = ?,ESTADO = ? WHERE NRO_TARJETA = ?'.
-      **********************************************************************
+           05 SQL-STMT   PIC X(85) VALUE 
+      -    'UPDATE TARJETAS SET ACUM_MES = ?,LIQUIDACION_MES = ?,'
+      -    'ESTADO = ? WHERE NRO_TARJETA = ?'.
+      **************************************************
        01 SQL-STMT-4.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 54.
-           05 SQL-STMT   PIC X(54) VALUE 'UPDATE TARJETAS SET ESTADO = '
-      -    ''I'' WHERE NRO_TARJETA = ?'.
-      **********************************************************************
+           05 SQL-STMT   PIC X(54) VALUE 'UPDATE TARJETAS SET ESTADO = ''I'' WHERE NRO_TARJETA = ?'.
+      **************************************************
        01 SQL-STMT-5.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 52.
-           05 SQL-STMT   PIC X(52) VALUE 'UPDATE clientes SET TARJETA = 
-      -    '0 WHERE ID_CLIENTE = ?'.
-      **********************************************************************
-      *******          PRECOMPILER-GENERATED VARIABLES               *******
+           05 SQL-STMT   PIC X(52) VALUE 'UPDATE clientes SET TARJETA = 0 WHERE ID_CLIENTE = ?'.
+      **************************************************
+      * PRECOMPILER-GENERATED VARIABLES *
        01 SQLV-GEN-VARS.
            05 SQL-VAR-0001  PIC S9(9) COMP-3.
            05 SQL-VAR-0002  PIC S9(11)V9(2) COMP-3.
            05 SQL-VAR-0003  PIC S9(11)V9(2) COMP-3.
            05 SQL-VAR-0004  PIC S9(11)V9(2) COMP-3.
-      *******       END OF PRECOMPILER-GENERATED VARIABLES           *******
-      **********************************************************************
+      * END OF PRECOMPILER-GENERATED VARIABLES *
+      **************************************************
       *    EXEC SQL INCLUDE SQLCA END-EXEC.
        01 SQLCA.
            05 SQLSTATE PIC X(5).

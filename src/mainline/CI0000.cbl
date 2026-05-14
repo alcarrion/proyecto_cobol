@@ -60,15 +60,18 @@
 
        1000-PROCESAR-OPCIONES.
            DISPLAY "========================================".
-           DISPLAY "       MODULO ABM CLIENTES (CIF)        ".
+           DISPLAY "            BANCOCORE S.A.             ".
+           DISPLAY "        MODULO ABM CLIENTES (CIF)      ".
            DISPLAY "========================================".
-           DISPLAY "1. Alta de Cliente".
-           DISPLAY "2. Consulta de Cliente".
-           DISPLAY "3. Modificacion de Cliente".
-           DISPLAY "4. Baja (Logica) de Cliente".
-           DISPLAY "0. Volver al Menu Principal".
+           DISPLAY "Sucursal: 001    Operador: MGONZALEZ".
+           DISPLAY "----------------------------------------".
+           DISPLAY " 1. Alta de Cliente".
+           DISPLAY " 2. Consulta de Cliente".
+           DISPLAY " 3. Modificacion de Cliente".
+           DISPLAY " 4. Baja (Logica) de Cliente".
+           DISPLAY " 0. Volver al Menu Principal".
            DISPLAY "========================================".
-           DISPLAY "Seleccione operacion: "
+           DISPLAY "Ingrese opcion y presione ENTER: "
            ACCEPT WS-OPCION-CIF.
 
            EVALUATE WS-OPCION-CIF
@@ -307,11 +310,11 @@
                END-PERFORM
                MOVE WS-I TO WS-DOC-LEN
 
-      * Lógica de Validación y Asignación Automática
+      * Lï¿½gica de Validaciï¿½n y Asignaciï¿½n Automï¿½tica
                IF WS-DOC-LEN >= 8 AND WS-DOC-LEN <= 12
                    MOVE 'S' TO WS-DOC-VALIDO
 
-      * Identificación automática
+      * Identificaciï¿½n automï¿½tica
                    IF WS-DOC-LEN = 8
                        MOVE "CED" TO CUSM-TIPO-DOC
                    ELSE
@@ -354,7 +357,7 @@
                INTO WS-LOCAL-PART, WS-DOMAIN-PART
            END-UNSTRING
 
-           *> 4. Validar que local y dominio no estén vacíos
+           *> 4. Validar que local y dominio no estï¿½n vacï¿½os
            IF WS-LOCAL-PART = SPACES OR WS-DOMAIN-PART = SPACES
                SET EMAIL-ERR TO TRUE
                MOVE "FORMATO DE EMAIL INCOMPLETO" TO LK-MENSAJE

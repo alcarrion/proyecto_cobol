@@ -3,14 +3,17 @@ color 0B
 title Compilador - Sistema Bancario COBOL
 
 set ROOT=%~dp0..
-set COBC=cobc
+set PATH=C:\Program Files (x86)\OpenCobolIDE\GnuCOBOL\bin;%PATH%
+set COBC="C:\Program Files (x86)\OpenCobolIDE\GnuCOBOL\bin\cobc.exe"
+set COB_CONFIG_DIR=C:\Program Files (x86)\OpenCobolIDE\GnuCOBOL\config
+set COB_COPY_DIR=%ROOT%\src\copies
 
 echo ============================================
 echo  Compilando Sistema Bancario COBOL
 echo ============================================
 echo.
 
-%COBC% -x -free -I "%ROOT%\src\copies" ^
+%COBC% -x -I "%ROOT%\src\copies" ^
     "%ROOT%\src\mainline\BANCSMENU.cob" ^
     "%ROOT%\src\mainline\CI0000.cbl" ^
     "%ROOT%\src\mainline\IN0000.cbl" ^

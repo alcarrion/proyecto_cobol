@@ -96,16 +96,20 @@
        001-MENU-OPCION.
            PERFORM UNTIL WS-CONTINUAR = 'N' OR 'n'
                DISPLAY "========================================"
-               DISPLAY "   SISTEMA BANCARIO INTEGRADO v1.0"
+               DISPLAY "            BANCOCORE S.A.             "
+               DISPLAY "      SISTEMA BANCARIO INTEGRADO       "
                DISPLAY "========================================"
-               DISPLAY "1. Gestion de Clientes"
-               DISPLAY "2. Cuentas Corrientes"
-               DISPLAY "3. Tarjetas de Credito"
-               DISPLAY "4. Hipotecas"
-               DISPLAY "5. Cierre Mensual"
-               DISPLAY "6. Reportes Gerenciales"
-               DISPLAY "0. Salir"
+               DISPLAY "Sucursal: 001    Operador: MGONZALEZ"
+               DISPLAY "----------------------------------------"
+               DISPLAY " 1. Gestion de Clientes"
+               DISPLAY " 2. Cuentas Corrientes"
+               DISPLAY " 3. Tarjetas de Credito"
+               DISPLAY " 4. Hipotecas"
+               DISPLAY " 5. Cierre Mensual"
+               DISPLAY " 6. Reportes Gerenciales"
+               DISPLAY " 0. Salir"
                DISPLAY "========================================"
+               DISPLAY "Ingrese opcion y presione ENTER: "
                ACCEPT WS-OPCION
 
            EVALUATE WS-OPCION
@@ -129,10 +133,18 @@
            END-EVALUATE
 
                IF WS-OPCION NOT = 0 AND WS-CONTINUAR NOT = 'N'
-                   DISPLAY '------------------------------------'
-                   DISPLAY 'RESULTADO: ' LK-MENSAJE
-                   DISPLAY 'CODIGO:    ' LK-COD-RETORNO
-                   DISPLAY '------------------------------------'
+                   IF LK-COD-RETORNO = 0
+                       IF LK-MENSAJE NOT = SPACES
+                       DISPLAY "------------------------------------"
+                       DISPLAY "RESULTADO: " LK-MENSAJE
+                       DISPLAY "------------------------------------"
+                   END-IF
+               ELSE
+                   DISPLAY "------------------------------------"
+                   DISPLAY "ERROR: " LK-MENSAJE
+                   DISPLAY "CODIGO: " LK-COD-RETORNO
+                   DISPLAY "------------------------------------"
+                   END-IF
                    DISPLAY 'Presione una tecla para continuar...'
                    ACCEPT WS-OPCION
                END-IF
@@ -143,7 +155,7 @@
                "DRIVER={MySQL ODBC 8.0 ANSI Driver};"
                "SERVER=localhost;"
                "DATABASE=proyecto_cobol;"
-               "UID=root;PWD=tata;"
+               "UID=root;PWD=12345;"
                DELIMITED BY SIZE INTO DB-CONN-STR
            END-STRING.
            INSPECT DB-CONN-STR REPLACING TRAILING SPACES BY LOW-VALUES.
@@ -153,11 +165,7 @@
       *        CONNECT TO :DB-CONN-STR
       *    END-EXEC.
            MOVE 100 TO SQL-LEN(1)
-           CALL 'OCSQL'    USING DB-CONN-STR
-                               SQL-LEN(1)
-                               SQLCA
-           END-CALL
-                   .
+           CALL 'OCSQL' USING DB-CONN-STR SQL-LEN(1) SQLCA END-CALL.
            IF SQLCODE NOT = 0
                DISPLAY "FALLO DE CONEXION. SQLCODE: " SQLCODE
                DISPLAY "VERIFIQUE EL DSN 'banco' EN EL PANEL DE CONTROL"

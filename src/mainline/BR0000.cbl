@@ -84,16 +84,18 @@
            GOBACK.
 
        1000-MOSTRAR-MENU.
-           DISPLAY " ".
            DISPLAY "====================================".
-           DISPLAY "       MODULO DE HIPOTECAS          ".
+           DISPLAY "            BANCOCORE S.A.          ".
+           DISPLAY "         MODULO DE HIPOTECAS        ".
            DISPLAY "====================================".
-           DISPLAY "  1. Registrar nuevo prestamo".
-           DISPLAY "  2. Consultar estado de hipoteca".
-           DISPLAY "  3. Procesar pago de cuota".
-           DISPLAY "  4. Volver al menu principal".
+           DISPLAY "Sucursal: 001    Operador: MGONZALEZ".
+           DISPLAY "------------------------------------".
+           DISPLAY " 1. Registrar nuevo prestamo".
+           DISPLAY " 2. Consultar estado de hipoteca".
+           DISPLAY " 3. Procesar pago de cuota".
+           DISPLAY " 4. Volver al menu principal".
            DISPLAY "====================================".
-           DISPLAY "Seleccione opcion: ".
+           DISPLAY "Ingrese opcion y presione ENTER: ".
            ACCEPT WS-OPTION.
 
            EVALUATE WS-OPTION

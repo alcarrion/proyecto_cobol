@@ -65,18 +65,21 @@
 
        1000-PROCESAR-OPCIONES.
            DISPLAY "========================================".
-           DISPLAY "   MODULO TARJETAS DE CREDITO           ".
+           DISPLAY "            BANCOCORE S.A.             ".
+           DISPLAY "    MODULO TARJETAS DE CREDITO         ".
            DISPLAY "========================================".
-           DISPLAY "1. Emitir Nueva Tarjeta".
-           DISPLAY "2. Consultar Tarjeta".
-           DISPLAY "3. Registrar Consumo".
-           DISPLAY "4. Realizar Pago".
-           DISPLAY "5. Consultar Estado de Deuda".
-           DISPLAY "6. Bloquear/Activar Tarjeta".
-           DISPLAY "7. Cancelar Tarjeta".
-           DISPLAY "0. Volver al Menu Principal".
+           DISPLAY "Sucursal: 001    Operador: MGONZALEZ".
+           DISPLAY "----------------------------------------".
+           DISPLAY " 1. Emitir Nueva Tarjeta".
+           DISPLAY " 2. Consultar Tarjeta".
+           DISPLAY " 3. Registrar Consumo".
+           DISPLAY " 4. Realizar Pago".
+           DISPLAY " 5. Consultar Estado de Deuda".
+           DISPLAY " 6. Bloquear/Activar Tarjeta".
+           DISPLAY " 7. Cancelar Tarjeta".
+           DISPLAY " 0. Volver al Menu Principal".
            DISPLAY "========================================".
-           DISPLAY "Seleccione operacion: "
+           DISPLAY "Ingrese opcion y presione ENTER: "
            ACCEPT WS-OPCION-TARJ
 
            EVALUATE WS-OPCION-TARJ
@@ -482,8 +485,29 @@
 
                IF LK-COD-RETORNO NOT = 0
                    MOVE "CLIENTE NO ENCONTRADO" TO LK-MENSAJE
+               ELSE
+                   PERFORM 9050-MOSTRAR-CLIENTE
                END-IF
            END-IF.
+
+      *================================================================*
+      * 9050 - MOSTRAR INFORMACION DEL CLIENTE                         *
+      *================================================================*
+       9050-MOSTRAR-CLIENTE.
+           DISPLAY "----------------------------------------"
+           DISPLAY "CLIENTE ENCONTRADO"
+           DISPLAY "----------------------------------------"
+           DISPLAY "NOMBRE  : " CUSM-NOMBRE
+           DISPLAY "APELLIDO: " CUSM-APELLIDOS
+           DISPLAY "CEDULA  : " CUSM-DOC-CLIENTE
+           IF CUSM-CTA-ACTIVA = 1
+               DISPLAY "ESTADO  : ACTIVO"
+           ELSE
+               DISPLAY "ESTADO  : INACTIVO"
+           END-IF
+           DISPLAY "----------------------------------------"
+           MOVE SPACES TO LK-MENSAJE
+       .
 
       *================================================================*
       * 9100 - BUSCAR TARJETA                                         *

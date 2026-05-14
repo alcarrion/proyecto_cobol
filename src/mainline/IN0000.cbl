@@ -46,14 +46,17 @@
 
        1000-PROCESAR-OPCIONES.
            DISPLAY "========================================".
+           DISPLAY "            BANCOCORE S.A.             ".
            DISPLAY "   MODULO DE CUENTAS CORRIENTES (INVM)  ".
            DISPLAY "========================================".
-           DISPLAY "1. Consultar Saldo".
-           DISPLAY "2. Realizar Deposito".
-           DISPLAY "3. Realizar Extraccion".
-           DISPLAY "0. Volver al Menu Principal".
+           DISPLAY "Sucursal: 001    Operador: MGONZALEZ".
+           DISPLAY "----------------------------------------".
+           DISPLAY " 1. Consultar Saldo".
+           DISPLAY " 2. Realizar Deposito".
+           DISPLAY " 3. Realizar Extraccion".
+           DISPLAY " 0. Volver al Menu Principal".
            DISPLAY "========================================".
-           DISPLAY "Seleccione operacion: "
+           DISPLAY "Ingrese opcion y presione ENTER: "
            ACCEPT WS-OPCION-INVM.
 
            EVALUATE WS-OPCION-INVM
@@ -184,7 +187,7 @@
 
            PERFORM 9100-VALIDAR-DOC-CAPTURA.
 
-           *> Resguardamos la intención original ('L' o 'C')
+           *> Resguardamos la intenciï¿½n original ('L' o 'C')
            MOVE LK-ACCION-DB TO WS-ACCION-TEMP.
 
            *> Buscamos primero al cliente (Siempre con 'C')
@@ -194,7 +197,7 @@
            IF LK-COD-RETORNO = 0
                MOVE CUSM-ID-CLIENTE TO INVM-ID-CLIENTE
 
-               *> Restauramos la acción para la cuenta
+               *> Restauramos la acciï¿½n para la cuenta
                MOVE WS-ACCION-TEMP TO LK-ACCION-DB
                CALL WS-PGM-DBIOINVM USING REG-INVM, LK-DATOS-TRANSACCION
 
