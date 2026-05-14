@@ -6,12 +6,11 @@ title Compilador - Sistema Bancario COBOL
 :: 1. Configurar las rutas
 set "COBOL_MAIN=C:\Program Files (x86)\OpenCobolIDE\GnuCOBOL"
 set "COBOL_BIN=%COBOL_MAIN%\bin"
-set "COBOL_LIBS_ESQL=C:\Program Files (x86)\OpenCobolIDE\GnuCOBOL\binaries\win32\release"
+set "COBOL_LIBS_ESQL=C:\Program Files (x86)\OpenCobolIDE\binaries\win32\release"
 
-:: Variables de entorno vitales
+:: Variables de entorno
 set "COB_MAIN_DIR=%COBOL_MAIN%"
 set "COB_CONFIG_DIR=%COBOL_MAIN%\config"
-:: MUY IMPORTANTE: Agregar BIN y la carpeta del precompilador al PATH
 set "PATH=%COBOL_BIN%;%COBOL_LIBS_ESQL%;%PATH%"
 
 :: 2. Definir rutas del proyecto
@@ -23,6 +22,7 @@ set "COPIES_DIR=%ROOT%\src\copies"
 set "COBCPY=%COPIES_DIR%"
 
 set "COBC=%COBOL_BIN%\cobc.exe"
+:: Nota: Según la arquitectura de 3 capas, el precompilador suele ser esq10C.exe [cite: 172, 179]
 set "PRECOMPILADOR=%COBOL_LIBS_ESQL%\esqlOC.exe"
 
 echo ============================================
@@ -31,7 +31,6 @@ echo ============================================
 
 for %%f in ("%SQL_DIR%\*.sqb") do (
     echo Procesando: %%~nxf ...
-    :: Agregamos -static y verificamos la salida
     "%PRECOMPILADOR%" -I "%COPIES_DIR%" -static -o "%MAINLINE_DIR%\%%~nf.cob" "%%f"
 )
 
@@ -40,8 +39,8 @@ echo ============================================
 echo  2. Compilando Sistema Bancario COBOL
 echo ============================================
 
-:: Agregamos -L para las librerías y -l para enlazar el motor SQL
-:: Nota: Reemplaza 'ocsql' por el nombre real de la lib si es diferente (ej. cobsql)
+:: Compilación y enlace de todos los módulos 
+:: IMPORTANTE: No dejar líneas en blanco entre los archivos con '^'
 "%COBC%" -x -v -I "%COPIES_DIR%" ^
     -L "%COBOL_LIBS_ESQL%" ^
     -locsql ^
@@ -55,6 +54,11 @@ echo ============================================
     "%MAINLINE_DIR%\DBIOTARJ.cob" ^
     "%MAINLINE_DIR%\DBIOBORM.cob" ^
     "%MAINLINE_DIR%\DBIOTRAN.cob" ^
+    "%MAINLINE_DIR%\BNCR004.cob" ^
+    "%MAINLINE_DIR%\TFMX.cob" ^
+    "%MAINLINE_DIR%\RRD000.cob" ^
+    "%MAINLINE_DIR%\XXXREP.cob" ^
+    "%MAINLINE_DIR%\TFTRCT.cob" ^
     -o "%BIN_DIR%\BANCSMENU.exe"
 
 if %ERRORLEVEL% == 0 (

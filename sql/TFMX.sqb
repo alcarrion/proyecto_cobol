@@ -1,0 +1,100 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. TFMX.
+      *==========================================================
+      * FASE 10: CARGA DE ARCHIVO PLANO A TABLA DE REPLICA TF06
+      *==========================================================
+
+       ENVIRONMENT DIVISION.
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+           SELECT ARCHIVO-ENTRADA ASSIGN TO WS-RUTA-COMPLETA
+           ORGANIZATION IS LINE SEQUENTIAL
+           FILE STATUS IS WS-FS.
+
+       DATA DIVISION.
+       FILE SECTION.
+       FD  ARCHIVO-ENTRADA.
+       01  REG-LINEA-ENTRADA       PIC X(500).
+
+       WORKING-STORAGE SECTION.
+           EXEC SQL INCLUDE SQLCA END-EXEC.
+
+           EXEC SQL BEGIN DECLARE SECTION END-EXEC.
+       01  WS-HOST-VARS-TFMX.
+           05 WS-ID-LOTE-SQL       PIC 9(09).
+           05 WS-DATOS-TX-SQL      PIC X(500).
+           05 WS-ESTADO-SQL        PIC 9(01) VALUE 2.
+           EXEC SQL END DECLARE SECTION END-EXEC.
+
+       01  WS-CONTROL-FILE.
+           05 WS-DIR-BASE          PIC X(200).
+           05 WS-RUTA-COMPLETA     PIC X(250).
+           05 WS-EOF               PIC X(01) VALUE 'N'.
+           05 WS-CONT-REGS         PIC 9(05) VALUE 0.
+           05 WS-FS                PIC X(02).
+
+       LINKAGE SECTION.
+       COPY LKCIF.
+       01  WS-TFFM-VARS.
+           05 WS-ID-LOTE           PIC 9(09).
+           05 WS-NOMBRE-ARCHIVO    PIC X(50).
+           05 WS-FASE              PIC X(02).
+           05 WS-ESTADO-REPLICA    PIC X(01).
+           05 WS-TIPO-PROG         PIC X(03).
+           05 WS-FECHA-SIST        PIC X(10).
+
+       PROCEDURE DIVISION USING WS-TFFM-VARS, LK-DATOS-TRANSACCION.
+       0000-PRINCIPAL.
+      * Construccion segura de la ruta para no exceder columna 72
+           INITIALIZE WS-DIR-BASE
+           STRING "C:\Users\rocha\OneDrive\Documentos\PROYECTO CORE "
+                  "TATA\proyecto_cobol\src\proyecto_cobol\banco\"
+                  "spool\Interfaces\BATCH-UPLOAD-S\"
+                  DELIMITED BY SIZE INTO WS-DIR-BASE
+
+           INITIALIZE WS-RUTA-COMPLETA
+           STRING WS-DIR-BASE       DELIMITED BY "  "
+                  WS-NOMBRE-ARCHIVO DELIMITED BY SPACE
+                  INTO WS-RUTA-COMPLETA
+
+           OPEN INPUT ARCHIVO-ENTRADA
+
+           IF WS-FS NOT = "00"
+               MOVE 99 TO LK-COD-RETORNO
+               STRING "ERR: NO SE PUDO ABRIR ARCHIVO. STATUS: " WS-FS
+                      DELIMITED BY SIZE INTO LK-MENSAJE
+               GOBACK
+           END-IF
+
+           MOVE WS-ID-LOTE TO WS-ID-LOTE-SQL
+           PERFORM 1000-LEER-Y-CARGAR UNTIL WS-EOF = 'Y'
+
+           CLOSE ARCHIVO-ENTRADA
+           EXEC SQL COMMIT END-EXEC
+
+           MOVE 0 TO LK-COD-RETORNO
+           GOBACK.
+
+       1000-LEER-Y-CARGAR.
+           READ ARCHIVO-ENTRADA
+               AT END
+                   MOVE 'Y' TO WS-EOF
+               NOT AT END
+                   MOVE REG-LINEA-ENTRADA TO WS-DATOS-TX-SQL
+                   PERFORM 2000-INSERTAR-TF06
+           END-READ.
+
+       2000-INSERTAR-TF06.
+           EXEC SQL
+               INSERT INTO TF06 (ID_LOTE, ESTADO, DATOS_TX)
+               VALUES (:WS-ID-LOTE-SQL, :WS-ESTADO-SQL,
+               :WS-DATOS-TX-SQL)
+           END-EXEC.
+
+           IF SQLCODE NOT = 0
+               DISPLAY "ERROR AL INSERTAR REGISTRO EN TF06: " SQLCODE
+               MOVE 99 TO LK-COD-RETORNO
+               MOVE "Y" TO WS-EOF
+           ELSE
+               ADD 1 TO WS-CONT-REGS
+           END-IF.
