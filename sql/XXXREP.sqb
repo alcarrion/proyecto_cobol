@@ -1,7 +1,7 @@
        IDENTIFICATION DIVISION.
        PROGRAM-ID. XXXREP.
       *==========================================================
-      * FASE 30: GENERACIÓN DE ARCHIVO DE SALIDA CON RESULTADOS
+      * FASE 30: GENERACIï¿½N DE ARCHIVO DE SALIDA CON RESULTADOS
       *==========================================================
 
        ENVIRONMENT DIVISION.
@@ -33,9 +33,10 @@
            05 WS-STATUS-TXT        PIC X(05).
            05 WS-LINEA-OUT         PIC X(600).
            05 WS-FS                PIC X(02).
+           05 WS-EOF-REP           PIC X(01) VALUE 'N'.
 
        LINKAGE SECTION.
-       COPY LKCIF.
+           COPY LKCIF.
        01  WS-TFFM-VARS.
            05 WS-ID-LOTE           PIC 9(09).
            05 WS-NOMBRE-ARCHIVO    PIC X(50).
@@ -46,26 +47,30 @@
 
        PROCEDURE DIVISION USING WS-TFFM-VARS, LK-DATOS-TRANSACCION.
        0000-PRINCIPAL.
-      * Construccion segura de ruta de salida
-           INITIALIZE WS-DIR-SALIDA
-           STRING "C:\Users\rocha\OneDrive\Documentos\PROYECTO CORE "
-                  "TATA\proyecto_cobol\src\proyecto_cobol\banco\"
-                  "spool\Interfaces\BATCH-UPLOAD-S\TRICKLE-FEED-REPORT\"
-                  DELIMITED BY SIZE INTO WS-DIR-SALIDA
+      * 1. Construcciï¿½n de ruta de salida (Ajustada a relativa)
+           INITIALIZE WS-DIR-SALIDA, WS-RUTA-FINAL
+           
+           STRING "..\banco\spool\Interfaces\BATCH-UPLOAD-S\"
+                  "TRICKLE-FEED-REPORT\"
+                  DELIMITED BY SIZE 
+                  INTO WS-DIR-SALIDA.
 
-           INITIALIZE WS-RUTA-FINAL
            STRING WS-DIR-SALIDA     DELIMITED BY "  "
                   WS-NOMBRE-ARCHIVO DELIMITED BY SPACE
                   ".out"            DELIMITED BY SIZE
                   INTO WS-RUTA-FINAL
 
-           OPEN OUTPUT ARCHIVO-SALIDA
+           DISPLAY "XXXREP - GENERANDO REPORTE EN: " WS-RUTA-FINAL
 
+      * 2. Apertura de archivo de reporte
+           OPEN OUTPUT ARCHIVO-SALIDA
            IF WS-FS NOT = "00"
+               DISPLAY "ERROR AL CREAR ARCHIVO DE REPORTE: " WS-FS
                MOVE 99 TO LK-COD-RETORNO
                GOBACK
            END-IF
 
+      * 3. Cursor de resultados
            MOVE WS-ID-LOTE TO WS-ID-LOTE-SQL
            EXEC SQL
                DECLARE CUR_REP CURSOR FOR
@@ -75,31 +80,43 @@
            END-EXEC
 
            EXEC SQL OPEN CUR_REP END-EXEC
-           PERFORM 1000-ESCRIBIR-REPORTE UNTIL SQLCODE NOT = 0
+
+           PERFORM 1000-FETCH-REPORTE
+           PERFORM UNTIL WS-EOF-REP = 'Y'
+               PERFORM 2000-ESCRIBIR-LINEA
+               PERFORM 1000-FETCH-REPORTE
+           END-PERFORM
+
            EXEC SQL CLOSE CUR_REP END-EXEC
            CLOSE ARCHIVO-SALIDA
 
+           DISPLAY "XXXREP - REPORTE FINALIZADO EXITOSAMENTE."
            MOVE 0 TO LK-COD-RETORNO
            GOBACK.
 
-       1000-ESCRIBIR-REPORTE.
+       1000-FETCH-REPORTE.
            EXEC SQL
                FETCH CUR_REP INTO :WS-DATOS-TX-SQL, :WS-ESTADO-SQL,
                                   :WS-COD-ERR-SQL
            END-EXEC
-
-           IF SQLCODE = 0
-               IF WS-ESTADO-SQL = 4
-                   MOVE "OK" TO WS-STATUS-TXT
-               ELSE
-                   MOVE "ERROR" TO WS-STATUS-TXT
-               END-IF
-
-               INITIALIZE WS-LINEA-OUT
-               STRING WS-DATOS-TX-SQL   DELIMITED BY SPACE
-                      "|" WS-STATUS-TXT DELIMITED BY SIZE
-                      "|" WS-COD-ERR-SQL DELIMITED BY SIZE
-                      INTO WS-LINEA-OUT
-
-               WRITE REG-SALIDA FROM WS-LINEA-OUT
+           IF SQLCODE = 100 OR SQLCODE < 0
+               MOVE 'Y' TO WS-EOF-REP
            END-IF.
+
+       2000-ESCRIBIR-LINEA.
+           EVALUATE WS-ESTADO-SQL
+               WHEN 4
+                   MOVE "OK"    TO WS-STATUS-TXT
+               WHEN 7
+                   MOVE "ERROR" TO WS-STATUS-TXT
+               WHEN OTHER
+                   MOVE "UNKN"  TO WS-STATUS-TXT
+           END-EVALUATE
+
+           INITIALIZE WS-LINEA-OUT
+           STRING WS-DATOS-TX-SQL   DELIMITED BY "  "
+                  "|" WS-STATUS-TXT DELIMITED BY SPACE
+                  "|" WS-COD-ERR-SQL DELIMITED BY SPACE
+                  INTO WS-LINEA-OUT
+
+           WRITE REG-SALIDA FROM WS-LINEA-OUT.

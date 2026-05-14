@@ -6,7 +6,7 @@ title Compilador - Sistema Bancario COBOL
 :: 1. Configurar las rutas
 set "COBOL_MAIN=C:\Program Files (x86)\OpenCobolIDE\GnuCOBOL"
 set "COBOL_BIN=%COBOL_MAIN%\bin"
-set "COBOL_LIBS_ESQL=C:\Program Files (x86)\OpenCobolIDE\binaries\win32\release"
+set "COBOL_LIBS_ESQL=C:\Program Files (x86)\OpenCobolIDE\GnuCOBOL\binaries\win32\release"
 
 :: Variables de entorno
 set "COB_MAIN_DIR=%COBOL_MAIN%"
@@ -61,11 +61,34 @@ echo ============================================
     "%MAINLINE_DIR%\TFTRCT.cob" ^
     -o "%BIN_DIR%\BANCSMENU.exe"
 
+echo.
+echo ============================================
+echo  3. Compilando TFDRMAIN (Motor Batch/Demonio)
+echo ============================================
+
+"%COBC%" -x -v -I "%COPIES_DIR%" ^
+    -L "%COBOL_LIBS_ESQL%" ^
+    -locsql ^
+    "%MAINLINE_DIR%\TFDRMAIN.cob" ^
+    "%MAINLINE_DIR%\BNCR004.cob" ^
+    "%MAINLINE_DIR%\TFMX.cob" ^
+    "%MAINLINE_DIR%\RRD000.cob" ^
+    "%MAINLINE_DIR%\XXXREP.cob" ^
+    "%MAINLINE_DIR%\TFTRCT.cob" ^
+    "%MAINLINE_DIR%\DBIOCUSM.cob" ^
+    "%MAINLINE_DIR%\DBIOINVM.cob" ^
+    "%MAINLINE_DIR%\DBIOTARJ.cob" ^
+    "%MAINLINE_DIR%\DBIOBORM.cob" ^
+    "%MAINLINE_DIR%\DBIOTRAN.cob" ^
+    "%MAINLINE_DIR%\IN0000.cbl" ^
+    "%MAINLINE_DIR%\BR0000.cbl" ^
+    -o "%BIN_DIR%\TFDRMAIN.exe"
+
 if %ERRORLEVEL% == 0 (
     echo.
-    echo EXITO: Compilacion finalizada.
+    echo EXITO: Ambos ejecutables generados en /bin
 ) else (
     echo.
-    echo ERROR: El compilador dio un error critico.
+    echo ERROR: Fallo la compilacion de los modulos.
 )
 pause

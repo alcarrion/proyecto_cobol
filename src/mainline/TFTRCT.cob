@@ -1,7 +1,8 @@
        IDENTIFICATION DIVISION.
        PROGRAM-ID. TFTRCT.
       *==========================================================
-      * ORQUESTADOR PRINCIPAL (tfdrmain) - FORMATO SQB
+      * MOTOR AUTOMATICO (DAEMON) - FORMATO SQB
+      * Procesa TODOS los lotes y TODAS las fases en un solo ciclo
       *==========================================================
 
        ENVIRONMENT DIVISION.
@@ -26,10 +27,10 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 0.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 123.
-           05 SQL-STMT   PIC X(123) VALUE 'SELECT ID_LOTE,NOMBRE_ARCHIVO
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 126.
+           05 SQL-STMT   PIC X(126) VALUE 'SELECT ID_LOTE,NOMBRE_ARCHIVO
       -    ',FASE,TIPO_PROG FROM TFFM WHERE FASE < ''40'' AND ESTADO_REP
-      -    'LICA = ''R'' ORDER BY FASE ASC LIMIT 1'.
+      -    'LICA = ''R'' ORDER BY ID_LOTE ASC LIMIT 1'.
       **********************************************************************
        01 SQL-STMT-1.
            05 SQL-IPTR   POINTER VALUE NULL.
@@ -41,6 +42,15 @@
       -    'HEN FASE = ''00'' THEN ''10'' WHEN FASE = ''10'' THEN ''20''
       -    ' WHEN FASE = ''20'' THEN ''30'' WHEN FASE = ''30'' THEN ''40
       -    ''' END WHERE ID_LOTE = ?'.
+      **********************************************************************
+       01 SQL-STMT-2.
+           05 SQL-IPTR   POINTER VALUE NULL.
+           05 SQL-PREP   PIC X VALUE 'N'.
+           05 SQL-OPT    PIC X VALUE SPACE.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 39.
+           05 SQL-STMT   PIC X(39) VALUE 'SELECT FASE FROM TFFM WHERE ID
+      -    '_LOTE = ?'.
       **********************************************************************
       *******          PRECOMPILER-GENERATED VARIABLES               *******
        01 SQLV-GEN-VARS.
@@ -67,7 +77,6 @@
            05 FILLER   PIC X(4).
            05 SQL-HCONN USAGE POINTER VALUE NULL.
 
-      * Variables de Host para la tabla TFFM
       *    EXEC SQL BEGIN DECLARE SECTION END-EXEC.
        01  WS-TFFM-VARS.
            05 WS-ID-LOTE           PIC 9(09).
@@ -78,38 +87,43 @@
            05 WS-FECHA-SIST        PIC X(10).
       *    EXEC SQL END DECLARE SECTION END-EXEC.
 
-      * Variables de control interno
        01  WS-FECHA-CONTABLE       PIC X(10).
        01  WS-PROG-FASE            PIC X(08).
-       01  WS-STATUS-SYS           PIC X(01) VALUE 'R'.
+       01  WS-FLAGS.
+           05 WS-HAY-LOTES-PEND    PIC X(01) VALUE 'S'.
+           05 WS-LOTE-TERMINADO    PIC X(01) VALUE 'N'.
 
-      * Estructura compartida (Definida en WORKING para el llamador)
            COPY LKCIF.
 
        PROCEDURE DIVISION.
        0000-PRINCIPAL.
-      * 1. Validar la fecha de operacion con bncr004
-           PERFORM 1000-VALIDAR-SISTEMA
+           DISPLAY "--- INICIANDO DEMONIO DE PROCESAMIENTO ---"
+           CALL "BNCR004" USING WS-FECHA-CONTABLE
 
-      * 2. Bucle principal de orquestacion
-           IF WS-STATUS-SYS = 'R'
-               PERFORM 2000-ORQUESTAR-LOTES
-           END-IF.
+      * BUCLE DE COLA: Mientras existan archivos registrados para hoy
+           PERFORM UNTIL WS-HAY-LOTES-PEND = 'N'
+               PERFORM 1000-BUSCAR-PROXIMO-LOTE
 
+               IF SQLCODE = 0
+                   PERFORM 2000-PROCESAR-LOTE-COMPLETO
+               ELSE
+                   MOVE 'N' TO WS-HAY-LOTES-PEND
+               END-IF
+           END-PERFORM.
+
+           DISPLAY "--- COLA VACIA. DEMONIO FINALIZADO ---"
            GOBACK.
 
-       1000-VALIDAR-SISTEMA.
-           CALL "BNCR004" USING WS-FECHA-CONTABLE.
-           DISPLAY "FECHA CONTABLE DEL SISTEMA: " WS-FECHA-CONTABLE.
-
-       2000-ORQUESTAR-LOTES.
+       1000-BUSCAR-PROXIMO-LOTE.
+      * Busca el lote mas antiguo que no haya llegado a fase 40
       *    EXEC SQL
       *        SELECT ID_LOTE, NOMBRE_ARCHIVO, FASE, TIPO_PROG
       *        INTO :WS-ID-LOTE, :WS-NOMBRE-ARCHIVO,
-      *        :WS-FASE, :WS-TIPO-PROG
+      *             :WS-FASE, :WS-TIPO-PROG
       *        FROM TFFM
-      *        WHERE FASE < '40' AND ESTADO_REPLICA = 'R'
-      *        ORDER BY FASE ASC
+      *        WHERE FASE < '40'
+      *          AND ESTADO_REPLICA = 'R'
+      *        ORDER BY ID_LOTE ASC
       *        LIMIT 1
       *    END-EXEC.
            IF SQL-PREP OF SQL-STMT-0 = 'N'
@@ -141,40 +155,54 @@
            MOVE SQL-VAR-0001 TO WS-ID-LOTE
                    .
 
+      * LOG DE DEPURACION:
            IF SQLCODE = 0
-               DISPLAY "PROCESANDO LOTE: " WS-ID-LOTE " FASE: " WS-FASE
-               PERFORM 3000-EJECUTAR-FASE
+               DISPLAY " [OK] LOTE ENCONTRADO: " WS-ID-LOTE
+               DISPLAY "      ARCHIVO: " WS-NOMBRE-ARCHIVO
            ELSE
-               DISPLAY "NO HAY LOTES PENDIENTES PARA PROCESAR."
+               IF SQLCODE = 100
+                   DISPLAY " [!] NO HAY LOTES PENDIENTES (SQLCODE 100)"
+               ELSE
+                   DISPLAY " [X] ERROR SQL AL BUSCAR LOTE: " SQLCODE
+               END-IF
            END-IF.
 
+       2000-PROCESAR-LOTE-COMPLETO.
+           DISPLAY ">>> TRABAJANDO EN LOTE: " WS-ID-LOTE
+           MOVE 'N' TO WS-LOTE-TERMINADO
+
+      * BUCLE DE FASES: No suelta el lote hasta que llega a 40
+           PERFORM UNTIL WS-LOTE-TERMINADO = 'S'
+               PERFORM 3000-EJECUTAR-FASE
+
+               IF LK-COD-RETORNO = 0
+                   PERFORM 4000-AVANZAR-FASE
+                   IF WS-FASE = '40'
+                       MOVE 'S' TO WS-LOTE-TERMINADO
+                   END-IF
+               ELSE
+      * Si una fase falla, marcamos error y saltamos al siguiente archiv
+                   DISPLAY "ERROR CRITICO EN LOTE " WS-ID-LOTE
+                   MOVE 'S' TO WS-LOTE-TERMINADO
+               END-IF
+           END-PERFORM.
+
        3000-EJECUTAR-FASE.
-           INITIALIZE WS-PROG-FASE.
+           INITIALIZE WS-PROG-FASE
            EVALUATE WS-FASE
-               WHEN '00'
-                   MOVE "SKIP"     TO WS-PROG-FASE
-               WHEN '10'
-                   MOVE "TFMX"     TO WS-PROG-FASE
-               WHEN '20'
-                   MOVE "RRD000"   TO WS-PROG-FASE
-               WHEN '30'
-                   MOVE "XXXREP"   TO WS-PROG-FASE
-           END-EVALUATE.
+               WHEN '00' MOVE "SKIP"   TO WS-PROG-FASE
+               WHEN '10' MOVE "TFMX"   TO WS-PROG-FASE
+               WHEN '20' MOVE "RRD000" TO WS-PROG-FASE
+               WHEN '30' MOVE "XXXREP" TO WS-PROG-FASE
+           END-EVALUATE
 
            IF WS-PROG-FASE = "SKIP"
                MOVE 0 TO LK-COD-RETORNO
-               DISPLAY "FASE 00 COMPLETADA LOGICAMENTE."
+               DISPLAY " FASE 00 OK (VALIDACION)"
            ELSE
-      * Dividimos el CALL en dos lineas para evitar margen de col 72
-               CALL WS-PROG-FASE
-                   USING WS-TFFM-VARS, LK-DATOS-TRANSACCION
-           END-IF.
-
-           IF LK-COD-RETORNO = 0
-               PERFORM 4000-AVANZAR-FASE
-           ELSE
-               DISPLAY "ERROR EN FASE " WS-FASE " RETORNO: "
-                       LK-COD-RETORNO
+               DISPLAY " EJECUTANDO " WS-PROG-FASE "..."
+               CALL WS-PROG-FASE USING WS-TFFM-VARS,
+                                       LK-DATOS-TRANSACCION
            END-IF.
 
        4000-AVANZAR-FASE.
@@ -187,7 +215,7 @@
       *            WHEN FASE = '30' THEN '40'
       *        END
       *        WHERE ID_LOTE = :WS-ID-LOTE
-      *    END-EXEC.
+      *    END-EXEC
            IF SQL-PREP OF SQL-STMT-1 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  SQL-VAR-0001
@@ -204,16 +232,34 @@
              TO SQL-VAR-0001
            CALL 'OCSQLEXE' USING SQL-STMT-1
                                SQLCA
-                   .
 
            IF SQLCODE = 0
       *        EXEC SQL COMMIT END-EXEC
            CALL 'OCSQLCMT' USING SQLCA END-CALL
-               DISPLAY "LOTE ACTUALIZADO EXITOSAMENTE."
-           ELSE
-               DISPLAY "ERROR AL ACTUALIZAR FASE: " SQLCODE
-      *        EXEC SQL ROLLBACK END-EXEC
-           CALL 'OCSQLRBK' USING SQLCA END-CALL
+      * Refrescamos la fase actual para el bucle
+      *        EXEC SQL
+      *            SELECT FASE INTO :WS-FASE FROM TFFM
+      *            WHERE ID_LOTE = :WS-ID-LOTE
+      *        END-EXEC
+           IF SQL-PREP OF SQL-STMT-2 = 'N'
+               SET SQL-ADDR(1) TO ADDRESS OF
+                 WS-FASE
+               MOVE 'X' TO SQL-TYPE(1)
+               MOVE 2 TO SQL-LEN(1)
+               SET SQL-ADDR(2) TO ADDRESS OF
+                 SQL-VAR-0001
+               MOVE '3' TO SQL-TYPE(2)
+               MOVE 5 TO SQL-LEN(2)
+               MOVE X'00' TO SQL-PREC(2)
+               MOVE 2 TO SQL-COUNT
+               CALL 'OCSQLPRE' USING SQLV
+                                   SQL-STMT-2
+                                   SQLCA
+               SET SQL-HCONN OF SQLCA TO NULL
+           END-IF
+           MOVE WS-ID-LOTE TO SQL-VAR-0001
+           CALL 'OCSQLEXE' USING SQL-STMT-2
+                               SQLCA
            END-IF.
       **********************************************************************
       *  : ESQL for GnuCOBOL/OpenCOBOL Version 3 (2024.04.30) Build May 10 2024

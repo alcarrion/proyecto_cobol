@@ -70,8 +70,8 @@
       *    EXEC SQL END DECLARE SECTION END-EXEC.
 
        01  WS-CONTROL-FILE.
-           05 WS-DIR-BASE          PIC X(200).
-           05 WS-RUTA-COMPLETA     PIC X(250).
+           05 WS-DIR-BASE          PIC X(100).
+           05 WS-RUTA-COMPLETA     PIC X(200).
            05 WS-EOF               PIC X(01) VALUE 'N'.
            05 WS-CONT-REGS         PIC 9(05) VALUE 0.
            05 WS-FS                PIC X(02).
@@ -88,51 +88,61 @@
 
        PROCEDURE DIVISION USING WS-TFFM-VARS, LK-DATOS-TRANSACCION.
        0000-PRINCIPAL.
-      * Construccion segura de la ruta para no exceder columna 72
-           INITIALIZE WS-DIR-BASE
-           STRING "C:\Users\rocha\OneDrive\Documentos\PROYECTO CORE "
-                  "TATA\proyecto_cobol\src\proyecto_cobol\banco\"
-                  "spool\Interfaces\BATCH-UPLOAD-S\"
-                  DELIMITED BY SIZE INTO WS-DIR-BASE
+      * 1. Construccion de la ruta
+           INITIALIZE WS-DIR-BASE, WS-RUTA-COMPLETA
+           MOVE "..\banco\spool\Interfaces\BATCH-UPLOAD-S\" TO
+           WS-DIR-BASE
 
-           INITIALIZE WS-RUTA-COMPLETA
            STRING WS-DIR-BASE       DELIMITED BY "  "
                   WS-NOMBRE-ARCHIVO DELIMITED BY SPACE
                   INTO WS-RUTA-COMPLETA
 
-           OPEN INPUT ARCHIVO-ENTRADA
+           DISPLAY "TFMX - INTENTANDO CARGAR: " WS-RUTA-COMPLETA
 
+      * 2. Apertura de archivo
+           OPEN INPUT ARCHIVO-ENTRADA
            IF WS-FS NOT = "00"
+               DISPLAY "ERROR: NO SE ENCONTRO EL ARCHIVO. STATUS: "
+               WS-FS
                MOVE 99 TO LK-COD-RETORNO
-               STRING "ERR: NO SE PUDO ABRIR ARCHIVO. STATUS: " WS-FS
-                      DELIMITED BY SIZE INTO LK-MENSAJE
                GOBACK
            END-IF
 
+      * 3. Proceso de lectura
            MOVE WS-ID-LOTE TO WS-ID-LOTE-SQL
-           PERFORM 1000-LEER-Y-CARGAR UNTIL WS-EOF = 'Y'
 
+           READ ARCHIVO-ENTRADA
+                AT END MOVE 'Y' TO WS-EOF
+           END-READ
+
+           PERFORM 1000-PROCESAR-LINEA UNTIL WS-EOF = 'Y'
+
+      * 4. Cierre y Finalizacion
            CLOSE ARCHIVO-ENTRADA
       *    EXEC SQL COMMIT END-EXEC
            CALL 'OCSQLCMT' USING SQLCA END-CALL
 
+           DISPLAY "TFMX - CARGA EXITOSA. REGISTROS: " WS-CONT-REGS
            MOVE 0 TO LK-COD-RETORNO
            GOBACK.
 
-       1000-LEER-Y-CARGAR.
+       1000-PROCESAR-LINEA.
+      * Mover datos del registro a la variable de Host SQL
+           MOVE REG-LINEA-ENTRADA TO WS-DATOS-TX-SQL
+
+      * Ejecutar la insercion
+           PERFORM 2000-INSERTAR-TF06
+
+      * Leer siguiente linea
            READ ARCHIVO-ENTRADA
-               AT END
-                   MOVE 'Y' TO WS-EOF
-               NOT AT END
-                   MOVE REG-LINEA-ENTRADA TO WS-DATOS-TX-SQL
-                   PERFORM 2000-INSERTAR-TF06
+                AT END MOVE 'Y' TO WS-EOF
            END-READ.
 
        2000-INSERTAR-TF06.
       *    EXEC SQL
       *        INSERT INTO TF06 (ID_LOTE, ESTADO, DATOS_TX)
-      *        VALUES (:WS-ID-LOTE-SQL, :WS-ESTADO-SQL,
-      *        :WS-DATOS-TX-SQL)
+      *        VALUES (:WS-ID-LOTE-SQL,
+      *        :WS-ESTADO-SQL, :WS-DATOS-TX-SQL)
       *    END-EXEC.
            IF SQL-PREP OF SQL-STMT-0 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -164,7 +174,7 @@
                    .
 
            IF SQLCODE NOT = 0
-               DISPLAY "ERROR AL INSERTAR REGISTRO EN TF06: " SQLCODE
+               DISPLAY "ERROR SQL EN TF06: " SQLCODE
                MOVE 99 TO LK-COD-RETORNO
                MOVE "Y" TO WS-EOF
            ELSE
