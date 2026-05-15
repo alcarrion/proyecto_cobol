@@ -90,7 +90,7 @@
        0000-PRINCIPAL.
       * Construccion segura de la ruta para no exceder columna 72
            INITIALIZE WS-DIR-BASE
-           STRING "C:\Users\Alison\Desktop\proyecto_cobol\"
+           STRING "C:\Users\dell\Desktop\proyecto_cobol\"
                     "banco\spool\Interfaces\BATCH-UPLOAD-S\"
 
 

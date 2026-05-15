@@ -3,6 +3,14 @@
       *================================================================*
       * PROGRAMA: MAINLINE CIF (CUSTOMER INFORMATION FACILITY)         *
       * FUNCION:  Gestiona Altas, Bajas, Modificaciones y Consultas.   *
+      * NIVEL:    1000 TCS ECUADOR                                      *
+      * CAMBIOS v2.0:                                                   *
+      *   - Alta captura FECHA_NACIMIENTO e INGRESOS_MENSUALES          *
+      *   - Validacion de mayoria de edad (18 anios)                    *
+      *   - Calculo de score crediticio en alta                         *
+      *   - Tipo de cuenta elegido por operador al alta                 *
+      *   - LK-COD-RETORNO es ahora PIC X(04)                          *
+      *   - DBIOCUSM usa accion 'K' para scoring, 'T' para flags        *
       *================================================================*
 
        ENVIRONMENT DIVISION.
@@ -16,6 +24,7 @@
        01  WS-PROGRAMAS.
            05 WS-PGM-DBIOCUSM    PIC X(8) VALUE 'DBIOCUSM'.
            05 WS-PGM-DBIOINVM    PIC X(8) VALUE 'DBIOINVM'.
+
        01  WS-FECHA-SISTEMA.
            05 WS-ANIO         PIC 9(04).
            05 WS-MES          PIC 9(02).
@@ -38,7 +47,6 @@
            05 WS-CED-VERIF-DOC    PIC 9(01) VALUE 0.
            05 WS-CED-VALIDA       PIC X(01) VALUE 'N'.
 
-
        01  WS-EMAIL-VAL.
            05  WS-EMAIL-TEMP       PIC X(40).
            05  WS-LOCAL-PART       PIC X(40).
@@ -60,9 +68,25 @@
            05 WS-EMAIL-OK         PIC X(01) VALUE 'N'.
            05 WS-TELEFONO-OK      PIC X(01) VALUE 'N'.
            05 WS-DIGITOS-EN-CAMPO PIC 9(02) VALUE 0.
+           05 WS-FECHA-OK         PIC X(01) VALUE 'N'.
+
+      * VARIABLES PARA CALCULO DE EDAD Y SCORE
+       01  WS-EDAD-CALCULO.
+           05 WS-ANIO-NACIMIENTO  PIC 9(04).
+           05 WS-MES-NACIMIENTO   PIC 9(02).
+           05 WS-DIA-NACIMIENTO   PIC 9(02).
+           05 WS-EDAD-CALCULADA   PIC 9(03).
+           05 WS-SCORE-CALCULADO  PIC 9(03).
+
+      * ENTRADA PARA INGRESOS
+       01  WS-INGRESO-ENTRADA     PIC X(15).
+
+      * TIPO DE CUENTA PARA ALTA
+       01  WS-TIPO-CTA-SEL        PIC X(01).
 
            COPY CUSMREC.
            COPY INVMREC.
+
        LINKAGE SECTION.
            COPY LKCIF.
 
@@ -109,18 +133,18 @@
       *    Validar tipo de documento
            PERFORM 9100-VALIDAR-DOC-CAPTURA.
 
-
       *    Verificar si ya existe
            MOVE 'C' TO LK-ACCION-DB.
            CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
 
-           IF LK-COD-RETORNO = 0
+           IF LK-COD-RETORNO = '00  '
                DISPLAY "ERROR: ESA CEDULA YA EXISTE EN EL SISTEMA."
                STRING "[WARN] CI0000 ALTA RECHAZADA DUPLICADO DOC:"
                       CUSM-DOC-CLIENTE
                       DELIMITED BY SIZE INTO WS-LOG-MSG
                CALL 'SYSLOG' USING WS-LOG-MSG
            ELSE
+      *        Capturar nombre
                MOVE 'N' TO WS-NOMBRE-OK
                PERFORM UNTIL WS-NOMBRE-OK = 'S'
                    DISPLAY "Nombre(s)    : "
@@ -148,6 +172,7 @@
                    END-IF
                END-PERFORM
 
+      *        Capturar apellidos
                MOVE 'N' TO WS-APELLIDO-OK
                PERFORM UNTIL WS-APELLIDO-OK = 'S'
                    DISPLAY "Apellido(s)  : "
@@ -175,6 +200,24 @@
                    END-IF
                END-PERFORM
 
+      *        Capturar fecha de nacimiento y validar mayoria de edad
+               MOVE 'N' TO WS-FECHA-OK
+               PERFORM UNTIL WS-FECHA-OK = 'S'
+                   DISPLAY "Fecha Nacim. (AAAA-MM-DD): "
+                   ACCEPT CUSM-FECHA-NACIMIENTO
+                   IF CUSM-FECHA-NACIMIENTO = SPACES
+                       DISPLAY "ERROR: Fecha no puede estar vacia."
+                   ELSE
+                       PERFORM 9200-VALIDAR-MAYORIA-EDAD
+                       IF LK-COD-RETORNO = 'E018'
+                           DISPLAY ">>> " LK-MENSAJE
+                       ELSE
+                           MOVE 'S' TO WS-FECHA-OK
+                       END-IF
+                   END-IF
+               END-PERFORM
+
+      *        Capturar direccion
                MOVE 'N' TO WS-NOMBRE-OK
                PERFORM UNTIL WS-NOMBRE-OK = 'S'
                    DISPLAY "Direccion    : "
@@ -186,6 +229,7 @@
                    END-IF
                END-PERFORM
 
+      *        Capturar telefono
                MOVE 'N' TO WS-TELEFONO-OK
                PERFORM UNTIL WS-TELEFONO-OK = 'S'
                    DISPLAY "Telefono     : "
@@ -216,12 +260,12 @@
                    END-IF
                END-PERFORM
 
-
+      *        Capturar email
                MOVE 'N' TO WS-EMAIL-OK
                PERFORM UNTIL WS-EMAIL-OK = 'S'
                    DISPLAY "E-mail       : "
                    ACCEPT CUSM-EMAIL
-                   PERFORM 9200-VALIDAR-EMAIL
+                   PERFORM 9250-VALIDAR-EMAIL
                    IF EMAIL-ERR
                        DISPLAY ">>> ERROR DE VALIDACION: " LK-MENSAJE
                        DISPLAY "POR FAVOR REINGRESE EL CORREO."
@@ -230,37 +274,67 @@
                    END-IF
                END-PERFORM
 
+      *        Capturar ingresos mensuales
+               PERFORM UNTIL WS-INGRESO-ENTRADA NOT = SPACES
+                   DISPLAY "Ingresos Mensuales: "
+                   ACCEPT WS-INGRESO-ENTRADA
+                   IF WS-INGRESO-ENTRADA = SPACES
+                       DISPLAY "ERROR: Ingrese sus ingresos mensuales."
+                   END-IF
+               END-PERFORM
+               COMPUTE CUSM-INGRESOS =
+                   FUNCTION NUMVAL(WS-INGRESO-ENTRADA)
+
+      *        Capturar tipo de cuenta
+               MOVE 'N' TO WS-FECHA-OK
+               PERFORM UNTIL WS-FECHA-OK = 'S'
+                   DISPLAY "Tipo Cuenta (A=Ahorros C=Corriente H=Cheques): "
+                   ACCEPT WS-TIPO-CTA-SEL
+                   IF WS-TIPO-CTA-SEL = 'A' OR 'C' OR 'H'
+                       MOVE 'S' TO WS-FECHA-OK
+                   ELSE
+                       DISPLAY "ERROR: Use A, C o H."
+                   END-IF
+               END-PERFORM
+
+      *        Calcular score
+               PERFORM 9300-CALCULAR-SCORE
 
       *        Setear campos automaticos
-               MOVE 1 TO CUSM-CTA-ACTIVA
-               MOVE 0 TO CUSM-SALDO-CLIENTE
-               MOVE 0 TO CUSM-TARJETA
-               MOVE 0 TO CUSM-CREDITO
-               MOVE 0 TO CUSM-HIPOTECA
+               MOVE 'A' TO CUSM-ESTADO-CLIENTE
+               MOVE 0 TO CUSM-SALDO-TOTAL-VISTA
+               MOVE 0 TO CUSM-TIENE-TARJETA
+               MOVE 0 TO CUSM-TIENE-HIPOTECA
                ACCEPT WS-FECHA-SISTEMA FROM DATE YYYYMMDD
                STRING WS-ANIO "-" WS-MES "-" WS-DIA
                    DELIMITED BY SIZE INTO CUSM-FECHA-ALTA
-               MOVE '9999-12-31' TO CUSM-FECHA-CIERRE
+
+               DISPLAY "Score calculado: " WS-SCORE-CALCULADO
+               MOVE WS-SCORE-CALCULADO TO CUSM-SCORE-CREDITICIO
 
       *        PASO 1: INSERTAR CLIENTE
                MOVE 'A' TO LK-ACCION-DB
                CALL WS-PGM-DBIOCUSM USING REG-CUSM,
                    LK-DATOS-TRANSACCION
 
-               IF LK-COD-RETORNO = 0
-      *            PASO 2: CREAR CUENTA CORRIENTE
+               IF LK-COD-RETORNO = '00  '
+      *            PASO 2: CREAR CUENTA
                    INITIALIZE REG-INVM
-                   MOVE CUSM-ID-CLIENTE TO INVM-ID-CLIENTE
-                   MOVE 0 TO INVM-SALDO-ACTUAL
-                   MOVE CUSM-FECHA-ALTA TO INVM-FECHA-ULT-MOV
+                   MOVE CUSM-ID-CLIENTE    TO INVM-ID-CLIENTE
+                   MOVE WS-TIPO-CTA-SEL    TO INVM-TIPO-CUENTA
+                   MOVE 0                  TO INVM-SALDO-ACTUAL
+                   MOVE CUSM-FECHA-ALTA    TO INVM-FECHA-APERTURA
+                   MOVE 'A'                TO INVM-ESTADO-CUENTA
 
                    MOVE 'A' TO LK-ACCION-DB
                    CALL WS-PGM-DBIOINVM USING REG-INVM,
                        LK-DATOS-TRANSACCION
 
-                   IF LK-COD-RETORNO = 0
+                   IF LK-COD-RETORNO = '00  '
                        CALL 'DBIOTRAN' USING 'C'
                        DISPLAY "ALTA EXITOSA. ID: " CUSM-ID-CLIENTE
+                       DISPLAY "CUENTA ID: " INVM-ID-CUENTA
+                       DISPLAY "SCORE    : " CUSM-SCORE-CREDITICIO
                        STRING "[OK  ] CI0000 ALTA DOC:"
                               CUSM-DOC-CLIENTE " ID:" CUSM-ID-CLIENTE
                               DELIMITED BY SIZE INTO WS-LOG-MSG
@@ -268,7 +342,7 @@
                    ELSE
                        CALL 'DBIOTRAN' USING 'R'
                        DISPLAY "ERROR EN CUENTA. NADA SE GUARDO."
-                       MOVE "[ERR ] CI0000 ALTA ERROR CREANDO CTA.CTE"
+                       MOVE "[ERR ] CI0000 ALTA ERROR CREANDO CUENTA"
                            TO WS-LOG-MSG
                        CALL 'SYSLOG' USING WS-LOG-MSG
                    END-IF
@@ -281,8 +355,6 @@
                END-IF
            END-IF.
 
-
-
        3000-CONSULTA-CLIENTE.
            DISPLAY "--- CONSULTA DE CLIENTE ---".
            INITIALIZE REG-CUSM.
@@ -292,15 +364,20 @@
            MOVE 'C' TO LK-ACCION-DB.
            CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
 
-           IF LK-COD-RETORNO = 0
+           IF LK-COD-RETORNO = '00  '
                DISPLAY "-----------------------------------"
                DISPLAY "CEDULA    : " CUSM-DOC-CLIENTE
                DISPLAY "CLIENTE   : " CUSM-NOMBRE " " CUSM-APELLIDOS
+               DISPLAY "F.NACIM.  : " CUSM-FECHA-NACIMIENTO
                DISPLAY "DIRECCION : " CUSM-DIRECCION
                DISPLAY "TELEFONO  : " CUSM-TELEFONO
                DISPLAY "EMAIL     : " CUSM-EMAIL
-               DISPLAY "SALDO CT  : " CUSM-SALDO-CLIENTE
-               DISPLAY "CTA ACTIVA: " CUSM-CTA-ACTIVA
+               DISPLAY "SCORE     : " CUSM-SCORE-CREDITICIO
+               DISPLAY "INGRESOS  : " CUSM-INGRESOS
+               DISPLAY "SALDO TOT : " CUSM-SALDO-TOTAL-VISTA
+               DISPLAY "ESTADO    : " CUSM-ESTADO-CLIENTE
+               DISPLAY "TIE.TARJ. : " CUSM-TIENE-TARJETA
+               DISPLAY "TIE.HIPOT.: " CUSM-TIENE-HIPOTECA
                DISPLAY "-----------------------------------"
                STRING "[OK  ] CI0000 CONSULTA ID:" CUSM-ID-CLIENTE
                       " DOC:" CUSM-DOC-CLIENTE
@@ -323,7 +400,7 @@
            MOVE 'C' TO LK-ACCION-DB.
            CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
 
-           IF LK-COD-RETORNO = 0
+           IF LK-COD-RETORNO = '00  '
                DISPLAY "Direccion actual : " CUSM-DIRECCION
                DISPLAY "Nueva Direccion  : "
                ACCEPT CUSM-DIRECCION
@@ -363,7 +440,7 @@
                PERFORM UNTIL WS-EMAIL-OK = 'S'
                    DISPLAY "Nuevo Email      : "
                    ACCEPT CUSM-EMAIL
-                   PERFORM 9200-VALIDAR-EMAIL
+                   PERFORM 9250-VALIDAR-EMAIL
                    IF EMAIL-ERR
                        DISPLAY "ERROR: " LK-MENSAJE
                    ELSE
@@ -375,13 +452,15 @@
                CALL WS-PGM-DBIOCUSM USING REG-CUSM,
                    LK-DATOS-TRANSACCION
 
-               IF LK-COD-RETORNO = 0
+               IF LK-COD-RETORNO = '00  '
+                   CALL 'DBIOTRAN' USING 'C'
                    DISPLAY "CLIENTE ACTUALIZADO CORRECTAMENTE."
                    STRING "[OK  ] CI0000 MODIF DOC:"
                           CUSM-DOC-CLIENTE " ID:" CUSM-ID-CLIENTE
                           DELIMITED BY SIZE INTO WS-LOG-MSG
                    CALL 'SYSLOG' USING WS-LOG-MSG
                ELSE
+                   CALL 'DBIOTRAN' USING 'R'
                    DISPLAY "ERROR AL ACTUALIZAR: " LK-MENSAJE
                    STRING "[ERR ] CI0000 MODIF ERROR BD " LK-MENSAJE
                           DELIMITED BY SIZE INTO WS-LOG-MSG
@@ -401,24 +480,23 @@
            MOVE 'C' TO LK-ACCION-DB.
            CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
 
-           IF LK-COD-RETORNO = 0
-               IF CUSM-CTA-ACTIVA = 0
+           IF LK-COD-RETORNO = '00  '
+               IF CUSM-ESTADO-CLIENTE = 'I'
                    DISPLAY "AVISO: Este cliente ya esta dado de baja."
                ELSE
-                   IF CUSM-SALDO-CLIENTE NOT = ZERO OR
-                      CUSM-TARJETA NOT = ZERO OR
-                      CUSM-HIPOTECA NOT = ZERO
+                   IF CUSM-SALDO-TOTAL-VISTA NOT = ZERO OR
+                      CUSM-TIENE-TARJETA NOT = ZERO OR
+                      CUSM-TIENE-HIPOTECA NOT = ZERO
 
                DISPLAY "**********************************************"
                DISPLAY "ERROR: NO SE PUEDE DAR DE BAJA AL CLIENTE"
                DISPLAY "MOTIVO: EL CLIENTE TIENE PRODUCTOS ACTIVOS"
                DISPLAY "----------------------------------------------"
-               DISPLAY "SALDO ACTUAL : " CUSM-SALDO-CLIENTE
-               DISPLAY "TIENE TARJETA: " CUSM-TARJETA " (1=SI, 0=NO)"
-               DISPLAY "TIENE HIPOT. : " CUSM-HIPOTECA " (1=SI, 0=NO)"
+               DISPLAY "SALDO TOTAL : " CUSM-SALDO-TOTAL-VISTA
+               DISPLAY "TIENE TARJ. : " CUSM-TIENE-TARJETA
+               DISPLAY "TIENE HIPOT.: " CUSM-TIENE-HIPOTECA
                DISPLAY "**********************************************"
-               DISPLAY "SOLUCION: DEBE CANCELAR PRODUCTOS Y RETIRAR"
-               DISPLAY "SALDO ANTES DE CONTINUAR."
+               DISPLAY "SOLUCION: CANCELE PRODUCTOS ANTES DE CONTINUAR"
                STRING "[WARN] CI0000 BAJA RECHAZADA PRODUCTOS ACTIVOS"
                       " ID:" CUSM-ID-CLIENTE
                       DELIMITED BY SIZE INTO WS-LOG-MSG
@@ -434,7 +512,8 @@
                            CALL WS-PGM-DBIOCUSM USING REG-CUSM,
                                                   LK-DATOS-TRANSACCION
                            DISPLAY ">>> " LK-MENSAJE
-                           IF LK-COD-RETORNO = 0
+                           IF LK-COD-RETORNO = '00  '
+                               CALL 'DBIOTRAN' USING 'C'
                                STRING "[OK  ] CI0000 BAJA DOC:"
                                       CUSM-DOC-CLIENTE
                                       " ID:" CUSM-ID-CLIENTE
@@ -442,6 +521,7 @@
                                       INTO WS-LOG-MSG
                                CALL 'SYSLOG' USING WS-LOG-MSG
                            ELSE
+                               CALL 'DBIOTRAN' USING 'R'
                                STRING "[ERR ] CI0000 BAJA ERROR BD "
                                       LK-MENSAJE
                                       DELIMITED BY SIZE
@@ -460,7 +540,6 @@
                      DELIMITED BY SIZE INTO WS-LOG-MSG
               CALL 'SYSLOG' USING WS-LOG-MSG
            END-IF.
-
 
        9100-VALIDAR-DOC-CAPTURA.
            MOVE 'N' TO WS-DOC-VALIDO.
@@ -500,19 +579,49 @@
                END-IF
            END-PERFORM.
 
-       9200-VALIDAR-EMAIL.
+       9200-VALIDAR-MAYORIA-EDAD.
+      *    Verifica que (anio actual - anio nacimiento) >= 18
+      *    Si falla: LK-COD-RETORNO = 'E018'
+           MOVE '00  ' TO LK-COD-RETORNO.
+
+           ACCEPT WS-FECHA-SISTEMA FROM DATE YYYYMMDD.
+
+           MOVE CUSM-FECHA-NACIMIENTO(1:4) TO WS-ANIO-NACIMIENTO.
+           MOVE CUSM-FECHA-NACIMIENTO(6:2) TO WS-MES-NACIMIENTO.
+           MOVE CUSM-FECHA-NACIMIENTO(9:2) TO WS-DIA-NACIMIENTO.
+
+           COMPUTE WS-EDAD-CALCULADA =
+               WS-ANIO - WS-ANIO-NACIMIENTO.
+
+           IF WS-MES < WS-MES-NACIMIENTO OR
+              (WS-MES = WS-MES-NACIMIENTO AND
+               WS-DIA < WS-DIA-NACIMIENTO)
+               SUBTRACT 1 FROM WS-EDAD-CALCULADA
+           END-IF.
+
+           IF WS-EDAD-CALCULADA < 18
+               MOVE 'E018' TO LK-COD-RETORNO
+               MOVE "CLIENTE MENOR DE EDAD" TO LK-MENSAJE
+           END-IF.
+
+       9300-CALCULAR-SCORE.
+      *    SCORE = (INGRESOS / 10) + (EDAD * 2), maximo 999
+           COMPUTE WS-SCORE-CALCULADO =
+               (CUSM-INGRESOS / 10) + (WS-EDAD-CALCULADA * 2).
+           IF WS-SCORE-CALCULADO > 999
+               MOVE 999 TO WS-SCORE-CALCULADO
+           END-IF.
+
+       9250-VALIDAR-EMAIL.
            SET EMAIL-OK TO TRUE
            INITIALIZE WS-LOCAL-PART WS-DOMAIN-PART
            MOVE 0 TO WS-AT-COUNT WS-DOT-COUNT WS-IND
 
            MOVE CUSM-EMAIL TO WS-EMAIL-TEMP
 
-           *> 1. Buscar espacios en blanco (No permitidos en banca)
            INSPECT WS-EMAIL-TEMP TALLYING WS-IND FOR ALL ' '
-           *> Calculamos longitud real restando espacios finales
            COMPUTE WS-LEN = 40 - WS-IND
 
-           *> 2. Validar Arrobas (Debe haber exactamente una)
            INSPECT WS-EMAIL-TEMP TALLYING WS-AT-COUNT FOR ALL '@'
 
            IF WS-AT-COUNT NOT = 1
@@ -522,19 +631,16 @@
                EXIT PARAGRAPH
            END-IF
 
-           *> 3. Descomponer Email
            UNSTRING WS-EMAIL-TEMP DELIMITED BY '@'
                INTO WS-LOCAL-PART, WS-DOMAIN-PART
            END-UNSTRING
 
-           *> 4. Validar que local y dominio no est�n vac�os
            IF WS-LOCAL-PART = SPACES OR WS-DOMAIN-PART = SPACES
                SET EMAIL-ERR TO TRUE
                MOVE "FORMATO DE EMAIL INCOMPLETO" TO LK-MENSAJE
                EXIT PARAGRAPH
            END-IF
 
-           *> 5. Validar puntos en el dominio (Debe tener al menos uno)
            INSPECT WS-DOMAIN-PART TALLYING WS-DOT-COUNT FOR ALL '.'
 
            IF WS-DOT-COUNT < 1
@@ -546,7 +652,6 @@
            MOVE 'N' TO WS-CED-VALIDA.
            MOVE SPACES TO LK-MENSAJE.
 
-      *    Provincia: 01 al 24
            MOVE CUSM-DOC-CLIENTE(1:2) TO WS-CED-PROV.
            IF WS-CED-PROV < 1 OR WS-CED-PROV > 24
                MOVE "Cedula invalida: codigo de provincia"
@@ -554,7 +659,6 @@
                EXIT PARAGRAPH
            END-IF.
 
-      *    3er digito 0-5 = persona natural
            MOVE CUSM-DOC-CLIENTE(3:1) TO WS-CED-TERCERO.
            IF WS-CED-TERCERO > 5
                MOVE "Cedula invalida: tipo de persona incorrecto"
@@ -562,7 +666,6 @@
                EXIT PARAGRAPH
            END-IF.
 
-      *    Algoritmo modulo 10
            MOVE ZERO TO WS-CED-SUMA.
            PERFORM VARYING WS-CED-IDX FROM 1 BY 1
                    UNTIL WS-CED-IDX > 9
@@ -579,7 +682,6 @@
                ADD WS-CED-PRODUCTO TO WS-CED-SUMA
            END-PERFORM.
 
-      *    Verificar digito de control
            COMPUTE WS-CED-VERIF-CALC =
                FUNCTION MOD(WS-CED-SUMA, 10).
            IF WS-CED-VERIF-CALC NOT = 0

@@ -1,22 +1,20 @@
       *================================================================*
-      * BORMREC.CPY - REGISTRO DE LA TABLA HIPOTECAS                  *
-      *   ESTADO es X(10) para coincidir con varchar(10) en la DB     *
-      *   Los estados posibles son:                                    *
-      *     ACTIVO    (6 chars)                                        *
-      *     MOROSO    (6 chars)                                        *
-      *     CASTIGADO (9 chars)                                        *
-      *     CANCELADO (9 chars)                                        *
+      * COPYBOOK: BORMREC - REGISTRO HIPOTECAS                        *
+      * BANCO LAF v2.0 - Con Cuenta Debito Vinculada                  *
+      * ESTADO: ACTIVO MOROSO CASTIGADO PAGADO                        *
       *================================================================*
        01 BORM-REGISTRO.
-           05 BORM-ID-HIPOTECA        PIC 9(09).
-           05 BORM-ID-CLIENTE         PIC 9(08).
-           05 BORM-FECHA-INICIO       PIC X(10).
-           05 BORM-MONTO-ORIGINAL     PIC S9(13)V99.
-           05 BORM-TASA-INTERES       PIC S9(03)V9999.
-           05 BORM-SALDO-ACTUAL       PIC S9(13)V99.
-           05 BORM-FECHA-VENCTO       PIC X(10).
-           05 BORM-DIA-PAGO           PIC 9(02).
-           05 BORM-ESTADO             PIC X(20).
-           05 BORM-CUOTA-MENSUAL      PIC S9(13)V99.
-           05 BORM-MESES-MORA         PIC 9(03).
-           05 BORM-FECHA-ULT-PAGO     PIC X(10).
+           05 BORM-ID-HIPOTECA         PIC 9(09).
+           05 BORM-ID-CLIENTE          PIC 9(09).
+           05 BORM-CUENTA-DEBITO       PIC 9(09).
+           05 BORM-MONTO-PRESTAMO      PIC S9(15)V99.
+           05 BORM-SALDO-DEUDA         PIC S9(15)V99.
+           05 BORM-TASA-ANUAL          PIC S9(07)V9999.
+           05 BORM-CUOTA-MENSUAL       PIC S9(15)V99.
+           05 BORM-MESES-MORA          PIC 9(03).
+           05 BORM-ESTADO-PRESTAMO     PIC X(15).
+              88 HIPOTECA-ACTIVA       VALUE 'ACTIVO'.
+              88 HIPOTECA-MOROSA       VALUE 'MOROSO'.
+              88 HIPOTECA-CASTIGADA    VALUE 'CASTIGADO'.
+              88 HIPOTECA-PAGADA       VALUE 'PAGADO'.
+           05 BORM-FECHA-VENCIMIENTO   PIC X(10).

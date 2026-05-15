@@ -93,7 +93,7 @@
        0000-PRINCIPAL.
       * Construccion segura de ruta de salida
            INITIALIZE WS-DIR-SALIDA
-           STRING "C:\Users\Alison\Desktop\proyecto_cobol\"
+           STRING "C:\Users\dell\Desktop\proyecto_cobol\"
                   "banco\spool\Interfaces\BATCH-UPLOAD-S\"
                   "TRICKLE-FEED-REPORT\"
 

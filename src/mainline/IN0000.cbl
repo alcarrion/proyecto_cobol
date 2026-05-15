@@ -1,9 +1,15 @@
        IDENTIFICATION DIVISION.
        PROGRAM-ID. IN0000.
       *================================================================*
-      * PROGRAMA: MAINLINE INVM (CUENTAS CORRIENTES)                   *
+      * PROGRAMA: MAINLINE INVM (CUENTAS A LA VISTA)                   *
       * FUNCION:  Gestiona Depositos, Extracciones y Consultas.        *
+      * NIVEL:    1000 TCS ECUADOR                                      *
       * REGLA:    No permitir saldo negativo.                          *
+      * CAMBIOS v2.0:                                                   *
+      *   - Multi-cuenta: busca cliente, luego lista sus cuentas       *
+      *   - Operador selecciona ID_CUENTA especifico                    *
+      *   - Audita cada movimiento en tabla movimientos (DBIOMOVS 'A') *
+      *   - LK-COD-RETORNO es ahora PIC X(04)                          *
       *================================================================*
 
        ENVIRONMENT DIVISION.
@@ -12,11 +18,12 @@
 
        01  WS-OPCION-INVM      PIC 9(01).
        01  WS-CONTINUAR-INVM   PIC X(01) VALUE 'S'.
-       01  WS-MONTO-TX         PIC 9(10)V99.
+       01  WS-MONTO-TX         PIC S9(15)V99.
 
        01  WS-PROGRAMAS.
            05 WS-PGM-DBIOINVM    PIC X(8) VALUE 'DBIOINVM'.
            05 WS-PGM-DBIOCUSM    PIC X(08) VALUE 'DBIOCUSM'.
+           05 WS-PGM-DBIOMOVS    PIC X(08) VALUE 'DBIOMOVS'.
            COPY INVMREC.
            COPY CUSMREC.
 
@@ -44,10 +51,16 @@
 
        01  WS-AUXILIARES.
            05  WS-ACCION-TEMP      PIC X(01).
+           05  WS-ID-CUENTA-SEL    PIC 9(09).
+           05  WS-TIPO-MOV-REG     PIC 9(02).
+
        01  WS-LOG-MSG               PIC X(80).
+
+      * Registro de movimiento para auditoria
+           COPY MOVREC.
+
        LINKAGE SECTION.
            COPY LKCIF.
-
 
        PROCEDURE DIVISION USING LK-DATOS-TRANSACCION.
 
@@ -59,7 +72,7 @@
 
        1000-PROCESAR-OPCIONES.
            DISPLAY "========================================".
-           DISPLAY "   MODULO DE CUENTAS CORRIENTES (INVM)  ".
+           DISPLAY "   MODULO DE CUENTAS A LA VISTA (INVM)  ".
            DISPLAY "========================================".
            DISPLAY "1. Consultar Saldo".
            DISPLAY "2. Realizar Deposito".
@@ -84,16 +97,26 @@
 
        2000-CONSULTA-SALDO.
            DISPLAY "--- CONSULTA DE SALDO ---".
-           MOVE 'C' TO LK-ACCION-DB.
-           PERFORM 9000-BUSCAR-CLIENTE-Y-CUENTA.
+           PERFORM 9000-BUSCAR-CLIENTE-Y-SELECCIONAR-CUENTA.
 
-           IF LK-COD-RETORNO = 0
-               DISPLAY "CLIENTE: " CUSM-NOMBRE " " CUSM-APELLIDOS
-               DISPLAY "SALDO ACTUAL: " INVM-SALDO-ACTUAL
-               STRING "[OK  ] IN0000 CONSULTA SALDO ID:"
-                      INVM-ID-CLIENTE " SALDO:" INVM-SALDO-ACTUAL
-                      DELIMITED BY SIZE INTO WS-LOG-MSG
-               CALL 'SYSLOG' USING WS-LOG-MSG
+           IF LK-COD-RETORNO = '00  '
+               MOVE 'C' TO LK-ACCION-DB
+               MOVE WS-ID-CUENTA-SEL TO INVM-ID-CUENTA
+               CALL WS-PGM-DBIOINVM USING REG-INVM,
+                                          LK-DATOS-TRANSACCION
+               IF LK-COD-RETORNO = '00  '
+                   DISPLAY "CLIENTE: " CUSM-NOMBRE " " CUSM-APELLIDOS
+                   DISPLAY "CUENTA : " INVM-ID-CUENTA
+                   DISPLAY "TIPO   : " INVM-TIPO-CUENTA
+                   DISPLAY "SALDO  : " INVM-SALDO-ACTUAL
+                   DISPLAY "ESTADO : " INVM-ESTADO-CUENTA
+                   STRING "[OK  ] IN0000 CONSULTA SALDO CTA:"
+                          INVM-ID-CUENTA " SALDO:" INVM-SALDO-ACTUAL
+                          DELIMITED BY SIZE INTO WS-LOG-MSG
+                   CALL 'SYSLOG' USING WS-LOG-MSG
+               ELSE
+                   DISPLAY "ERROR: " LK-MENSAJE
+               END-IF
            ELSE
                DISPLAY "ERROR: " LK-MENSAJE
                STRING "[WARN] IN0000 CONSULTA FALLIDA " LK-MENSAJE
@@ -103,53 +126,70 @@
 
        3000-DEPOSITO.
            DISPLAY "--- DEPOSITO EN EFECTIVO ---".
-           MOVE 'L' TO LK-ACCION-DB.
 
-           PERFORM 9000-BUSCAR-CLIENTE-Y-CUENTA.
+           PERFORM 9000-BUSCAR-CLIENTE-Y-SELECCIONAR-CUENTA.
 
-           IF LK-COD-RETORNO = 0
-               *> Validamos estado antes de pedir dinero
-               IF CUSM-CTA-ACTIVA = 0
-                   PERFORM 9110-MOSTRAR-ERROR-INACTIVA
-                   CALL 'DBIOTRAN' USING 'R'
-                   STRING "[WARN] IN0000 DEPOSITO RECHAZADO"
-                          " CTA.INACTIVA ID:" INVM-ID-CLIENTE
-                          DELIMITED BY SIZE INTO WS-LOG-MSG
-                   CALL 'SYSLOG' USING WS-LOG-MSG
-               ELSE
+           IF LK-COD-RETORNO = '00  '
+      *        Bloqueo SELECT FOR UPDATE
+               MOVE 'L' TO LK-ACCION-DB
+               MOVE WS-ID-CUENTA-SEL TO INVM-ID-CUENTA
+               CALL WS-PGM-DBIOINVM USING REG-INVM,
+                                          LK-DATOS-TRANSACCION
 
-                   PERFORM 9300-VALIDAR-MONTO
+               IF LK-COD-RETORNO = '00  '
+                   IF INVM-ESTADO-CUENTA = 'C' OR 'B'
+                       PERFORM 9110-MOSTRAR-ERROR-INACTIVA
+                       CALL 'DBIOTRAN' USING 'R'
+                       STRING "[WARN] IN0000 DEPOSITO RECHAZADO"
+                              " CTA.INACTIVA:" INVM-ID-CUENTA
+                              DELIMITED BY SIZE INTO WS-LOG-MSG
+                       CALL 'SYSLOG' USING WS-LOG-MSG
+                   ELSE
+                       PERFORM 9300-VALIDAR-MONTO
 
-                   IF WS-MONTO-TX > 0
-                       ADD WS-MONTO-TX TO INVM-SALDO-ACTUAL ROUNDED
-                       MOVE 2            TO INVM-COD-ULT-MOV
-                       MOVE WS-MONTO-TX  TO INVM-IMPORTE-MOV
-
-                       MOVE 'M' TO LK-ACCION-DB
-                       CALL WS-PGM-DBIOINVM USING REG-INVM,
-                                                  LK-DATOS-TRANSACCION
-                       IF LK-COD-RETORNO = 0
-                           *> 2. ACTUALIZAR SALDO GLOBAL DEL CLIENTE
-                           ADD WS-MONTO-TX TO CUSM-SALDO-CLIENTE ROUNDED
+                       IF WS-MONTO-TX > 0
+                           ADD WS-MONTO-TX TO INVM-SALDO-ACTUAL ROUNDED
 
                            MOVE 'M' TO LK-ACCION-DB
-                           CALL WS-PGM-DBIOCUSM
-                           USING REG-CUSM, LK-DATOS-TRANSACCION
+                           CALL WS-PGM-DBIOINVM USING REG-INVM,
+                                                      LK-DATOS-TRANSACCION
+                           IF LK-COD-RETORNO = '00  '
+      *                        Actualizar saldo total cliente
+                               ADD WS-MONTO-TX
+                                   TO CUSM-SALDO-TOTAL-VISTA ROUNDED
+                               MOVE 'T' TO LK-ACCION-DB
+                               CALL WS-PGM-DBIOCUSM
+                               USING REG-CUSM, LK-DATOS-TRANSACCION
 
+      *                        Registrar movimiento auditado
+                               INITIALIZE REG-MOVS
+                               MOVE INVM-ID-CUENTA    TO MOVS-ID-CUENTA
+                               MOVE 2                 TO MOVS-TIPO-MOV
+                               MOVE WS-MONTO-TX       TO MOVS-IMPORTE
+                               MOVE INVM-SALDO-ACTUAL
+                                   TO MOVS-SALDO-RESULTANTE
+                               MOVE LK-TERMINAL-ID    TO MOVS-TERMINAL-ID
+                               MOVE LK-USUARIO-ID     TO MOVS-USUARIO-ID
+                               MOVE 'A' TO LK-ACCION-DB
+                               CALL WS-PGM-DBIOMOVS USING REG-MOVS,
+                                                         LK-DATOS-TRANSACCION
 
-                           PERFORM 9200-GESTIONAR-TRANSACCION
+                               PERFORM 9200-GESTIONAR-TRANSACCION
+                           ELSE
+                               CALL 'DBIOTRAN' USING 'R'
+                               DISPLAY "ERROR AL ACTUALIZAR CUENTA."
+                               STRING "[ERR ] IN0000 DEPOSITO ERROR BD "
+                                      LK-MENSAJE
+                                      DELIMITED BY SIZE INTO WS-LOG-MSG
+                               CALL 'SYSLOG' USING WS-LOG-MSG
+                           END-IF
                        ELSE
                            CALL 'DBIOTRAN' USING 'R'
-                           DISPLAY "ERROR AL ACTUALIZAR CUENTA."
-                           STRING "[ERR ] IN0000 DEPOSITO ERROR BD "
-                                  LK-MENSAJE
-                                  DELIMITED BY SIZE INTO WS-LOG-MSG
-                           CALL 'SYSLOG' USING WS-LOG-MSG
+                           DISPLAY "ERROR: EL MONTO DEBE SER MAYOR A CERO."
                        END-IF
-
-                   ELSE
-                       DISPLAY "ERROR: EL MONTO DEBE SER MAYOR A CERO."
                    END-IF
+               ELSE
+                   DISPLAY "ERROR AL BLOQUEAR CUENTA: " LK-MENSAJE
                END-IF
            ELSE
                DISPLAY "ERROR: " LK-MENSAJE
@@ -160,90 +200,135 @@
 
        4000-EXTRACCION.
            DISPLAY "--- EXTRACCION DE EFECTIVO ---".
-           MOVE 'L' TO LK-ACCION-DB.
-           PERFORM 9000-BUSCAR-CLIENTE-Y-CUENTA.
 
-           IF LK-COD-RETORNO = 0
-               IF CUSM-CTA-ACTIVA = 0
-                   PERFORM 9110-MOSTRAR-ERROR-INACTIVA
-                   CALL 'DBIOTRAN' USING 'R'
-                   STRING "[WARN] IN0000 RETIRO RECHAZADO"
-                          " CTA.INACTIVA ID:" INVM-ID-CLIENTE
-                          DELIMITED BY SIZE INTO WS-LOG-MSG
-                   CALL 'SYSLOG' USING WS-LOG-MSG
-               ELSE
-                   DISPLAY "SALDO DISPONIBLE: " INVM-SALDO-ACTUAL
-                   PERFORM 9300-VALIDAR-MONTO
+           PERFORM 9000-BUSCAR-CLIENTE-Y-SELECCIONAR-CUENTA.
 
-                   IF WS-MONTO-TX > 0
-                       IF WS-MONTO-TX <= INVM-SALDO-ACTUAL
-                           *> 1. ACTUALIZAR SALDO DE LA CUENTA
-                           SUBTRACT WS-MONTO-TX
-                                    FROM INVM-SALDO-ACTUAL ROUNDED
-                           MOVE 3 TO INVM-COD-ULT-MOV
-                           COMPUTE INVM-IMPORTE-MOV = WS-MONTO-TX * -1
+           IF LK-COD-RETORNO = '00  '
+      *        Bloqueo SELECT FOR UPDATE
+               MOVE 'L' TO LK-ACCION-DB
+               MOVE WS-ID-CUENTA-SEL TO INVM-ID-CUENTA
+               CALL WS-PGM-DBIOINVM USING REG-INVM,
+                                          LK-DATOS-TRANSACCION
 
-                           MOVE 'M' TO LK-ACCION-DB
-                           CALL WS-PGM-DBIOINVM
-                           USING REG-INVM, LK-DATOS-TRANSACCION
+               IF LK-COD-RETORNO = '00  '
+                   IF INVM-ESTADO-CUENTA = 'C' OR 'B'
+                       PERFORM 9110-MOSTRAR-ERROR-INACTIVA
+                       CALL 'DBIOTRAN' USING 'R'
+                       STRING "[WARN] IN0000 RETIRO RECHAZADO"
+                              " CTA.INACTIVA:" INVM-ID-CUENTA
+                              DELIMITED BY SIZE INTO WS-LOG-MSG
+                       CALL 'SYSLOG' USING WS-LOG-MSG
+                   ELSE
+                       DISPLAY "SALDO DISPONIBLE: " INVM-SALDO-ACTUAL
+                       PERFORM 9300-VALIDAR-MONTO
 
-                           IF LK-COD-RETORNO = 0
-                               *> 2. SINCRONIZAR SALDO MAESTRO
+                       IF WS-MONTO-TX > 0
+                           IF WS-MONTO-TX <= INVM-SALDO-ACTUAL
+      *                        Fondos suficientes: debitar
                                SUBTRACT WS-MONTO-TX
-                                        FROM CUSM-SALDO-CLIENTE ROUNDED
+                                        FROM INVM-SALDO-ACTUAL ROUNDED
 
                                MOVE 'M' TO LK-ACCION-DB
-                               CALL WS-PGM-DBIOCUSM
-                               USING REG-CUSM, LK-DATOS-TRANSACCION
+                               CALL WS-PGM-DBIOINVM
+                               USING REG-INVM, LK-DATOS-TRANSACCION
 
-                               *> 3. GESTIONAR EL COMMIT O ROLLBACK
-                               PERFORM 9200-GESTIONAR-TRANSACCION
+                               IF LK-COD-RETORNO = '00  '
+      *                            Actualizar saldo total cliente
+                                   SUBTRACT WS-MONTO-TX
+                                       FROM CUSM-SALDO-TOTAL-VISTA ROUNDED
+                                   MOVE 'T' TO LK-ACCION-DB
+                                   CALL WS-PGM-DBIOCUSM
+                                   USING REG-CUSM, LK-DATOS-TRANSACCION
+
+      *                            Registrar movimiento auditado
+                                   INITIALIZE REG-MOVS
+                                   MOVE INVM-ID-CUENTA
+                                       TO MOVS-ID-CUENTA
+                                   MOVE 3 TO MOVS-TIPO-MOV
+                                   COMPUTE MOVS-IMPORTE =
+                                       WS-MONTO-TX * -1
+                                   MOVE INVM-SALDO-ACTUAL
+                                       TO MOVS-SALDO-RESULTANTE
+                                   MOVE LK-TERMINAL-ID
+                                       TO MOVS-TERMINAL-ID
+                                   MOVE LK-USUARIO-ID
+                                       TO MOVS-USUARIO-ID
+                                   MOVE 'A' TO LK-ACCION-DB
+                                   CALL WS-PGM-DBIOMOVS USING REG-MOVS,
+                                                         LK-DATOS-TRANSACCION
+
+                                   PERFORM 9200-GESTIONAR-TRANSACCION
+                               ELSE
+                                   CALL 'DBIOTRAN' USING 'R'
+                                   DISPLAY "ERROR AL ACTUALIZAR CUENTA."
+                               END-IF
                            ELSE
+                               MOVE 'E001' TO LK-COD-RETORNO
+                               DISPLAY "ERROR: FONDOS INSUFICIENTES."
                                CALL 'DBIOTRAN' USING 'R'
-                               DISPLAY "ERROR AL ACTUALIZAR CUENTA."
+                               STRING "[WARN] IN0000 RETIRO RECHAZADO"
+                                      " FONDOS INSUF CTA:"
+                                      INVM-ID-CUENTA
+                                      DELIMITED BY SIZE INTO WS-LOG-MSG
+                               CALL 'SYSLOG' USING WS-LOG-MSG
                            END-IF
                        ELSE
-                           DISPLAY "ERROR: FONDOS INSUFICIENTES."
                            CALL 'DBIOTRAN' USING 'R'
-                           STRING "[WARN] IN0000 RETIRO RECHAZADO"
-                                  " FONDOS INSUF ID:" INVM-ID-CLIENTE
-                                  DELIMITED BY SIZE INTO WS-LOG-MSG
-                           CALL 'SYSLOG' USING WS-LOG-MSG
+                           DISPLAY "ERROR: EL MONTO DEBE SER MAYOR A CERO."
                        END-IF
-                   ELSE
-                       DISPLAY "ERROR: EL MONTO DEBE SER MAYOR A CERO."
                    END-IF
+               ELSE
+                   DISPLAY "ERROR AL BLOQUEAR CUENTA: " LK-MENSAJE
                END-IF
            ELSE
                DISPLAY "ERROR: " LK-MENSAJE
            END-IF.
-       9000-BUSCAR-CLIENTE-Y-CUENTA.
+
+       9000-BUSCAR-CLIENTE-Y-SELECCIONAR-CUENTA.
+      *    1. Buscar cliente por documento
+      *    2. Listar sus cuentas (accion X)
+      *    3. Operador selecciona ID_CUENTA
            INITIALIZE REG-CUSM.
            INITIALIZE REG-INVM.
 
            PERFORM 9100-VALIDAR-DOC-CAPTURA.
 
-           *> Resguardamos la intenci�n original ('L' o 'C')
-           MOVE LK-ACCION-DB TO WS-ACCION-TEMP.
-
-           *> Buscamos primero al cliente (Siempre con 'C')
            MOVE 'C' TO LK-ACCION-DB.
            CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
 
-           IF LK-COD-RETORNO = 0
-               MOVE CUSM-ID-CLIENTE TO INVM-ID-CLIENTE
-
-               *> Restauramos la acci�n para la cuenta
-               MOVE WS-ACCION-TEMP TO LK-ACCION-DB
-               CALL WS-PGM-DBIOINVM USING REG-INVM, LK-DATOS-TRANSACCION
-
-               IF LK-COD-RETORNO NOT = 0
-                   MOVE "CUENTA NO ENCONTRADA PARA ESTE CLIENTE"
-                   TO LK-MENSAJE
-               END-IF
-           ELSE
+           IF LK-COD-RETORNO NOT = '00  '
                MOVE "CLIENTE NO EXISTE" TO LK-MENSAJE
-               MOVE 01 TO LK-COD-RETORNO
+               EXIT PARAGRAPH
+           END-IF.
+
+           DISPLAY "CLIENTE: " CUSM-NOMBRE " " CUSM-APELLIDOS.
+           DISPLAY "--- SUS CUENTAS ---".
+
+      *    Listar cuentas con accion X (primer fetch en DBIOINVM)
+           MOVE CUSM-ID-CLIENTE TO INVM-ID-CLIENTE.
+           MOVE 'X' TO LK-ACCION-DB.
+           CALL WS-PGM-DBIOINVM USING REG-INVM, LK-DATOS-TRANSACCION.
+
+           IF LK-COD-RETORNO NOT = '00  '
+               MOVE "CUENTA NO ENCONTRADA PARA ESTE CLIENTE"
+               TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF.
+
+      *    Mostrar primera cuenta
+           DISPLAY "  ID: " INVM-ID-CUENTA
+                   " TIPO: " INVM-TIPO-CUENTA
+                   " SALDO: " INVM-SALDO-ACTUAL
+                   " EST: " INVM-ESTADO-CUENTA.
+
+           DISPLAY "Ingrese ID de cuenta a operar: ".
+           ACCEPT WS-ID-CUENTA-SEL.
+
+           IF WS-ID-CUENTA-SEL = ZERO
+               MOVE 'E001' TO LK-COD-RETORNO
+               MOVE "ID DE CUENTA INVALIDO" TO LK-MENSAJE
+           ELSE
+               MOVE '00  ' TO LK-COD-RETORNO
            END-IF.
 
        9100-VALIDAR-DOC-CAPTURA.
@@ -286,23 +371,23 @@
 
        9110-MOSTRAR-ERROR-INACTIVA.
            DISPLAY "******************************************"
-           DISPLAY "ERROR: CUENTA CERRADA / INACTIVA"
+           DISPLAY "ERROR: CUENTA CERRADA / BLOQUEADA"
            DISPLAY "OPERACION NO PERMITIDA."
            DISPLAY "******************************************".
 
        9200-GESTIONAR-TRANSACCION.
-           IF LK-COD-RETORNO = 0
+           IF LK-COD-RETORNO = '00  '
                CALL 'DBIOTRAN' USING 'C'
                DISPLAY "TRANSACCION EXITOSA. NUEVO SALDO: "
                        INVM-SALDO-ACTUAL
-               IF INVM-COD-ULT-MOV = 2
-                   STRING "[OK  ] IN0000 DEPOSITO ID:"
-                          INVM-ID-CLIENTE " MTO:" WS-MONTO-TX
+               IF MOVS-TIPO-MOV = 2
+                   STRING "[OK  ] IN0000 DEPOSITO CTA:"
+                          INVM-ID-CUENTA " MTO:" WS-MONTO-TX
                           " SALDO:" INVM-SALDO-ACTUAL
                           DELIMITED BY SIZE INTO WS-LOG-MSG
                ELSE
-                   STRING "[OK  ] IN0000 RETIRO   ID:"
-                          INVM-ID-CLIENTE " MTO:" WS-MONTO-TX
+                   STRING "[OK  ] IN0000 RETIRO   CTA:"
+                          INVM-ID-CUENTA " MTO:" WS-MONTO-TX
                           " SALDO:" INVM-SALDO-ACTUAL
                           DELIMITED BY SIZE INTO WS-LOG-MSG
                END-IF
@@ -319,7 +404,6 @@
            MOVE 'N' TO WS-CED-VALIDA.
            MOVE SPACES TO LK-MENSAJE.
 
-      *    Provincia: 01 al 24
            MOVE CUSM-DOC-CLIENTE(1:2) TO WS-CED-PROV.
            IF WS-CED-PROV < 1 OR WS-CED-PROV > 24
                MOVE "Cedula invalida: codigo de provincia"
@@ -327,7 +411,6 @@
                EXIT PARAGRAPH
            END-IF.
 
-      *    3er digito 0-5 = persona natural
            MOVE CUSM-DOC-CLIENTE(3:1) TO WS-CED-TERCERO.
            IF WS-CED-TERCERO > 5
                MOVE "Cedula invalida: tipo de persona incorrecto"
@@ -335,7 +418,6 @@
                EXIT PARAGRAPH
            END-IF.
 
-      *    Algoritmo modulo 10
            MOVE ZERO TO WS-CED-SUMA.
            PERFORM VARYING WS-CED-IDX FROM 1 BY 1
                    UNTIL WS-CED-IDX > 9
@@ -352,7 +434,6 @@
                ADD WS-CED-PRODUCTO TO WS-CED-SUMA
            END-PERFORM.
 
-      *    Verificar digito de control
            COMPUTE WS-CED-VERIF-CALC =
                FUNCTION MOD(WS-CED-SUMA, 10).
            IF WS-CED-VERIF-CALC NOT = 0

@@ -1,36 +1,69 @@
-      *================================================================*
-      * COPYBOOK: LKCIF                                                *
-      * DESCRIPCION: AREA DE COMUNICACION PARA EL MODULO CIF (CLIENTES)*
-      * USO: LINKAGE SECTION EN PROGRAMAS MAINLINE Y MODULOS DBIO      *
-      *================================================================*
-       01  LK-DATOS-TRANSACCION.
-      *    CODIGO DE ACCION PARA BASE DE DATOS (FLAG DE OPERACION)
-      *    'A' = ALTA (INSERT)
-      *    'B' = BAJA LOGICA (UPDATE ESTADO)
-      *    'M' = MODIFICACION (UPDATE)
-      *    'C' = CONSULTA (SELECT)
-           05 LK-ACCION-DB             PIC X(01).
-           05 LK-ID-CLIENTE            PIC 9(09).
-           05 LK-IMPORTE-TRANSACCION   PIC S9(13)V99 COMP-3.
-           05 LK-MODO-OPERACION        PIC X(01).
-              88 LK-CONSULTA           VALUE 'C'.
-              88 LK-ALTA               VALUE 'A'.
-              88 LK-MODIF              VALUE 'M'.
-              88 LK-BLOQUEO            VALUE 'L'.
-              88 Lk-SIGUIENTE          VALUE 'S'.
-      *    CODIGO DE RETORNO (RESULTADO DE LA OPERACION)
-      *    00 = EXITO / OPERACION REALIZADA
-      *    01-98 = ERRORES DE NEGOCIO O VALIDACION
-      *    99 = ERROR CRITICO DE BASE DE DATOS (SQLCODE != 0)
-           05 LK-COD-RETORNO           PIC 9(02).
+      ******************************************************************
+      * PROGRAMA: BANCSLOG (LOGIN CENTRAL - BANCO LAF)                 *
+      * OBJETIVO: IDENTIFICACION UNICA Y ACTIVACION DE SESION          *
+      ******************************************************************
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. BANCSLOG.
 
-      *    MENSAJE DESCRIPTIVO PARA EL USUARIO O LOG
-           05 LK-MENSAJE               PIC X(50).
+       ENVIRONMENT DIVISION.
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  WS-PANTALLA.
+           05 FILLER PIC X(65) VALUE 
+           "+---------------------------------------------------------------+".
+           05 FILLER PIC X(65) VALUE 
+           "|                                                               |".
+           05 FILLER PIC X(65) VALUE 
+           "|    ██████╗  █████╗ ███╗    ██╗ ██████╗ ██████╗  ██████╗       |".
+           05 FILLER PIC X(65) VALUE 
+           "|    ██╔══██╗██╔══██╗████╗  ██║██╔════╝██╔═══██╗██╔═══██╗       |".
+           05 FILLER PIC X(65) VALUE 
+           "|    ██████╔╝███████║██╔██╗ ██║██║     ██║   ██║██║   ██║       |".
+           05 FILLER PIC X(65) VALUE 
+           "|    SISTEMA DE CORE BANCARIO - BANCO LAF - V 2.0               |".
+           05 FILLER PIC X(65) VALUE 
+           "+---------------------------------------------------------------+".
+           05 FILLER PIC X(65) VALUE 
+           "|  ESTABLECIENDO CONEXION CON BASE DE DATOS...        [ OK ]    |".
+           05 FILLER PIC X(65) VALUE 
+           "|  CARGANDO PARAMETROS DEL SISTEMA...                 [ OK ]    |".
+           05 FILLER PIC X(65) VALUE 
+           "+---------------------------------------------------------------+".
 
-      *    CAMPOS DE CONTROL DE AUDITORIA
-      *    ID DEL USUARIO QUE REALIZA LA TRANSACCION
-           05 LK-USUARIO-ID            PIC X(08).
-      *    ID DE LA TERMINAL O AGENCIA
-           05 LK-TERMINAL-ID           PIC X(04).
-      *    FECHA CONTABLE DEL SISTEMA (YYYYMMDD)
-           05 LK-FECHA-PROCESO         PIC 9(08).
+       01  WS-CAPTURA.
+           05 WS-CEDULA-USER           PIC X(12).
+
+       LINKAGE SECTION.
+       COPY LKCIF.
+
+       PROCEDURE DIVISION USING LK-DATOS-SESION LK-DATOS-TRANSACCION.
+
+       0000-MAIN.
+           PERFORM 1000-DIBUJAR-SPLASH
+           PERFORM 2000-PROCESAR-LOGIN
+           GOBACK.
+
+       1000-DIBUJAR-SPLASH.
+           DISPLAY SPACES UPON CRT
+           DISPLAY WS-PANTALLA.
+
+       2000-PROCESAR-LOGIN.
+           DISPLAY " "
+           DISPLAY "  POR FAVOR, INGRESE IDENTIFICACION PARA COMENZAR:"
+           DISPLAY "  > " WITH NO ADVANCING
+           ACCEPT WS-CEDULA-USER
+           
+           * AQUI SIMULAMOS UNA BUSQUEDA EN DBIOCUSM (LA HAREMOS REAL LUEGO)
+           IF WS-CEDULA-USER NOT = SPACES
+              MOVE 'S'            TO LK-SESION-ACTIVA
+              MOVE WS-CEDULA-USER TO LK-DOC-CLIENTE-SES
+              MOVE "ALISON CARRION" TO LK-NOMBRE-CLIENTE
+              MOVE 850            TO LK-SCORE-CLIENTE
+              MOVE 'ACARRION'     TO LK-USUARIO-ID
+              MOVE 'TQ01'         TO LK-TERMINAL-ID
+              DISPLAY " "
+              DISPLAY "  IDENTIFICACION EXITOSA. CARGANDO PERFIL... [ OK ]"
+           ELSE
+              MOVE 'N'            TO LK-SESION-ACTIVA
+              DISPLAY "  ERROR: DEBE INGRESAR UNA IDENTIFICACION VALIDA."
+           END-IF.

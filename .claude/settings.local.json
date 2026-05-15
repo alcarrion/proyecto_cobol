@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//mnt/c/Users/dell/Desktop/proyecto_cobol/src/**)",
+      "Read(//mnt/c/Users/dell/Desktop/proyecto_cobol/**)"
+    ]
+  }
+}
