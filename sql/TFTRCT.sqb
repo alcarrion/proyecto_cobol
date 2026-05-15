@@ -1,136 +1,107 @@
        IDENTIFICATION DIVISION.
        PROGRAM-ID. TFTRCT.
-      *==========================================================
-      * MOTOR AUTOMATICO (DAEMON) - FORMATO SQB
-      * Procesa TODOS los lotes y TODAS las fases en un solo ciclo
-      *==========================================================
-
        ENVIRONMENT DIVISION.
        CONFIGURATION SECTION.
        SPECIAL-NAMES.
            DECIMAL-POINT IS COMMA.
-
        DATA DIVISION.
        WORKING-STORAGE SECTION.
            EXEC SQL INCLUDE SQLCA END-EXEC.
-
            EXEC SQL BEGIN DECLARE SECTION END-EXEC.
        01  WS-TFFM-VARS.
            05 WS-ID-LOTE           PIC 9(09).
-           05 WS-NOMBRE-ARCHIVO    PIC X(50).
+           05 WS-FILE-NAME         PIC X(120).
            05 WS-FASE              PIC X(02).
-           05 WS-ESTADO-REPLICA    PIC X(01).
-           05 WS-TIPO-PROG         PIC X(03).
-           05 WS-FECHA-SIST        PIC X(10).
-           EXEC SQL END DECLARE SECTION END-EXEC.
-
-       01  WS-FECHA-CONTABLE       PIC X(10).
+           05 WS-TYPE-UPDATE       PIC X(10).
+           05 WS-REPLICA-ASIG      PIC X(04).
+           05 WS-RETRY-COUNT       PIC 9(02).
+       01  WS-REP-DISPONIBLE       PIC X(04).
        01  WS-PROG-FASE            PIC X(08).
+       01  WS-FECHA-CONTABLE       PIC X(10).
+           EXEC SQL END DECLARE SECTION END-EXEC.
        01  WS-FLAGS.
            05 WS-HAY-LOTES-PEND    PIC X(01) VALUE 'S'.
            05 WS-LOTE-TERMINADO    PIC X(01) VALUE 'N'.
-
            COPY LKCIF.
-
        PROCEDURE DIVISION.
-       0000-PRINCIPAL.
-           DISPLAY "--- INICIANDO DEMONIO DE PROCESAMIENTO ---"
-           CALL "BNCR004" USING WS-FECHA-CONTABLE
-
-      * BUCLE DE COLA: Mientras existan archivos registrados para hoy
+       000-MAIN.
+           DISPLAY "--- INICIANDO ORQUESTADOR 2.0 ---"
+           CALL "BNCR004" USING WS-FECHA-CONTABLE.
            PERFORM UNTIL WS-HAY-LOTES-PEND = 'N'
-               PERFORM 1000-BUSCAR-PROXIMO-LOTE
-
+               PERFORM 100-BUSCAR-LOTE
                IF SQLCODE = 0
-                   PERFORM 2000-PROCESAR-LOTE-COMPLETO
+                   PERFORM 200-BUSCAR-REPLICA
+                   IF WS-REP-DISPONIBLE NOT = SPACES
+                       PERFORM 300-PROCESAR-LOTE
+                   ELSE
+                       MOVE 'N' TO WS-HAY-LOTES-PEND
+                   END-IF
                ELSE
                    MOVE 'N' TO WS-HAY-LOTES-PEND
                END-IF
            END-PERFORM.
-
-           DISPLAY "--- COLA VACIA. DEMONIO FINALIZADO ---"
            GOBACK.
-
-       1000-BUSCAR-PROXIMO-LOTE.
-      * Busca el lote mas antiguo que no haya llegado a fase 40
+       100-BUSCAR-LOTE.
            EXEC SQL
-               SELECT ID_LOTE, NOMBRE_ARCHIVO, FASE, TIPO_PROG
-               INTO :WS-ID-LOTE, :WS-NOMBRE-ARCHIVO,
-                    :WS-FASE, :WS-TIPO-PROG
-               FROM TFFM
-               WHERE FASE < '40'
-                 AND ESTADO_REPLICA = 'R'
-               ORDER BY ID_LOTE ASC
-               LIMIT 1
+               SELECT ID_LOTE, FILE_NAME, FASE, TYPE_UPDATE
+               INTO :WS-ID-LOTE, :WS-FILE-NAME, :WS-FASE,
+                    :WS-TYPE-UPDATE FROM TFFM
+               WHERE FASE < '40' AND ESTADO_REPLICA = 'R'
+               ORDER BY ID_LOTE ASC LIMIT 1
            END-EXEC.
-
-      * LOG DE DEPURACION:
-           IF SQLCODE = 0
-               DISPLAY " [OK] LOTE ENCONTRADO: " WS-ID-LOTE
-               DISPLAY "      ARCHIVO: " WS-NOMBRE-ARCHIVO
-           ELSE
-               IF SQLCODE = 100
-                   DISPLAY " [!] NO HAY LOTES PENDIENTES (SQLCODE 100)"
-               ELSE
-                   DISPLAY " [X] ERROR SQL AL BUSCAR LOTE: " SQLCODE
-               END-IF
+       200-BUSCAR-REPLICA.
+           MOVE SPACES TO WS-REP-DISPONIBLE.
+           EXEC SQL
+               SELECT REPLICA_NO INTO :WS-REP-DISPONIBLE
+               FROM TF_REPLICAS WHERE STATUS = 'L' LIMIT 1
+           END-EXEC.
+           IF WS-REP-DISPONIBLE NOT = SPACES
+               EXEC SQL
+                   UPDATE TF_REPLICAS SET STATUS = 'O'
+                   WHERE REPLICA_NO = :WS-REP-DISPONIBLE
+               END-EXEC
+               EXEC SQL
+                   UPDATE TFFM SET REPLICA_NO = :WS-REP-DISPONIBLE
+                   WHERE ID_LOTE = :WS-ID-LOTE
+               END-EXEC
+               EXEC SQL COMMIT END-EXEC
            END-IF.
-
-       2000-PROCESAR-LOTE-COMPLETO.
-           DISPLAY ">>> TRABAJANDO EN LOTE: " WS-ID-LOTE
-           MOVE 'N' TO WS-LOTE-TERMINADO
-
-      * BUCLE DE FASES: No suelta el lote hasta que llega a 40
+       300-PROCESAR-LOTE.
+           MOVE 'N' TO WS-LOTE-TERMINADO.
            PERFORM UNTIL WS-LOTE-TERMINADO = 'S'
-               PERFORM 3000-EJECUTAR-FASE
-
+               PERFORM 400-EVALUAR-FASE
                IF LK-COD-RETORNO = 0
-                   PERFORM 4000-AVANZAR-FASE
-                   IF WS-FASE = '40'
-                       MOVE 'S' TO WS-LOTE-TERMINADO
-                   END-IF
+                   PERFORM 500-AVANZAR-FASE
+                   IF WS-FASE = '40' MOVE 'S' TO WS-LOTE-TERMINADO
                ELSE
-      * Si una fase falla, marcamos error y saltamos al siguiente archivo
-                   DISPLAY "ERROR CRITICO EN LOTE " WS-ID-LOTE
                    MOVE 'S' TO WS-LOTE-TERMINADO
                END-IF
            END-PERFORM.
-
-       3000-EJECUTAR-FASE.
-           INITIALIZE WS-PROG-FASE
-           EVALUATE WS-FASE
-               WHEN '00' MOVE "SKIP"   TO WS-PROG-FASE
-               WHEN '10' MOVE "TFMX"   TO WS-PROG-FASE
-               WHEN '20' MOVE "RRD000" TO WS-PROG-FASE
-               WHEN '30' MOVE "XXXREP" TO WS-PROG-FASE
-           END-EVALUATE
-
-           IF WS-PROG-FASE = "SKIP"
-               MOVE 0 TO LK-COD-RETORNO
-               DISPLAY " FASE 00 OK (VALIDACION)"
-           ELSE
-               DISPLAY " EJECUTANDO " WS-PROG-FASE "..."
+       400-EVALUAR-FASE.
+           MOVE "SKIP" TO WS-PROG-FASE.
+           IF WS-FASE = '10' MOVE "TFMX" TO WS-PROG-FASE.
+           IF WS-FASE = '20' MOVE WS-TYPE-UPDATE TO WS-PROG-FASE.
+           IF WS-FASE = '30' MOVE "XXXREP" TO WS-PROG-FASE.
+           IF WS-PROG-FASE NOT = "SKIP"
+               MOVE WS-REP-DISPONIBLE TO WS-REPLICA-ASIG
                CALL WS-PROG-FASE USING WS-TFFM-VARS,
                                        LK-DATOS-TRANSACCION
+           ELSE
+               MOVE 0 TO LK-COD-RETORNO
            END-IF.
-
-       4000-AVANZAR-FASE.
+       500-AVANZAR-FASE.
+           IF WS-FASE = '00' MOVE '10' TO WS-FASE
+           ELSE IF WS-FASE = '10' MOVE '20' TO WS-FASE
+           ELSE IF WS-FASE = '20' MOVE '30' TO WS-FASE
+           ELSE IF WS-FASE = '30' MOVE '40' TO WS-FASE.
            EXEC SQL
-               UPDATE TFFM
-               SET FASE = CASE
-                   WHEN FASE = '00' THEN '10'
-                   WHEN FASE = '10' THEN '20'
-                   WHEN FASE = '20' THEN '30'
-                   WHEN FASE = '30' THEN '40'
-               END
+               UPDATE TFFM SET FASE = :WS-FASE
                WHERE ID_LOTE = :WS-ID-LOTE
-           END-EXEC
-
-           IF SQLCODE = 0
-               EXEC SQL COMMIT END-EXEC
-      * Refrescamos la fase actual para el bucle
+           END-EXEC.
+           IF WS-FASE = '40'
                EXEC SQL
-                   SELECT FASE INTO :WS-FASE FROM TFFM
-                   WHERE ID_LOTE = :WS-ID-LOTE
+                   UPDATE TF_REPLICAS SET STATUS = 'L'
+                   WHERE REPLICA_NO = :WS-REP-DISPONIBLE
                END-EXEC
            END-IF.
+           EXEC SQL COMMIT END-EXEC.

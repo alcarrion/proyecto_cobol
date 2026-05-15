@@ -39,12 +39,12 @@ echo ============================================
 echo  2. Compilando Sistema Bancario COBOL
 echo ============================================
 
-:: Compilación y enlace de todos los módulos 
-:: IMPORTANTE: No dejar líneas en blanco entre los archivos con '^'
+:: Agregamos TFFILE y los nuevos módulos de negocio (RRR000, RRC000)
 "%COBC%" -x -v -I "%COPIES_DIR%" ^
     -L "%COBOL_LIBS_ESQL%" ^
     -locsql ^
     "%MAINLINE_DIR%\BANCSMENU.cob" ^
+    "%MAINLINE_DIR%\TFFILE.cob" ^
     "%MAINLINE_DIR%\CI0000.cbl" ^
     "%MAINLINE_DIR%\IN0000.cbl" ^
     "%MAINLINE_DIR%\TC0000.cbl" ^
@@ -70,6 +70,7 @@ echo ============================================
     -L "%COBOL_LIBS_ESQL%" ^
     -locsql ^
     "%MAINLINE_DIR%\TFDRMAIN.cob" ^
+    "%MAINLINE_DIR%\TFFILE.cob" ^
     "%MAINLINE_DIR%\BNCR004.cob" ^
     "%MAINLINE_DIR%\TFMX.cob" ^
     "%MAINLINE_DIR%\RRD000.cob" ^

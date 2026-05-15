@@ -1,0 +1,216 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. TFFILE.
+      *========================================================*
+      * MOTOR DE INGESTA, VALIDACION Y LOTEO DINAMICO 2.0
+      * REGLA DE NOMENCLATURA:
+      * XXX-999-DDMMYY-XXXXXX-DDMMYY-00N.TXT
+      * (Proceso-Agencia-F.Ref-H.Ref-F.REAL-Secuencia)
+      *========================================================*
+
+       ENVIRONMENT DIVISION.
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+      * Archivo temporal para listar archivos del directorio
+           SELECT LISTA-ARCHIVOS ASSIGN TO "filelist.txt"
+           ORGANIZATION IS LINE SEQUENTIAL.
+
+      * Archivo de entrada (El que está en BATCH-INPUT)
+           SELECT DATA-IN ASSIGN TO WS-FULLPATH-IN
+           ORGANIZATION IS LINE SEQUENTIAL.
+
+      * Archivo de salida (Los fragmentos en BATCH-UPLOAD-S)
+           SELECT DATA-OUT ASSIGN TO WS-FULLPATH-OUT
+           ORGANIZATION IS LINE SEQUENTIAL.
+
+       DATA DIVISION.
+       FILE SECTION.
+       FD  LISTA-ARCHIVOS.
+       01  REG-LISTA               PIC X(120).
+
+       FD  DATA-IN.
+       01  REG-DATA-IN             PIC X(500).
+
+       FD  DATA-OUT.
+       01  REG-DATA-OUT            PIC X(500).
+
+       WORKING-STORAGE SECTION.
+           EXEC SQL INCLUDE SQLCA END-EXEC.
+
+      * Variables para SQL
+           EXEC SQL BEGIN DECLARE SECTION END-EXEC.
+       01  WS-PARAM-VARS-SQL.
+           05 WS-MAX-LOTE-STR      PIC X(10).
+           05 WS-RUTA-IN-SQL       PIC X(150).
+           05 WS-RUTA-UP-SQL       PIC X(150).
+           
+       01  WS-TFFM-INSERT.
+           05 DB-FILE-NAME         PIC X(120).
+           05 DB-TYPE-UPDATE       PIC X(10).
+           05 DB-FECHA-PROC        PIC X(10).
+           EXEC SQL END DECLARE SECTION END-EXEC.
+
+      * Variables de Control
+       01  WS-MAX-LOTE-NUM         PIC 9(09).
+       01  WS-CONTROL-LOTEO.
+           05 WS-REG-CONT          PIC 9(09) VALUE 0.
+           05 WS-LOTE-SEC          PIC 9(03) VALUE 1.
+           05 WS-EOF-LISTA         PIC X(01) VALUE 'N'.
+           05 WS-EOF-DATA          PIC X(01) VALUE 'N'.
+
+      * Desglose del nombre de archivo (Estructura pedida)
+       01  WS-FILE-PARSING.
+           05 WS-TIPO-PROC         PIC X(03).
+           05 WS-AGENCIA           PIC X(03).
+           05 WS-FECHA-REF         PIC X(06).
+           05 WS-HORA-REF          PIC X(06).
+           05 WS-FECHA-REAL        PIC X(06).
+           05 WS-SEC-ORIGINAL      PIC X(03).
+           05 WS-FECHA-ISO         PIC X(10).
+
+       01  WS-RUTAS-TRABAJO.
+           05 WS-FILE-NAME-CUR     PIC X(120).
+           05 WS-FILE-NAME-NEW     PIC X(120).
+           05 WS-FULLPATH-IN       PIC X(250).
+           05 WS-FULLPATH-OUT      PIC X(250).
+           05 WS-CMD               PIC X(500).
+
+       PROCEDURE DIVISION.
+       000-MAIN.
+           DISPLAY " "
+           DISPLAY ">>> TFFILE: INICIANDO ETAPA DE INGESTA 2.0 <<<"
+           
+           PERFORM 100-CARGAR-PARAMETROS-BD
+           PERFORM 200-GENERAR-LISTADO-INPUT
+           
+           OPEN INPUT LISTA-ARCHIVOS
+           PERFORM UNTIL WS-EOF-LISTA = 'Y'
+               READ LISTA-ARCHIVOS INTO WS-FILE-NAME-CUR
+                   AT END MOVE 'Y' TO WS-EOF-LISTA
+                   NOT AT END
+                       IF WS-FILE-NAME-CUR NOT = SPACES
+                           PERFORM 300-PROCESAR-ARCHIVO
+                       END-IF
+               END-READ
+           END-PERFORM
+           CLOSE LISTA-ARCHIVOS.
+
+           DISPLAY ">>> TFFILE: INGESTA FINALIZADA <<<"
+           GOBACK.
+
+       100-CARGAR-PARAMETROS-BD.
+      * Obtenemos configuracion dinámica de la tabla TF_PARAMETROS
+           EXEC SQL 
+               SELECT VALOR INTO :WS-MAX-LOTE-STR FROM TF_PARAMETROS 
+               WHERE PARAMETRO = 'MAX_REGISTROS_LOTE' 
+           END-EXEC.
+           MOVE WS-MAX-LOTE-STR TO WS-MAX-LOTE-NUM.
+
+           EXEC SQL 
+               SELECT VALOR INTO :WS-RUTA-IN-SQL FROM TF_PARAMETROS 
+               WHERE PARAMETRO = 'RUTA_INPUT' 
+           END-EXEC.
+
+           EXEC SQL 
+               SELECT VALOR INTO :WS-RUTA-UP-SQL FROM TF_PARAMETROS 
+               WHERE PARAMETRO = 'RUTA_UPLOAD' 
+           END-EXEC.
+
+       200-GENERAR-LISTADO-INPUT.
+      * Comando de sistema para ver qué hay en la carpeta de entrada
+           INITIALIZE WS-CMD
+           STRING "dir /b " FUNCTION TRIM(WS-RUTA-IN-SQL) 
+                  "\*.TXT > filelist.txt"
+                  DELIMITED BY SIZE INTO WS-CMD
+           CALL "SYSTEM" USING WS-CMD.
+
+       300-PROCESAR-ARCHIVO.
+           DISPLAY "  [FILE] " WS-FILE-NAME-CUR
+           
+      * PARSEO SEGUN ESTANDAR: XXX-999-DDMMYY-XXXXXX-DDMMYY-00N.TXT
+           UNSTRING WS-FILE-NAME-CUR DELIMITED BY "-"
+               INTO WS-TIPO-PROC, WS-AGENCIA, WS-FECHA-REF, 
+                    WS-HORA-REF, WS-FECHA-REAL, WS-SEC-ORIGINAL
+           
+      * CONVERSION DE FECHA REAL (DDMMYY) A FORMATO SQL (YYYY-MM-DD)
+           STRING "20" WS-FECHA-REAL(5:2) "-" 
+                  WS-FECHA-REAL(3:2) "-"
+                  WS-FECHA-REAL(1:2) 
+                  INTO WS-FECHA-ISO
+
+      * DETERMINAR PROGRAMA DE NEGOCIO SEGUN TIPO
+           EVALUATE WS-TIPO-PROC
+               WHEN "DEB" MOVE "RRD000" TO DB-TYPE-UPDATE
+               WHEN "RET" MOVE "RRR000" TO DB-TYPE-UPDATE
+               WHEN "CRE" MOVE "RRC000" TO DB-TYPE-UPDATE
+               WHEN OTHER MOVE "UNKNOWN" TO DB-TYPE-UPDATE
+           END-EVALUATE
+
+      * RUTA COMPLETA PARA LECTURA
+           STRING FUNCTION TRIM(WS-RUTA-IN-SQL) "\" 
+                  FUNCTION TRIM(WS-FILE-NAME-CUR)
+                  DELIMITED BY SIZE INTO WS-FULLPATH-IN
+
+           PERFORM 400-EJECUTAR-LOTEO.
+
+       400-EJECUTAR-LOTEO.
+           MOVE 1 TO WS-LOTE-SEC
+           MOVE 0 TO WS-REG-CONT
+           MOVE "N" TO WS-EOF-DATA
+           
+           OPEN INPUT DATA-IN
+           PERFORM UNTIL WS-EOF-DATA = 'Y'
+               IF WS-REG-CONT = 0
+                   PERFORM 500-GENERAR-FRAGMENTO-FISICO
+               END-IF
+               
+               READ DATA-IN INTO REG-DATA-IN
+                   AT END 
+                       MOVE 'Y' TO WS-EOF-DATA
+                       CLOSE DATA-OUT
+                   NOT AT END
+                       ADD 1 TO WS-REG-CONT
+                       WRITE REG-DATA-OUT FROM REG-DATA-IN
+                       
+      * Si llegamos al limite del parametro, cerramos este lote y abrimos otro
+                       IF WS-REG-CONT >= WS-MAX-LOTE-NUM
+                           CLOSE DATA-OUT
+                           MOVE 0 TO WS-REG-CONT
+                           ADD 1 TO WS-LOTE-SEC
+                       END-IF
+               END-READ
+           END-PERFORM
+           CLOSE DATA-IN.
+
+      * MOVER ORIGINAL A BATCH-DONE PARA NO REPROCESAR
+           STRING "move " FUNCTION TRIM(WS-FULLPATH-IN) 
+                  " ..\banco\spool\Interfaces\BATCH-DONE\"
+                  DELIMITED BY SIZE INTO WS-CMD
+           CALL "SYSTEM" USING WS-CMD.
+
+       500-GENERAR-FRAGMENTO-FISICO.
+      * Generamos el nombre del nuevo lote respetando la secuencia 00N
+           INITIALIZE WS-FILE-NAME-NEW
+           STRING WS-TIPO-PROC "-" WS-AGENCIA "-" WS-FECHA-REF "-"
+                  WS-HORA-REF "-" WS-FECHA-REAL "-" 
+                  WS-LOTE-SEC ".TXT"
+                  DELIMITED BY SIZE INTO WS-FILE-NAME-NEW
+           
+           STRING FUNCTION TRIM(WS-RUTA-UP-SQL) "\" WS-FILE-NAME-NEW
+                  DELIMITED BY SIZE INTO WS-FULLPATH-OUT
+           
+           OPEN OUTPUT DATA-OUT
+           
+      * Registro del nuevo lote en la tabla TFFM (Control Maestro)
+           MOVE WS-FILE-NAME-NEW TO DB-FILE-NAME
+           MOVE WS-FECHA-ISO     TO DB-FECHA-PROC
+           
+           EXEC SQL
+               INSERT INTO TFFM (FILE_NAME, TYPE_UPDATE, FASE, 
+                                 ESTADO_REPLICA, FECHA_SISTEMA, 
+                                 PRIORITY)
+               VALUES (:DB-FILE-NAME, :DB-TYPE-UPDATE, '00', 'R', 
+                       :DB-FECHA-PROC, 5)
+           END-EXEC
+           EXEC SQL COMMIT END-EXEC
+           
+           DISPLAY "    + Lote Generado: " WS-FILE-NAME-NEW.
