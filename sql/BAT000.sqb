@@ -13,17 +13,7 @@
        IDENTIFICATION DIVISION.
        PROGRAM-ID. BAT000.
 
-       ENVIRONMENT DIVISION.
-       INPUT-OUTPUT SECTION.
-       FILE-CONTROL.
-           SELECT LOG-FILE ASSIGN TO WS-LOG-FILE-NAME
-               ORGANIZATION IS LINE SEQUENTIAL.
-
        DATA DIVISION.
-       FILE SECTION.
-       FD  LOG-FILE.
-       01  LOG-RECORD          PIC X(200).
-
        WORKING-STORAGE SECTION.
 
            EXEC SQL INCLUDE SQLCA END-EXEC.
@@ -210,7 +200,6 @@
       *================================================================*
       *   WORKING STORAGE - LOG A ARCHIVO                              *
       *================================================================*
-       01  WS-LOG-FILE-NAME        PIC X(60).
        01  WS-LOG-LINE             PIC X(200).
        01  WS-AUX-SQLCODE          PIC +9(9).
        01  WS-AUX-ID8              PIC 9(8).
@@ -281,15 +270,7 @@
                   INTO WS-FECHA-HOY
            END-STRING
 
-           MOVE SPACES TO WS-LOG-FILE-NAME
-           STRING '..\docs\logs\audit_bat_logs_'
-                      DELIMITED BY SIZE
-                  WS-PERIODO
-                      DELIMITED BY SIZE
-               INTO WS-LOG-FILE-NAME
-           END-STRING
 
-           OPEN OUTPUT LOG-FILE
 
            MOVE '================================================'
                TO WS-LOG-LINE
@@ -1172,9 +1153,8 @@
            PERFORM 9100-LOG-WRITE
            MOVE '================================================'
                TO WS-LOG-LINE
-           PERFORM 9100-LOG-WRITE
+           PERFORM 9100-LOG-WRITE.
 
-           CLOSE LOG-FILE.
 
       *================================================================*
       *   8000 - PAUSA FINAL: MUESTRA RESULTADO Y ESPERA TECLA       *
@@ -1210,7 +1190,6 @@
       *   9100 - ESCRIBIR LINEA AL ARCHIVO DE LOG                     *
       *================================================================*
        9100-LOG-WRITE.
-           MOVE WS-LOG-LINE TO LOG-RECORD
-           WRITE LOG-RECORD.
+           CALL 'SYSLOG' USING WS-LOG-LINE.
 
        END PROGRAM BAT000.
