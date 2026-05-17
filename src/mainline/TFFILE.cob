@@ -37,12 +37,12 @@
       **********************************************************************
       *******                EMBEDDED SQL VARIABLES                  *******
        01 SQLV.
-           05 SQL-ARRSZ  PIC S9(9) COMP-5 VALUE 3.
+           05 SQL-ARRSZ  PIC S9(9) COMP-5 VALUE 4.
            05 SQL-COUNT  PIC S9(9) COMP-5 VALUE ZERO.
-           05 SQL-ADDR   POINTER OCCURS 3 TIMES VALUE NULL.
-           05 SQL-LEN    PIC S9(9) COMP-5 OCCURS 3 TIMES VALUE ZERO.
-           05 SQL-TYPE   PIC X OCCURS 3 TIMES.
-           05 SQL-PREC   PIC X OCCURS 3 TIMES.
+           05 SQL-ADDR   POINTER OCCURS 4 TIMES VALUE NULL.
+           05 SQL-LEN    PIC S9(9) COMP-5 OCCURS 4 TIMES VALUE ZERO.
+           05 SQL-TYPE   PIC X OCCURS 4 TIMES.
+           05 SQL-PREC   PIC X OCCURS 4 TIMES.
       **********************************************************************
        01 SQL-STMT-0.
            05 SQL-IPTR   POINTER VALUE NULL.
@@ -75,11 +75,11 @@
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
-           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 3.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 109.
-           05 SQL-STMT   PIC X(109) VALUE 'INSERT INTO TFFM (FILE_NAME,T
-      -    'YPE_UPDATE,FASE,ESTADO_REPLICA,FECHA_SISTEMA,PRIORITY) VALUE
-      -    'S (?,?,''00'',''R'',?,5)'.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 4.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 123.
+           05 SQL-STMT   PIC X(123) VALUE 'INSERT INTO TFFM (FILE_NAME,P
+      -    'ARENT_FILE,TYPE_UPDATE,FASE,ESTADO_REPLICA,FECHA_SISTEMA,PRI
+      -    'ORITY) VALUES (?,?,?,''00'',''R'',?,5)'.
       **********************************************************************
       *    EXEC SQL INCLUDE SQLCA END-EXEC.
        01 SQLCA.
@@ -111,6 +111,7 @@
        01  WS-TFFM-INSERT.
            05 DB-FILE-NAME         PIC X(120).
            05 DB-TYPE-UPDATE       PIC X(10).
+           05 DB-PARENT-FILE       PIC X(120).
            05 DB-FECHA-PROC        PIC X(10).
       *    EXEC SQL END DECLARE SECTION END-EXEC.
 
@@ -149,6 +150,8 @@
 
            OPEN INPUT LISTA-ARCHIVOS
            PERFORM UNTIL WS-EOF-LISTA = 'Y'
+      * CORRECCIÓN: Limpieza preventiva del buffer del nombre antes de
+               INITIALIZE WS-FILE-NAME-CUR
                READ LISTA-ARCHIVOS INTO WS-FILE-NAME-CUR
                    AT END MOVE 'Y' TO WS-EOF-LISTA
                    NOT AT END
@@ -163,7 +166,6 @@
            GOBACK.
 
        100-CARGAR-PARAMETROS-BD.
-      * Obtenemos configuracion dinámica de la tabla TF_PARAMETROS
       *    EXEC SQL
       *        SELECT VALOR INTO :WS-MAX-LOTE-STR FROM TF_PARAMETROS
       *        WHERE PARAMETRO = 'MAX_REGISTROS_LOTE'
@@ -223,37 +225,35 @@
                    .
 
        200-GENERAR-LISTADO-INPUT.
-      * Comando de sistema para ver qué hay en la carpeta de entrada
            INITIALIZE WS-CMD
            STRING "dir /b " FUNCTION TRIM(WS-RUTA-IN-SQL)
-                  "\*.TXT > filelist.txt"
-                  DELIMITED BY SIZE INTO WS-CMD
+                 "*.TXT > filelist.txt"
+                 DELIMITED BY SIZE INTO WS-CMD
            CALL "SYSTEM" USING WS-CMD.
 
        300-PROCESAR-ARCHIVO.
            DISPLAY "  [FILE] " WS-FILE-NAME-CUR
 
-      * PARSEO SEGUN ESTANDAR: XXX-999-DDMMYY-XXXXXX-DDMMYY-00N.TXT
            UNSTRING WS-FILE-NAME-CUR DELIMITED BY "-"
                INTO WS-TIPO-PROC, WS-AGENCIA, WS-FECHA-REF,
                     WS-HORA-REF, WS-FECHA-REAL, WS-SEC-ORIGINAL
 
-      * CONVERSION DE FECHA REAL (DDMMYY) A FORMATO SQL (YYYY-MM-DD)
            STRING "20" WS-FECHA-REAL(5:2) "-"
-                  WS-FECHA-REAL(3:2) "-"
-                  WS-FECHA-REAL(1:2)
-                  INTO WS-FECHA-ISO
+                 WS-FECHA-REAL(3:2) "-"
+                 WS-FECHA-REAL(1:2)
+                 INTO WS-FECHA-ISO
 
-      * DETERMINAR PROGRAMA DE NEGOCIO SEGUN TIPO
            EVALUATE WS-TIPO-PROC
                WHEN "DEB" MOVE "RRD000" TO DB-TYPE-UPDATE
                WHEN "RET" MOVE "RRR000" TO DB-TYPE-UPDATE
                WHEN "CRE" MOVE "RRC000" TO DB-TYPE-UPDATE
+               WHEN "PAG" MOVE "RRP000" TO DB-TYPE-UPDATE
                WHEN OTHER MOVE "UNKNOWN" TO DB-TYPE-UPDATE
            END-EVALUATE
 
-      * RUTA COMPLETA PARA LECTURA
-           STRING FUNCTION TRIM(WS-RUTA-IN-SQL) "\"
+      * CORRECCIÓN: Inicialización obligatoria de la ruta de entrada p
+           INITIALIZE WS-FULLPATH-IN
+           STRING FUNCTION TRIM(WS-RUTA-IN-SQL)
                   FUNCTION TRIM(WS-FILE-NAME-CUR)
                   DELIMITED BY SIZE INTO WS-FULLPATH-IN
 
@@ -265,20 +265,22 @@
            MOVE "N" TO WS-EOF-DATA
 
            OPEN INPUT DATA-IN
+           READ DATA-IN INTO REG-DATA-IN
+               AT END MOVE 'Y' TO WS-EOF-DATA
+           END-READ
+
            PERFORM UNTIL WS-EOF-DATA = 'Y'
                IF WS-REG-CONT = 0
                    PERFORM 500-GENERAR-FRAGMENTO-FISICO
                END-IF
 
+               ADD 1 TO WS-REG-CONT
+               WRITE REG-DATA-OUT FROM REG-DATA-IN
+
                READ DATA-IN INTO REG-DATA-IN
                    AT END
                        MOVE 'Y' TO WS-EOF-DATA
-                       CLOSE DATA-OUT
                    NOT AT END
-                       ADD 1 TO WS-REG-CONT
-                       WRITE REG-DATA-OUT FROM REG-DATA-IN
-
-      * Si llegamos al limite del parametro, cerramos este lote y abrimo
                        IF WS-REG-CONT >= WS-MAX-LOTE-NUM
                            CLOSE DATA-OUT
                            MOVE 0 TO WS-REG-CONT
@@ -286,36 +288,45 @@
                        END-IF
                END-READ
            END-PERFORM
+
+           IF WS-REG-CONT > 0 AND WS-REG-CONT < WS-MAX-LOTE-NUM
+               CLOSE DATA-OUT
+           END-IF
            CLOSE DATA-IN.
 
-      * MOVER ORIGINAL A BATCH-DONE PARA NO REPROCESAR
-           STRING "move " FUNCTION TRIM(WS-FULLPATH-IN)
-                  " ..\banco\spool\Interfaces\BATCH-DONE\"
-                  DELIMITED BY SIZE INTO WS-CMD
+           INITIALIZE WS-CMD
+           STRING "move /Y """ FUNCTION TRIM(WS-FULLPATH-IN) """ "
+                 """C:\banco\spool\Interfaces\BATCH-DONE\"""
+                 DELIMITED BY SIZE INTO WS-CMD
            CALL "SYSTEM" USING WS-CMD.
 
        500-GENERAR-FRAGMENTO-FISICO.
-      * Generamos el nombre del nuevo lote respetando la secuencia 00N
            INITIALIZE WS-FILE-NAME-NEW
-           STRING WS-TIPO-PROC "-" WS-AGENCIA "-" WS-FECHA-REF "-"
-                  WS-HORA-REF "-" WS-FECHA-REAL "-"
-                  WS-LOTE-SEC ".TXT"
-                  DELIMITED BY SIZE INTO WS-FILE-NAME-NEW
+      * CORRECCIÓN: Se eliminó el comando READ de la lista de archivos
 
-           STRING FUNCTION TRIM(WS-RUTA-UP-SQL) "\" WS-FILE-NAME-NEW
-                  DELIMITED BY SIZE INTO WS-FULLPATH-OUT
+           STRING WS-TIPO-PROC "-" WS-AGENCIA "-" WS-FECHA-REF "-"
+                 WS-HORA-REF "-" WS-FECHA-REAL "-"
+                 WS-LOTE-SEC ".TXT"
+                 DELIMITED BY SIZE INTO WS-FILE-NAME-NEW
+
+      * CORRECCIÓN: Inicialización obligatoria de la ruta de salida
+           INITIALIZE WS-FULLPATH-OUT
+           STRING FUNCTION TRIM(WS-RUTA-UP-SQL) WS-FILE-NAME-NEW
+                 DELIMITED BY SIZE INTO WS-FULLPATH-OUT
 
            OPEN OUTPUT DATA-OUT
 
-      * Registro del nuevo lote en la tabla TFFM (Control Maestro)
            MOVE WS-FILE-NAME-NEW TO DB-FILE-NAME
+           MOVE WS-FILE-NAME-CUR TO DB-PARENT-FILE
            MOVE WS-FECHA-ISO     TO DB-FECHA-PROC
 
       *    EXEC SQL
-      *        INSERT INTO TFFM (FILE_NAME, TYPE_UPDATE, FASE,
+      *        INSERT INTO TFFM (FILE_NAME, PARENT_FILE,
+      *         TYPE_UPDATE, FASE,
       *                          ESTADO_REPLICA, FECHA_SISTEMA,
-      *                          PRIORITY)
-      *        VALUES (:DB-FILE-NAME, :DB-TYPE-UPDATE, '00', 'R',
+      *                           PRIORITY)
+      *        VALUES (:DB-FILE-NAME, :DB-PARENT-FILE,
+      *        :DB-TYPE-UPDATE, '00', 'R',
       *                :DB-FECHA-PROC, 5)
       *    END-EXEC
            IF SQL-PREP OF SQL-STMT-3 = 'N'
@@ -324,14 +335,18 @@
                MOVE 'X' TO SQL-TYPE(1)
                MOVE 120 TO SQL-LEN(1)
                SET SQL-ADDR(2) TO ADDRESS OF
-                 DB-TYPE-UPDATE
+                 DB-PARENT-FILE
                MOVE 'X' TO SQL-TYPE(2)
-               MOVE 10 TO SQL-LEN(2)
+               MOVE 120 TO SQL-LEN(2)
                SET SQL-ADDR(3) TO ADDRESS OF
-                 DB-FECHA-PROC
+                 DB-TYPE-UPDATE
                MOVE 'X' TO SQL-TYPE(3)
                MOVE 10 TO SQL-LEN(3)
-               MOVE 3 TO SQL-COUNT
+               SET SQL-ADDR(4) TO ADDRESS OF
+                 DB-FECHA-PROC
+               MOVE 'X' TO SQL-TYPE(4)
+               MOVE 10 TO SQL-LEN(4)
+               MOVE 4 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
                                    SQL-STMT-3
                                    SQLCA
@@ -349,6 +364,7 @@
       *******               EMBEDDED SQL VARIABLES USAGE             *******
       *  DB-FECHA-PROC            IN USE CHAR(10)
       *  DB-FILE-NAME             IN USE CHAR(120)
+      *  DB-PARENT-FILE           IN USE CHAR(120)
       *  DB-TYPE-UPDATE           IN USE CHAR(10)
       *  WS-MAX-LOTE-STR          IN USE CHAR(10)
       *  WS-PARAM-VARS-SQL    NOT IN USE
@@ -360,5 +376,6 @@
       *  WS-TFFM-INSERT       NOT IN USE
       *  WS-TFFM-INSERT.DB-FECHA-PROC NOT IN USE
       *  WS-TFFM-INSERT.DB-FILE-NAME NOT IN USE
+      *  WS-TFFM-INSERT.DB-PARENT-FILE NOT IN USE
       *  WS-TFFM-INSERT.DB-TYPE-UPDATE NOT IN USE
       **********************************************************************

@@ -1,9 +1,15 @@
        IDENTIFICATION DIVISION.
        PROGRAM-ID. TFTRCT.
+      *==========================================================*
+      * PROGRAMA: TFTRCT.sqb                                     *
+      * FUNCION:  Orquestador de la Máquina de Estados (Batch)   *
+      * MODIFICACIÓN: Integración estricta del copybook LKTF     *
+      *==========================================================*
        ENVIRONMENT DIVISION.
        CONFIGURATION SECTION.
        SPECIAL-NAMES.
            DECIMAL-POINT IS COMMA.
+
        DATA DIVISION.
        WORKING-STORAGE SECTION.
       **********************************************************************
@@ -76,6 +82,7 @@
            05 SQL-VAR-0001  PIC S9(9) COMP-3.
       *******       END OF PRECOMPILER-GENERATED VARIABLES           *******
       **********************************************************************
+      * Area de comunicacion de SQL
       *    EXEC SQL INCLUDE SQLCA END-EXEC.
        01 SQLCA.
            05 SQLSTATE PIC X(5).
@@ -95,6 +102,7 @@
            05 SQLERRD OCCURS 6 TIMES PIC S9(9) COMP-5 VALUE ZERO.
            05 FILLER   PIC X(4).
            05 SQL-HCONN USAGE POINTER VALUE NULL.
+
       *    EXEC SQL BEGIN DECLARE SECTION END-EXEC.
        01  WS-TFFM-VARS.
            05 WS-ID-LOTE           PIC 9(09).
@@ -107,14 +115,18 @@
        01  WS-PROG-FASE            PIC X(08).
        01  WS-FECHA-CONTABLE       PIC X(10).
       *    EXEC SQL END DECLARE SECTION END-EXEC.
+
        01  WS-FLAGS.
            05 WS-HAY-LOTES-PEND    PIC X(01) VALUE 'S'.
            05 WS-LOTE-TERMINADO    PIC X(01) VALUE 'N'.
-           COPY LKCIF.
+      * CORRECCIÓN: Se sustituye LKCIF por el nuevo contrato batch LKTF
+           COPY LKTF.
+
        PROCEDURE DIVISION.
        000-MAIN.
            DISPLAY "--- INICIANDO ORQUESTADOR 2.0 ---"
            CALL "BNCR004" USING WS-FECHA-CONTABLE.
+
            PERFORM UNTIL WS-HAY-LOTES-PEND = 'N'
                PERFORM 100-BUSCAR-LOTE
                IF SQLCODE = 0
@@ -129,11 +141,13 @@
                END-IF
            END-PERFORM.
            GOBACK.
+
        100-BUSCAR-LOTE.
       *    EXEC SQL
       *        SELECT ID_LOTE, FILE_NAME, FASE, TYPE_UPDATE
       *        INTO :WS-ID-LOTE, :WS-FILE-NAME, :WS-FASE,
-      *             :WS-TYPE-UPDATE FROM TFFM
+      *             :WS-TYPE-UPDATE
+      *        FROM TFFM
       *        WHERE FASE < '40' AND ESTADO_REPLICA = 'R'
       *        ORDER BY ID_LOTE ASC LIMIT 1
       *    END-EXEC.
@@ -165,6 +179,7 @@
                                SQLCA
            MOVE SQL-VAR-0001 TO WS-ID-LOTE
                    .
+
        200-BUSCAR-REPLICA.
            MOVE SPACES TO WS-REP-DISPONIBLE.
       *    EXEC SQL
@@ -185,6 +200,7 @@
            CALL 'OCSQLEXE' USING SQL-STMT-1
                                SQLCA
                    .
+
            IF WS-REP-DISPONIBLE NOT = SPACES
       *        EXEC SQL
       *            UPDATE TF_REPLICAS SET STATUS = 'O'
@@ -204,7 +220,8 @@
            CALL 'OCSQLEXE' USING SQL-STMT-2
                                SQLCA
       *        EXEC SQL
-      *            UPDATE TFFM SET REPLICA_NO = :WS-REP-DISPONIBLE
+      *            UPDATE TFFM
+      *            SET REPLICA_NO = :WS-REP-DISPONIBLE
       *            WHERE ID_LOTE = :WS-ID-LOTE
       *        END-EXEC
            IF SQL-PREP OF SQL-STMT-3 = 'N'
@@ -230,34 +247,50 @@
       *        EXEC SQL COMMIT END-EXEC
            CALL 'OCSQLCMT' USING SQLCA END-CALL
            END-IF.
+
        300-PROCESAR-LOTE.
            MOVE 'N' TO WS-LOTE-TERMINADO.
            PERFORM UNTIL WS-LOTE-TERMINADO = 'S'
                PERFORM 400-EVALUAR-FASE
-               IF LK-COD-RETORNO = 0
+               IF LK-TF-COD-RETORNO = 0
                    PERFORM 500-AVANZAR-FASE
-                   IF WS-FASE = '40' MOVE 'S' TO WS-LOTE-TERMINADO
+                   IF WS-FASE = '40'
+                      MOVE 'S' TO WS-LOTE-TERMINADO
+                   END-IF
                ELSE
                    MOVE 'S' TO WS-LOTE-TERMINADO
                END-IF
            END-PERFORM.
+
        400-EVALUAR-FASE.
            MOVE "SKIP" TO WS-PROG-FASE.
-           IF WS-FASE = '10' MOVE "TFMX" TO WS-PROG-FASE.
-           IF WS-FASE = '20' MOVE WS-TYPE-UPDATE TO WS-PROG-FASE.
-           IF WS-FASE = '30' MOVE "XXXREP" TO WS-PROG-FASE.
+
+           IF WS-FASE = '10'
+              MOVE "TFMX" TO WS-PROG-FASE
+           END-IF.
+
+           IF WS-FASE = '20'
+              MOVE "TFBATFIN" TO WS-PROG-FASE
+           END-IF.
+
+           IF WS-FASE = '30'
+              MOVE "XXXREP" TO WS-PROG-FASE
+           END-IF.
+
            IF WS-PROG-FASE NOT = "SKIP"
                MOVE WS-REP-DISPONIBLE TO WS-REPLICA-ASIG
                CALL WS-PROG-FASE USING WS-TFFM-VARS,
-                                       LK-DATOS-TRANSACCION
+                                         LK-TRICKLE-FEED-INTERFACE
            ELSE
-               MOVE 0 TO LK-COD-RETORNO
+               MOVE 0 TO LK-TF-COD-RETORNO
            END-IF.
+
        500-AVANZAR-FASE.
            IF WS-FASE = '00' MOVE '10' TO WS-FASE
            ELSE IF WS-FASE = '10' MOVE '20' TO WS-FASE
            ELSE IF WS-FASE = '20' MOVE '30' TO WS-FASE
            ELSE IF WS-FASE = '30' MOVE '40' TO WS-FASE.
+
       *    EXEC SQL
       *        UPDATE TFFM SET FASE = :WS-FASE
       *        WHERE ID_LOTE = :WS-ID-LOTE
@@ -283,6 +316,7 @@
            CALL 'OCSQLEXE' USING SQL-STMT-4
                                SQLCA
                    .
+
            IF WS-FASE = '40'
       *        EXEC SQL
       *            UPDATE TF_REPLICAS SET STATUS = 'L'

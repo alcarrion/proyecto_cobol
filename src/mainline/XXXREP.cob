@@ -1,14 +1,22 @@
        IDENTIFICATION DIVISION.
        PROGRAM-ID. XXXREP.
+      *==========================================================
+      * FASE 30: GENERACIÓN DE REPORTES POR FRAGMENTO CORREGIDA
+      * Solución a error de expansión macro en bloque EVALUATE
+      *==========================================================
+
        ENVIRONMENT DIVISION.
        INPUT-OUTPUT SECTION.
        FILE-CONTROL.
            SELECT ARCHIVO-SALIDA ASSIGN TO WS-RUTA-FINAL
-           ORGANIZATION IS LINE SEQUENTIAL FILE STATUS IS WS-FS.
+           ORGANIZATION IS LINE SEQUENTIAL
+           FILE STATUS IS WS-FS.
+
        DATA DIVISION.
        FILE SECTION.
        FD  ARCHIVO-SALIDA.
-       01  REG-SALIDA             PIC X(600).
+       01  REG-SALIDA                 PIC X(600).
+
        WORKING-STORAGE SECTION.
       **********************************************************************
       *******                EMBEDDED SQL VARIABLES                  *******
@@ -111,21 +119,24 @@
            05 SQLERRD OCCURS 6 TIMES PIC S9(9) COMP-5 VALUE ZERO.
            05 FILLER   PIC X(4).
            05 SQL-HCONN USAGE POINTER VALUE NULL.
+
       *    EXEC SQL BEGIN DECLARE SECTION END-EXEC.
        01  WS-TF-REGS-SQL.
            05 WS-DATOS-TX-SQL      PIC X(500).
            05 WS-ESTADO-SQL        PIC 9(01).
-           05 WS-COD-ERR-SQL       PIC X(04).
+           05 WS-COD-ERR-SQL       PIC X(10).
            05 WS-ID-LOTE-SQL       PIC 9(09).
       *    EXEC SQL END DECLARE SECTION END-EXEC.
+
        01  WS-CONTROL-REP.
            05 WS-RUTA-FINAL        PIC X(250).
            05 WS-STATUS-TXT        PIC X(05).
            05 WS-FS                PIC X(02).
            05 WS-EOF-REP           PIC X(01) VALUE 'N'.
            05 WS-PRE-RUTA          PIC X(100).
+
        LINKAGE SECTION.
-           COPY LKCIF.
+           COPY LKTF.
        01  WS-TFFM-VARS.
            05 WS-ID-LOTE           PIC 9(09).
            05 WS-FILE-NAME         PIC X(120).
@@ -133,35 +144,57 @@
            05 WS-TYPE-UPDATE       PIC X(10).
            05 WS-REPLICA-ASIG      PIC X(04).
            05 WS-RETRY-COUNT       PIC 9(02).
+
        PROCEDURE DIVISION USING WS-TFFM-VARS,
-                                LK-DATOS-TRANSACCION.
+                                LK-TRICKLE-FEED-INTERFACE.
        000-PRINCIPAL.
+           MOVE "N" TO WS-EOF-REP
+           MOVE 00 TO LK-TF-COD-RETORNO
            MOVE WS-ID-LOTE TO WS-ID-LOTE-SQL
-           MOVE "..\banco\spool\Interfaces\BATCH-UPLOAD-S\"
+
+           MOVE "C:\banco\spool\Interfaces\BATCH-UPLOAD-S\"
              TO WS-PRE-RUTA
+
+           INITIALIZE WS-RUTA-FINAL
            STRING FUNCTION TRIM(WS-PRE-RUTA)
                   "TRICKLE-FEED-REPORT\"
                   FUNCTION TRIM(WS-FILE-NAME) ".out"
                   DELIMITED BY SIZE INTO WS-RUTA-FINAL
+
            OPEN OUTPUT ARCHIVO-SALIDA
-           IF WS-FS NOT = "00" GOBACK END-IF
+           IF WS-FS NOT = "00"
+               DISPLAY "ERROR CRITICO: NO SE PUDO CREAR REPORTE: "
+                       WS-RUTA-FINAL " FS: " WS-FS
+               MOVE 99 TO LK-TF-COD-RETORNO
+               GOBACK
+           END-IF
+
            PERFORM 100-ABRIR
+
            PERFORM 200-FETCH
            PERFORM UNTIL WS-EOF-REP = 'Y'
                PERFORM 300-ESCRIBIR
                PERFORM 200-FETCH
            END-PERFORM
+
            PERFORM 400-CERRAR
            CLOSE ARCHIVO-SALIDA
-           MOVE 0 TO LK-COD-RETORNO
+
+           DISPLAY "  [REP] REPORTE PARCIAL GENERADO: "
+           WS-FILE-NAME ".out"
+           MOVE 0 TO LK-TF-COD-RETORNO
            GOBACK.
+
        100-ABRIR.
-           IF WS-REPLICA-ASIG = "TF01" PERFORM 101-OR.
-           IF WS-REPLICA-ASIG = "TF02" PERFORM 102-OR.
-           IF WS-REPLICA-ASIG = "TF03" PERFORM 103-OR.
-           IF WS-REPLICA-ASIG = "TF04" PERFORM 104-OR.
-           IF WS-REPLICA-ASIG = "TF05" PERFORM 105-OR.
-           IF WS-REPLICA-ASIG = "TF06" PERFORM 106-OR.
+           EVALUATE WS-REPLICA-ASIG
+               WHEN "TF01" PERFORM 101-OR
+               WHEN "TF02" PERFORM 102-OR
+               WHEN "TF03" PERFORM 103-OR
+               WHEN "TF04" PERFORM 104-OR
+               WHEN "TF05" PERFORM 105-OR
+               WHEN "TF06" PERFORM 106-OR
+           END-EVALUATE.
+
        101-OR.
       *    EXEC SQL DECLARE R1 CURSOR FOR
       *    SELECT DATOS_TX, ESTADO, COD_ERROR FROM TF01
@@ -288,10 +321,12 @@
                                SQLCA
            END-CALL
                                     .
+
        200-FETCH.
-           IF WS-REPLICA-ASIG = "TF01"
-      *    EXEC SQL FETCH R1 INTO :WS-DATOS-TX-SQL,
-      *    :WS-ESTADO-SQL, :WS-COD-ERR-SQL END-EXEC.
+           EVALUATE WS-REPLICA-ASIG
+               WHEN "TF01"
+      *            EXEC SQL FETCH R1 INTO :WS-DATOS-TX-SQL,
+      *            :WS-ESTADO-SQL, :WS-COD-ERR-SQL END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
              WS-DATOS-TX-SQL
            MOVE 'X' TO SQL-TYPE(1)
@@ -304,16 +339,15 @@
            SET SQL-ADDR(3) TO ADDRESS OF
              WS-COD-ERR-SQL
            MOVE 'X' TO SQL-TYPE(3)
-           MOVE 4 TO SQL-LEN(3)
+           MOVE 10 TO SQL-LEN(3)
            MOVE 3 TO SQL-COUNT
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-0
                                SQLCA
            MOVE SQL-VAR-0001 TO WS-ESTADO-SQL
-                                                   .
-           IF WS-REPLICA-ASIG = "TF02"
-      *    EXEC SQL FETCH R2 INTO :WS-DATOS-TX-SQL,
-      *    :WS-ESTADO-SQL, :WS-COD-ERR-SQL END-EXEC.
+               WHEN "TF02"
+      *            EXEC SQL FETCH R2 INTO :WS-DATOS-TX-SQL,
+      *            :WS-ESTADO-SQL, :WS-COD-ERR-SQL END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
              WS-DATOS-TX-SQL
            MOVE 'X' TO SQL-TYPE(1)
@@ -326,16 +360,15 @@
            SET SQL-ADDR(3) TO ADDRESS OF
              WS-COD-ERR-SQL
            MOVE 'X' TO SQL-TYPE(3)
-           MOVE 4 TO SQL-LEN(3)
+           MOVE 10 TO SQL-LEN(3)
            MOVE 3 TO SQL-COUNT
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-1
                                SQLCA
            MOVE SQL-VAR-0001 TO WS-ESTADO-SQL
-                                                   .
-           IF WS-REPLICA-ASIG = "TF03"
-      *    EXEC SQL FETCH R3 INTO :WS-DATOS-TX-SQL,
-      *    :WS-ESTADO-SQL, :WS-COD-ERR-SQL END-EXEC.
+               WHEN "TF03"
+      *            EXEC SQL FETCH R3 INTO :WS-DATOS-TX-SQL,
+      *            :WS-ESTADO-SQL, :WS-COD-ERR-SQL END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
              WS-DATOS-TX-SQL
            MOVE 'X' TO SQL-TYPE(1)
@@ -348,16 +381,15 @@
            SET SQL-ADDR(3) TO ADDRESS OF
              WS-COD-ERR-SQL
            MOVE 'X' TO SQL-TYPE(3)
-           MOVE 4 TO SQL-LEN(3)
+           MOVE 10 TO SQL-LEN(3)
            MOVE 3 TO SQL-COUNT
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-2
                                SQLCA
            MOVE SQL-VAR-0001 TO WS-ESTADO-SQL
-                                                   .
-           IF WS-REPLICA-ASIG = "TF04"
-      *    EXEC SQL FETCH R4 INTO :WS-DATOS-TX-SQL,
-      *    :WS-ESTADO-SQL, :WS-COD-ERR-SQL END-EXEC.
+               WHEN "TF04"
+      *            EXEC SQL FETCH R4 INTO :WS-DATOS-TX-SQL,
+      *            :WS-ESTADO-SQL, :WS-COD-ERR-SQL END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
              WS-DATOS-TX-SQL
            MOVE 'X' TO SQL-TYPE(1)
@@ -370,16 +402,15 @@
            SET SQL-ADDR(3) TO ADDRESS OF
              WS-COD-ERR-SQL
            MOVE 'X' TO SQL-TYPE(3)
-           MOVE 4 TO SQL-LEN(3)
+           MOVE 10 TO SQL-LEN(3)
            MOVE 3 TO SQL-COUNT
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-3
                                SQLCA
            MOVE SQL-VAR-0001 TO WS-ESTADO-SQL
-                                                   .
-           IF WS-REPLICA-ASIG = "TF05"
-      *    EXEC SQL FETCH R5 INTO :WS-DATOS-TX-SQL,
-      *    :WS-ESTADO-SQL, :WS-COD-ERR-SQL END-EXEC.
+               WHEN "TF05"
+      *            EXEC SQL FETCH R5 INTO :WS-DATOS-TX-SQL,
+      *            :WS-ESTADO-SQL, :WS-COD-ERR-SQL END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
              WS-DATOS-TX-SQL
            MOVE 'X' TO SQL-TYPE(1)
@@ -392,16 +423,15 @@
            SET SQL-ADDR(3) TO ADDRESS OF
              WS-COD-ERR-SQL
            MOVE 'X' TO SQL-TYPE(3)
-           MOVE 4 TO SQL-LEN(3)
+           MOVE 10 TO SQL-LEN(3)
            MOVE 3 TO SQL-COUNT
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-4
                                SQLCA
            MOVE SQL-VAR-0001 TO WS-ESTADO-SQL
-                                                   .
-           IF WS-REPLICA-ASIG = "TF06"
-      *    EXEC SQL FETCH R6 INTO :WS-DATOS-TX-SQL,
-      *    :WS-ESTADO-SQL, :WS-COD-ERR-SQL END-EXEC.
+               WHEN "TF06"
+      *            EXEC SQL FETCH R6 INTO :WS-DATOS-TX-SQL,
+      *            :WS-ESTADO-SQL, :WS-COD-ERR-SQL END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
              WS-DATOS-TX-SQL
            MOVE 'X' TO SQL-TYPE(1)
@@ -414,45 +444,73 @@
            SET SQL-ADDR(3) TO ADDRESS OF
              WS-COD-ERR-SQL
            MOVE 'X' TO SQL-TYPE(3)
-           MOVE 4 TO SQL-LEN(3)
+           MOVE 10 TO SQL-LEN(3)
            MOVE 3 TO SQL-COUNT
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-5
                                SQLCA
            MOVE SQL-VAR-0001 TO WS-ESTADO-SQL
-                                                   .
-           IF SQLCODE = 100 OR SQLCODE < 0 MOVE 'Y' TO WS-EOF-REP.
+           END-EVALUATE.
+           IF SQLCODE = 100 OR SQLCODE < 0
+               MOVE 'Y' TO WS-EOF-REP
+           END-IF.
+
        300-ESCRIBIR.
-           IF WS-ESTADO-SQL = 4 MOVE "OK" TO WS-STATUS-TXT
-           ELSE MOVE "ERR" TO WS-STATUS-TXT END-IF
-           STRING WS-DATOS-TX-SQL "|" WS-STATUS-TXT "|"
-                  WS-COD-ERR-SQL DELIMITED BY "  " INTO REG-SALIDA
+           INITIALIZE REG-SALIDA
+           IF WS-ESTADO-SQL = 4
+               MOVE "OK" TO WS-STATUS-TXT
+           ELSE
+               MOVE "ERROR" TO WS-STATUS-TXT
+           END-IF.
+
+           STRING FUNCTION TRIM(WS-DATOS-TX-SQL) "|"
+                  FUNCTION TRIM(WS-STATUS-TXT)   "|"
+                  FUNCTION TRIM(WS-COD-ERR-SQL)
+                  DELIMITED BY SIZE INTO REG-SALIDA.
+
            WRITE REG-SALIDA.
+
        400-CERRAR.
-      *    IF WS-REPLICA-ASIG = "TF01" EXEC SQL CLOSE R1 END-EXEC.
+      * CORRECCIÓN SENIOR: Redirección mediante PERFORM para evitar bu
+           EVALUATE WS-REPLICA-ASIG
+               WHEN "TF01" PERFORM 401-CLOSE-R1
+               WHEN "TF02" PERFORM 402-CLOSE-R2
+               WHEN "TF03" PERFORM 403-CLOSE-R3
+               WHEN "TF04" PERFORM 404-CLOSE-R4
+               WHEN "TF05" PERFORM 405-CLOSE-R5
+               WHEN "TF06" PERFORM 406-CLOSE-R6
+           END-EVALUATE.
+
+       401-CLOSE-R1.
+      *    EXEC SQL CLOSE R1 END-EXEC.
            CALL 'OCSQLCCU' USING SQL-STMT-0
                                SQLCA
-                                                                 .
-      *    IF WS-REPLICA-ASIG = "TF02" EXEC SQL CLOSE R2 END-EXEC.
+                                     .
+       402-CLOSE-R2.
+      *    EXEC SQL CLOSE R2 END-EXEC.
            CALL 'OCSQLCCU' USING SQL-STMT-1
                                SQLCA
-                                                                 .
-      *    IF WS-REPLICA-ASIG = "TF03" EXEC SQL CLOSE R3 END-EXEC.
+                                     .
+       403-CLOSE-R3.
+      *    EXEC SQL CLOSE R3 END-EXEC.
            CALL 'OCSQLCCU' USING SQL-STMT-2
                                SQLCA
-                                                                 .
-      *    IF WS-REPLICA-ASIG = "TF04" EXEC SQL CLOSE R4 END-EXEC.
+                                     .
+       404-CLOSE-R4.
+      *    EXEC SQL CLOSE R4 END-EXEC.
            CALL 'OCSQLCCU' USING SQL-STMT-3
                                SQLCA
-                                                                 .
-      *    IF WS-REPLICA-ASIG = "TF05" EXEC SQL CLOSE R5 END-EXEC.
+                                     .
+       405-CLOSE-R5.
+      *    EXEC SQL CLOSE R5 END-EXEC.
            CALL 'OCSQLCCU' USING SQL-STMT-4
                                SQLCA
-                                                                 .
-      *    IF WS-REPLICA-ASIG = "TF06" EXEC SQL CLOSE R6 END-EXEC.
+                                     .
+       406-CLOSE-R6.
+      *    EXEC SQL CLOSE R6 END-EXEC.
            CALL 'OCSQLCCU' USING SQL-STMT-5
                                SQLCA
-                                                                 .
+                                     .
       **********************************************************************
       *  : ESQL for GnuCOBOL/OpenCOBOL Version 3 (2024.04.30) Build May 10 2024
 
@@ -463,7 +521,7 @@
       *  R4                       IN USE CURSOR
       *  R5                       IN USE CURSOR
       *  R6                       IN USE CURSOR
-      *  WS-COD-ERR-SQL           IN USE CHAR(4)
+      *  WS-COD-ERR-SQL           IN USE CHAR(10)
       *  WS-DATOS-TX-SQL          IN USE CHAR(500)
       *  WS-ESTADO-SQL            IN USE THROUGH TEMP VAR SQL-VAR-0001 DECIMAL(1,0)
       *  WS-ID-LOTE-SQL           IN USE THROUGH TEMP VAR SQL-VAR-0002 DECIMAL(9,0)
