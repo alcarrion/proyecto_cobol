@@ -2,8 +2,9 @@
        PROGRAM-ID. TFBATFIN.
       *================================================================*
       * PROGRAMA: TFBATFIN.sqb                                         *
-      * FUNCION: Procesador Batch de transacciones por réplica        *
-      * CORRECCIÓN: Soporte Créditos, alineación Linkage y Logs de Er
+      * RESPONSABILIDAD: Procesador Core Contable Masivo Asíncrono
+      * CORRECCIÓN: Alineación con columnas reales ID_CUENTA,
+      * ESTADO_CUENTA y validación de Cédula de 10 dígitos.*
       *================================================================*
        ENVIRONMENT DIVISION.
        CONFIGURATION SECTION.
@@ -15,22 +16,22 @@
       **********************************************************************
       *******                EMBEDDED SQL VARIABLES                  *******
        01 SQLV.
-           05 SQL-ARRSZ  PIC S9(9) COMP-5 VALUE 5.
+           05 SQL-ARRSZ  PIC S9(9) COMP-5 VALUE 7.
            05 SQL-COUNT  PIC S9(9) COMP-5 VALUE ZERO.
-           05 SQL-ADDR   POINTER OCCURS 5 TIMES VALUE NULL.
-           05 SQL-LEN    PIC S9(9) COMP-5 OCCURS 5 TIMES VALUE ZERO.
-           05 SQL-TYPE   PIC X OCCURS 5 TIMES.
-           05 SQL-PREC   PIC X OCCURS 5 TIMES.
+           05 SQL-ADDR   POINTER OCCURS 7 TIMES VALUE NULL.
+           05 SQL-LEN    PIC S9(9) COMP-5 OCCURS 7 TIMES VALUE ZERO.
+           05 SQL-TYPE   PIC X OCCURS 7 TIMES.
+           05 SQL-PREC   PIC X OCCURS 7 TIMES.
       **********************************************************************
        01 SQL-STMT-0.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE 'C'.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 94.
-           05 SQL-STMT   PIC X(94) VALUE 'SELECT ID_REGISTRO,ID_LOTE,CUE
-      -    'NTA,NUM_CREDITO,MONTO FROM TF01 WHERE ID_LOTE = ? AND ESTADO
-      -    ' = 2'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 121.
+           05 SQL-STMT   PIC X(121) VALUE 'SELECT ID_REGISTRO,ID_LOTE,CU
+      -    'ENTA,NUM_CREDITO,MONTO,ID_TRANSACCION,TYPE_UPDATE FROM tf01 
+      -    'WHERE ID_LOTE = ? AND ESTADO = 2'.
            05 SQL-CNAME  PIC X(2) VALUE 'C1'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
@@ -40,7 +41,7 @@
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 48.
-           05 SQL-STMT   PIC X(48) VALUE 'UPDATE TF01 SET ESTADO = 3 WHE
+           05 SQL-STMT   PIC X(48) VALUE 'UPDATE tf01 SET ESTADO = 3 WHE
       -    'RE ID_REGISTRO = ?'.
       **********************************************************************
        01 SQL-STMT-2.
@@ -49,7 +50,7 @@
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 4.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 80.
-           05 SQL-STMT   PIC X(80) VALUE 'UPDATE TF01 SET ESTADO = ?,COD
+           05 SQL-STMT   PIC X(80) VALUE 'UPDATE tf01 SET ESTADO = ?,COD
       -    '_ERROR = ?,ERROR_MESSAGE = ? WHERE ID_REGISTRO = ?'.
       **********************************************************************
        01 SQL-STMT-3.
@@ -57,10 +58,10 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE 'C'.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 94.
-           05 SQL-STMT   PIC X(94) VALUE 'SELECT ID_REGISTRO,ID_LOTE,CUE
-      -    'NTA,NUM_CREDITO,MONTO FROM TF02 WHERE ID_LOTE = ? AND ESTADO
-      -    ' = 2'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 121.
+           05 SQL-STMT   PIC X(121) VALUE 'SELECT ID_REGISTRO,ID_LOTE,CU
+      -    'ENTA,NUM_CREDITO,MONTO,ID_TRANSACCION,TYPE_UPDATE FROM tf02 
+      -    'WHERE ID_LOTE = ? AND ESTADO = 2'.
            05 SQL-CNAME  PIC X(2) VALUE 'C2'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
@@ -70,7 +71,7 @@
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 48.
-           05 SQL-STMT   PIC X(48) VALUE 'UPDATE TF02 SET ESTADO = 3 WHE
+           05 SQL-STMT   PIC X(48) VALUE 'UPDATE tf02 SET ESTADO = 3 WHE
       -    'RE ID_REGISTRO = ?'.
       **********************************************************************
        01 SQL-STMT-5.
@@ -79,7 +80,7 @@
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 4.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 80.
-           05 SQL-STMT   PIC X(80) VALUE 'UPDATE TF02 SET ESTADO = ?,COD
+           05 SQL-STMT   PIC X(80) VALUE 'UPDATE tf02 SET ESTADO = ?,COD
       -    '_ERROR = ?,ERROR_MESSAGE = ? WHERE ID_REGISTRO = ?'.
       **********************************************************************
        01 SQL-STMT-6.
@@ -87,10 +88,10 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE 'C'.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 94.
-           05 SQL-STMT   PIC X(94) VALUE 'SELECT ID_REGISTRO,ID_LOTE,CUE
-      -    'NTA,NUM_CREDITO,MONTO FROM TF03 WHERE ID_LOTE = ? AND ESTADO
-      -    ' = 2'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 121.
+           05 SQL-STMT   PIC X(121) VALUE 'SELECT ID_REGISTRO,ID_LOTE,CU
+      -    'ENTA,NUM_CREDITO,MONTO,ID_TRANSACCION,TYPE_UPDATE FROM tf03 
+      -    'WHERE ID_LOTE = ? AND ESTADO = 2'.
            05 SQL-CNAME  PIC X(2) VALUE 'C3'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
@@ -100,7 +101,7 @@
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 48.
-           05 SQL-STMT   PIC X(48) VALUE 'UPDATE TF03 SET ESTADO = 3 WHE
+           05 SQL-STMT   PIC X(48) VALUE 'UPDATE tf03 SET ESTADO = 3 WHE
       -    'RE ID_REGISTRO = ?'.
       **********************************************************************
        01 SQL-STMT-8.
@@ -109,7 +110,7 @@
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 4.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 80.
-           05 SQL-STMT   PIC X(80) VALUE 'UPDATE TF03 SET ESTADO = ?,COD
+           05 SQL-STMT   PIC X(80) VALUE 'UPDATE tf03 SET ESTADO = ?,COD
       -    '_ERROR = ?,ERROR_MESSAGE = ? WHERE ID_REGISTRO = ?'.
       **********************************************************************
        01 SQL-STMT-9.
@@ -117,10 +118,10 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE 'C'.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 94.
-           05 SQL-STMT   PIC X(94) VALUE 'SELECT ID_REGISTRO,ID_LOTE,CUE
-      -    'NTA,NUM_CREDITO,MONTO FROM TF04 WHERE ID_LOTE = ? AND ESTADO
-      -    ' = 2'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 121.
+           05 SQL-STMT   PIC X(121) VALUE 'SELECT ID_REGISTRO,ID_LOTE,CU
+      -    'ENTA,NUM_CREDITO,MONTO,ID_TRANSACCION,TYPE_UPDATE FROM tf04 
+      -    'WHERE ID_LOTE = ? AND ESTADO = 2'.
            05 SQL-CNAME  PIC X(2) VALUE 'C4'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
@@ -130,7 +131,7 @@
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 48.
-           05 SQL-STMT   PIC X(48) VALUE 'UPDATE TF04 SET ESTADO = 3 WHE
+           05 SQL-STMT   PIC X(48) VALUE 'UPDATE tf04 SET ESTADO = 3 WHE
       -    'RE ID_REGISTRO = ?'.
       **********************************************************************
        01 SQL-STMT-11.
@@ -139,7 +140,7 @@
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 4.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 80.
-           05 SQL-STMT   PIC X(80) VALUE 'UPDATE TF04 SET ESTADO = ?,COD
+           05 SQL-STMT   PIC X(80) VALUE 'UPDATE tf04 SET ESTADO = ?,COD
       -    '_ERROR = ?,ERROR_MESSAGE = ? WHERE ID_REGISTRO = ?'.
       **********************************************************************
        01 SQL-STMT-12.
@@ -147,10 +148,10 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE 'C'.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 94.
-           05 SQL-STMT   PIC X(94) VALUE 'SELECT ID_REGISTRO,ID_LOTE,CUE
-      -    'NTA,NUM_CREDITO,MONTO FROM TF05 WHERE ID_LOTE = ? AND ESTADO
-      -    ' = 2'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 121.
+           05 SQL-STMT   PIC X(121) VALUE 'SELECT ID_REGISTRO,ID_LOTE,CU
+      -    'ENTA,NUM_CREDITO,MONTO,ID_TRANSACCION,TYPE_UPDATE FROM tf05 
+      -    'WHERE ID_LOTE = ? AND ESTADO = 2'.
            05 SQL-CNAME  PIC X(2) VALUE 'C5'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
@@ -160,7 +161,7 @@
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 48.
-           05 SQL-STMT   PIC X(48) VALUE 'UPDATE TF05 SET ESTADO = 3 WHE
+           05 SQL-STMT   PIC X(48) VALUE 'UPDATE tf05 SET ESTADO = 3 WHE
       -    'RE ID_REGISTRO = ?'.
       **********************************************************************
        01 SQL-STMT-14.
@@ -169,7 +170,7 @@
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 4.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 80.
-           05 SQL-STMT   PIC X(80) VALUE 'UPDATE TF05 SET ESTADO = ?,COD
+           05 SQL-STMT   PIC X(80) VALUE 'UPDATE tf05 SET ESTADO = ?,COD
       -    '_ERROR = ?,ERROR_MESSAGE = ? WHERE ID_REGISTRO = ?'.
       **********************************************************************
        01 SQL-STMT-15.
@@ -177,10 +178,10 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE 'C'.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 94.
-           05 SQL-STMT   PIC X(94) VALUE 'SELECT ID_REGISTRO,ID_LOTE,CUE
-      -    'NTA,NUM_CREDITO,MONTO FROM TF06 WHERE ID_LOTE = ? AND ESTADO
-      -    ' = 2'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 121.
+           05 SQL-STMT   PIC X(121) VALUE 'SELECT ID_REGISTRO,ID_LOTE,CU
+      -    'ENTA,NUM_CREDITO,MONTO,ID_TRANSACCION,TYPE_UPDATE FROM tf06 
+      -    'WHERE ID_LOTE = ? AND ESTADO = 2'.
            05 SQL-CNAME  PIC X(2) VALUE 'C6'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
@@ -190,7 +191,7 @@
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 48.
-           05 SQL-STMT   PIC X(48) VALUE 'UPDATE TF06 SET ESTADO = 3 WHE
+           05 SQL-STMT   PIC X(48) VALUE 'UPDATE tf06 SET ESTADO = 3 WHE
       -    'RE ID_REGISTRO = ?'.
       **********************************************************************
        01 SQL-STMT-17.
@@ -199,17 +200,31 @@
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 4.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 80.
-           05 SQL-STMT   PIC X(80) VALUE 'UPDATE TF06 SET ESTADO = ?,COD
+           05 SQL-STMT   PIC X(80) VALUE 'UPDATE tf06 SET ESTADO = ?,COD
       -    '_ERROR = ?,ERROR_MESSAGE = ? WHERE ID_REGISTRO = ?'.
+      **********************************************************************
+       01 SQL-STMT-18.
+           05 SQL-IPTR   POINTER VALUE NULL.
+           05 SQL-PREP   PIC X VALUE 'N'.
+           05 SQL-OPT    PIC X VALUE SPACE.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 233.
+           05 SQL-STMT   PIC X(233) VALUE 'SELECT COUNT(*),c.TIPO_DOC,c.
+      -    'DOC_CLIENTE,cc.ESTADO_CUENTA,cc.SALDO_ACTUAL FROM ctactes cc
+      -    ' INNER JOIN clientes c ON cc.ID_CLIENTE = c.ID_CLIENTE WHERE
+      -    ' cc.ID_CUENTA = ? GROUP BY c.TIPO_DOC,c.DOC_CLIENTE,cc.ESTAD
+      -    'O_CUENTA,cc.SALDO_ACTUAL'.
       **********************************************************************
       *******          PRECOMPILER-GENERATED VARIABLES               *******
        01 SQLV-GEN-VARS.
            05 SQL-VAR-0001  PIC S9(9) COMP-3.
            05 SQL-VAR-0002  PIC S9(9) COMP-3.
-           05 SQL-VAR-0003  PIC S9(13) COMP-3.
+           05 SQL-VAR-0003  PIC S9(9) COMP-3.
            05 SQL-VAR-0004  PIC S9(13)V9(2) COMP-3.
            05 SQL-VAR-0005  PIC S9(9) COMP-3.
            05 SQL-VAR-0006  PIC S9(3) COMP-3.
+           05 SQL-VAR-0007  PIC S9(1) COMP-3.
+           05 SQL-VAR-0008  PIC S9(13)V9(2) COMP-3.
       *******       END OF PRECOMPILER-GENERATED VARIABLES           *******
       **********************************************************************
       *    EXEC SQL INCLUDE SQLCA END-EXEC.
@@ -233,25 +248,40 @@
            05 SQL-HCONN USAGE POINTER VALUE NULL.
 
       *    EXEC SQL BEGIN DECLARE SECTION END-EXEC.
-      * 01  WS-REG-REPLICA.
-           01 DB-ID-REGISTRO       PIC 9(09).
-           01 DB-ID-LOTE           PIC 9(09).
-           01 DB-CUENTA            PIC 9(12).
-           01 DB-NUM-CREDITO       PIC X(20).
-           01 DB-MONTO             PIC S9(13)V99.
-           01 DB-OP                PIC X(03).
-           01 DB-LOTE-BUSQUEDA     PIC 9(09).
-           01 DB-ESTADO-FINAL      PIC 9(02).
-           01 DB-COD-ERROR         PIC X(10).
-           01 DB-MSG-ERROR         PIC X(200).
+      * Variables de Control de Cursores de Réplicas
+       01  DB-ID-REGISTRO          PIC 9(09).
+       01  DB-ID-LOTE              PIC 9(09).
+       01  DB-CUENTA               PIC 9(09).
+       01  DB-NUM-CREDITO          PIC X(20).
+       01  DB-MONTO                PIC S9(13)V99.
+       01  DB-TXID                 PIC X(40).
+       01  DB-TYPE-UPD             PIC X(10).
+       01  DB-LOTE-BUSQUEDA        PIC 9(09).
+       01  DB-ESTADO-FINAL         PIC 9(02).
+       01  DB-COD-ERROR            PIC X(10).
+       01  DB-MSG-ERROR            PIC X(200).
+
+      * Variables para Consulta de Cobertura e Identidad Bancaria
+       01  DB-VALIDACION-MASTER.
+           05 MS-COUNT-MATCH       PIC 9(01).
+           05 MS-TIPO-DOC          PIC X(03).
+           05 MS-DOC-CLIENTE       PIC X(12).
+           05 MS-ESTADO-CTA        PIC X(01).
+           05 MS-SALDO-ACTUAL      PIC S9(13)V99.
       *    EXEC SQL END DECLARE SECTION END-EXEC.
 
        01  WS-FLAGS.
            05 WS-EOF-CURSOR        PIC X(01) VALUE 'N'.
 
+      * Variables Locales para Cálculo de Longitud Exoficial
+       01  WS-AUDITORIA-INTERNA.
+           05 WS-ESPACIOS-DERECHA  PIC 9(02) VALUE 0.
+           05 WS-LONGITUD-REAL     PIC 9(02) VALUE 0.
+
+      * Registro de Comunicación de Interfaz con tkin01
        01  REG-CTA.
-           05 CTA-ID-CLIENTE       PIC 9(12).  *> Alineado a DB
-           05 CTA-NUM-CREDITO     PIC X(20).  *> NUEVO
+           05 CTA-NRO-CUENTA       PIC 9(09).
+           05 CTA-NUM-CREDITO      PIC X(20).
            05 CTA-SALDO-ACTUAL     PIC S9(13)V99.
            05 CTA-MONTO-MOV        PIC 9(13)V99.
 
@@ -265,12 +295,14 @@
            05 WS-REPLICA-ASIG      PIC X(04).
            05 WS-RETRY-COUNT       PIC 9(02).
 
-       PROCEDURE DIVISION USING WS-TFFM-VARS, LK-TRICKLE-FEED-INTERFACE.
+       PROCEDURE DIVISION USING WS-TFFM-VARS,
+                                LK-TRICKLE-FEED-INTERFACE.
        0000-PRINCIPAL.
            MOVE "N" TO WS-EOF-CURSOR
            MOVE 00 TO LK-TF-COD-RETORNO
            MOVE WS-ID-LOTE TO DB-LOTE-BUSQUEDA.
 
+      * El orquestador deriva dinámicamente al hilo de la réplica asig
            EVALUATE WS-REPLICA-ASIG
                WHEN "TF01" PERFORM 1000-PROCESAR-TF01
                WHEN "TF02" PERFORM 2000-PROCESAR-TF02
@@ -281,10 +313,14 @@
            END-EVALUATE.
            GOBACK.
 
+      *================================================================*
+      * CONTROLADORES DE CURSORES ASIGNADOS (Fase Extracción)
+      *================================================================*
        1000-PROCESAR-TF01.
       *    EXEC SQL DECLARE C1 CURSOR FOR
-      *        SELECT ID_REGISTRO, ID_LOTE, CUENTA, NUM_CREDITO, MONTO
-      *        FROM TF01 WHERE ID_LOTE = :DB-LOTE-BUSQUEDA
+      *        SELECT ID_REGISTRO, ID_LOTE, CUENTA, NUM_CREDITO, MONTO,
+      *               ID_TRANSACCION, TYPE_UPDATE
+      *        FROM tf01 WHERE ID_LOTE = :DB-LOTE-BUSQUEDA
       *        AND ESTADO = 2
       *    END-EXEC.
                    .
@@ -307,8 +343,8 @@
                                     .
            PERFORM UNTIL WS-EOF-CURSOR = 'Y'
       *        EXEC SQL FETCH C1 INTO :DB-ID-REGISTRO, :DB-ID-LOTE,
-      *                               :DB-CUENTA, :DB-NUM-CREDITO,
-      *                               :DB-MONTO END-EXEC
+      *             :DB-CUENTA, :DB-NUM-CREDITO, :DB-MONTO,
+      *             :DB-TXID, :DB-TYPE-UPD END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
              SQL-VAR-0001
            MOVE '3' TO SQL-TYPE(1)
@@ -322,7 +358,7 @@
            SET SQL-ADDR(3) TO ADDRESS OF
              SQL-VAR-0003
            MOVE '3' TO SQL-TYPE(3)
-           MOVE 7 TO SQL-LEN(3)
+           MOVE 5 TO SQL-LEN(3)
                MOVE X'00' TO SQL-PREC(3)
            SET SQL-ADDR(4) TO ADDRESS OF
              DB-NUM-CREDITO
@@ -333,7 +369,15 @@
            MOVE '3' TO SQL-TYPE(5)
            MOVE 8 TO SQL-LEN(5)
                MOVE X'02' TO SQL-PREC(5)
-           MOVE 5 TO SQL-COUNT
+           SET SQL-ADDR(6) TO ADDRESS OF
+             DB-TXID
+           MOVE 'X' TO SQL-TYPE(6)
+           MOVE 40 TO SQL-LEN(6)
+           SET SQL-ADDR(7) TO ADDRESS OF
+             DB-TYPE-UPD
+           MOVE 'X' TO SQL-TYPE(7)
+           MOVE 10 TO SQL-LEN(7)
+           MOVE 7 TO SQL-COUNT
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-0
                                SQLCA
@@ -342,7 +386,7 @@
            MOVE SQL-VAR-0003 TO DB-CUENTA
            MOVE SQL-VAR-0004 TO DB-MONTO
                IF SQLCODE = 0
-      *            EXEC SQL UPDATE TF01 SET ESTADO = 3
+      *            EXEC SQL UPDATE tf01 SET ESTADO = 3
       *                     WHERE ID_REGISTRO = :DB-ID-REGISTRO
       *                     END-EXEC
            IF SQL-PREP OF SQL-STMT-1 = 'N'
@@ -362,10 +406,10 @@
            CALL 'OCSQLEXE' USING SQL-STMT-1
                                SQLCA
 
-                   PERFORM 9000-AFECTAR-CORE
+                   PERFORM 9000-EJECUTAR-CORE-REGLAS
 
       *            EXEC SQL
-      *                UPDATE TF01
+      *                UPDATE tf01
       *                SET ESTADO = :DB-ESTADO-FINAL,
       *                    COD_ERROR = :DB-COD-ERROR,
       *                    ERROR_MESSAGE = :DB-MSG-ERROR
@@ -411,14 +455,13 @@
                                SQLCA
                                      .
 
-      * PÁRRAFOS 2000 A 6000 REPLICAN EXACTAMENTE LA LÓGICA DE 1000
-      *CAMBIANDO LA TABLA (TF02-TF06)
        2000-PROCESAR-TF02.
       *    EXEC SQL DECLARE C2 CURSOR FOR
-      *        SELECT ID_REGISTRO, ID_LOTE, CUENTA, NUM_CREDITO, MONTO
-      *        FROM TF02 WHERE ID_LOTE = :DB-LOTE-BUSQUEDA AND
-      *        ESTADO = 2 END-EXEC.
-                                  .
+      *        SELECT ID_REGISTRO, ID_LOTE, CUENTA, NUM_CREDITO, MONTO,
+      *               ID_TRANSACCION, TYPE_UPDATE
+      *        FROM tf02 WHERE ID_LOTE = :DB-LOTE-BUSQUEDA
+      *        AND ESTADO = 2 END-EXEC.
+                                      .
       *    EXEC SQL OPEN C2 END-EXEC.
            IF SQL-PREP OF SQL-STMT-3 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -438,7 +481,8 @@
                                     .
            PERFORM UNTIL WS-EOF-CURSOR = 'Y'
       *        EXEC SQL FETCH C2 INTO :DB-ID-REGISTRO, :DB-ID-LOTE,
-      *        :DB-CUENTA, :DB-NUM-CREDITO, :DB-MONTO END-EXEC
+      *             :DB-CUENTA, :DB-NUM-CREDITO, :DB-MONTO,
+      *             :DB-TXID, :DB-TYPE-UPD END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
              SQL-VAR-0001
            MOVE '3' TO SQL-TYPE(1)
@@ -452,7 +496,7 @@
            SET SQL-ADDR(3) TO ADDRESS OF
              SQL-VAR-0003
            MOVE '3' TO SQL-TYPE(3)
-           MOVE 7 TO SQL-LEN(3)
+           MOVE 5 TO SQL-LEN(3)
                MOVE X'00' TO SQL-PREC(3)
            SET SQL-ADDR(4) TO ADDRESS OF
              DB-NUM-CREDITO
@@ -463,7 +507,15 @@
            MOVE '3' TO SQL-TYPE(5)
            MOVE 8 TO SQL-LEN(5)
                MOVE X'02' TO SQL-PREC(5)
-           MOVE 5 TO SQL-COUNT
+           SET SQL-ADDR(6) TO ADDRESS OF
+             DB-TXID
+           MOVE 'X' TO SQL-TYPE(6)
+           MOVE 40 TO SQL-LEN(6)
+           SET SQL-ADDR(7) TO ADDRESS OF
+             DB-TYPE-UPD
+           MOVE 'X' TO SQL-TYPE(7)
+           MOVE 10 TO SQL-LEN(7)
+           MOVE 7 TO SQL-COUNT
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-3
                                SQLCA
@@ -472,7 +524,7 @@
            MOVE SQL-VAR-0003 TO DB-CUENTA
            MOVE SQL-VAR-0004 TO DB-MONTO
                IF SQLCODE = 0
-      *            EXEC SQL UPDATE TF02 SET ESTADO = 3
+      *            EXEC SQL UPDATE tf02 SET ESTADO = 3
       *            WHERE ID_REGISTRO = :DB-ID-REGISTRO END-EXEC
            IF SQL-PREP OF SQL-STMT-4 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -490,11 +542,11 @@
              TO SQL-VAR-0001
            CALL 'OCSQLEXE' USING SQL-STMT-4
                                SQLCA
-                   PERFORM 9000-AFECTAR-CORE
-      *            EXEC SQL UPDATE TF02 SET ESTADO = :DB-ESTADO-FINAL,
-      *            COD_ERROR = :DB-COD-ERROR, ERROR_MESSAGE =
-      *            :DB-MSG-ERROR WHERE ID_REGISTRO =
-      *            :DB-ID-REGISTRO END-EXEC
+                   PERFORM 9000-EJECUTAR-CORE-REGLAS
+      *            EXEC SQL UPDATE tf02 SET ESTADO = :DB-ESTADO-FINAL,
+      *                 COD_ERROR = :DB-COD-ERROR, ERROR_MESSAGE =
+      *                  :DB-MSG-ERROR
+      *                 WHERE ID_REGISTRO = :DB-ID-REGISTRO END-EXEC
            IF SQL-PREP OF SQL-STMT-5 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  SQL-VAR-0006
@@ -535,8 +587,9 @@
 
        3000-PROCESAR-TF03.
       *    EXEC SQL DECLARE C3 CURSOR FOR
-      *        SELECT ID_REGISTRO, ID_LOTE, CUENTA, NUM_CREDITO, MONTO
-      *        FROM TF03 WHERE ID_LOTE = :DB-LOTE-BUSQUEDA AND
+      *        SELECT ID_REGISTRO, ID_LOTE, CUENTA, NUM_CREDITO, MONTO,
+      *               ID_TRANSACCION, TYPE_UPDATE
+      *        FROM tf03 WHERE ID_LOTE = :DB-LOTE-BUSQUEDA AND
       *        ESTADO = 2 END-EXEC.
                                   .
       *    EXEC SQL OPEN C3 END-EXEC.
@@ -558,7 +611,8 @@
                                     .
            PERFORM UNTIL WS-EOF-CURSOR = 'Y'
       *        EXEC SQL FETCH C3 INTO :DB-ID-REGISTRO, :DB-ID-LOTE,
-      *         :DB-CUENTA, :DB-NUM-CREDITO, :DB-MONTO END-EXEC
+      *             :DB-CUENTA, :DB-NUM-CREDITO, :DB-MONTO,
+      *             :DB-TXID, :DB-TYPE-UPD END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
              SQL-VAR-0001
            MOVE '3' TO SQL-TYPE(1)
@@ -572,7 +626,7 @@
            SET SQL-ADDR(3) TO ADDRESS OF
              SQL-VAR-0003
            MOVE '3' TO SQL-TYPE(3)
-           MOVE 7 TO SQL-LEN(3)
+           MOVE 5 TO SQL-LEN(3)
                MOVE X'00' TO SQL-PREC(3)
            SET SQL-ADDR(4) TO ADDRESS OF
              DB-NUM-CREDITO
@@ -583,7 +637,15 @@
            MOVE '3' TO SQL-TYPE(5)
            MOVE 8 TO SQL-LEN(5)
                MOVE X'02' TO SQL-PREC(5)
-           MOVE 5 TO SQL-COUNT
+           SET SQL-ADDR(6) TO ADDRESS OF
+             DB-TXID
+           MOVE 'X' TO SQL-TYPE(6)
+           MOVE 40 TO SQL-LEN(6)
+           SET SQL-ADDR(7) TO ADDRESS OF
+             DB-TYPE-UPD
+           MOVE 'X' TO SQL-TYPE(7)
+           MOVE 10 TO SQL-LEN(7)
+           MOVE 7 TO SQL-COUNT
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-6
                                SQLCA
@@ -592,8 +654,8 @@
            MOVE SQL-VAR-0003 TO DB-CUENTA
            MOVE SQL-VAR-0004 TO DB-MONTO
                IF SQLCODE = 0
-      *            EXEC SQL UPDATE TF03 SET ESTADO = 3
-      *            WHERE ID_REGISTRO = :DB-ID-REGISTRO END-EXEC
+      *            EXEC SQL UPDATE tf03 SET ESTADO = 3
+      *             WHERE ID_REGISTRO = :DB-ID-REGISTRO END-EXEC
            IF SQL-PREP OF SQL-STMT-7 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  SQL-VAR-0001
@@ -610,11 +672,11 @@
              TO SQL-VAR-0001
            CALL 'OCSQLEXE' USING SQL-STMT-7
                                SQLCA
-                   PERFORM 9000-AFECTAR-CORE
-      *            EXEC SQL UPDATE TF03 SET ESTADO = :DB-ESTADO-FINAL,
-      *            COD_ERROR = :DB-COD-ERROR, ERROR_MESSAGE =
-      *            :DB-MSG-ERROR WHERE ID_REGISTRO = :DB-ID-REGISTRO
-      *            END-EXEC
+                   PERFORM 9000-EJECUTAR-CORE-REGLAS
+      *            EXEC SQL UPDATE tf03 SET ESTADO = :DB-ESTADO-FINAL,
+      *                 COD_ERROR = :DB-COD-ERROR, ERROR_MESSAGE =
+      *                  :DB-MSG-ERROR
+      *                 WHERE ID_REGISTRO = :DB-ID-REGISTRO END-EXEC
            IF SQL-PREP OF SQL-STMT-8 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  SQL-VAR-0006
@@ -655,10 +717,11 @@
 
        4000-PROCESAR-TF04.
       *    EXEC SQL DECLARE C4 CURSOR FOR
-      *        SELECT ID_REGISTRO, ID_LOTE, CUENTA, NUM_CREDITO, MONTO
-      *        FROM TF04 WHERE ID_LOTE = :DB-LOTE-BUSQUEDA
-      *        AND ESTADO = 2 END-EXEC.
-                                      .
+      *        SELECT ID_REGISTRO, ID_LOTE, CUENTA, NUM_CREDITO, MONTO,
+      *               ID_TRANSACCION, TYPE_UPDATE
+      *        FROM tf04 WHERE ID_LOTE = :DB-LOTE-BUSQUEDA
+      *         AND ESTADO = 2 END-EXEC.
+                                       .
       *    EXEC SQL OPEN C4 END-EXEC.
            IF SQL-PREP OF SQL-STMT-9 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -678,7 +741,8 @@
                                     .
            PERFORM UNTIL WS-EOF-CURSOR = 'Y'
       *        EXEC SQL FETCH C4 INTO :DB-ID-REGISTRO, :DB-ID-LOTE,
-      *        :DB-CUENTA, :DB-NUM-CREDITO, :DB-MONTO END-EXEC
+      *             :DB-CUENTA, :DB-NUM-CREDITO, :DB-MONTO,
+      *             :DB-TXID, :DB-TYPE-UPD END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
              SQL-VAR-0001
            MOVE '3' TO SQL-TYPE(1)
@@ -692,7 +756,7 @@
            SET SQL-ADDR(3) TO ADDRESS OF
              SQL-VAR-0003
            MOVE '3' TO SQL-TYPE(3)
-           MOVE 7 TO SQL-LEN(3)
+           MOVE 5 TO SQL-LEN(3)
                MOVE X'00' TO SQL-PREC(3)
            SET SQL-ADDR(4) TO ADDRESS OF
              DB-NUM-CREDITO
@@ -703,7 +767,15 @@
            MOVE '3' TO SQL-TYPE(5)
            MOVE 8 TO SQL-LEN(5)
                MOVE X'02' TO SQL-PREC(5)
-           MOVE 5 TO SQL-COUNT
+           SET SQL-ADDR(6) TO ADDRESS OF
+             DB-TXID
+           MOVE 'X' TO SQL-TYPE(6)
+           MOVE 40 TO SQL-LEN(6)
+           SET SQL-ADDR(7) TO ADDRESS OF
+             DB-TYPE-UPD
+           MOVE 'X' TO SQL-TYPE(7)
+           MOVE 10 TO SQL-LEN(7)
+           MOVE 7 TO SQL-COUNT
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-9
                                SQLCA
@@ -712,7 +784,7 @@
            MOVE SQL-VAR-0003 TO DB-CUENTA
            MOVE SQL-VAR-0004 TO DB-MONTO
                IF SQLCODE = 0
-      *            EXEC SQL UPDATE TF04 SET ESTADO = 3
+      *            EXEC SQL UPDATE tf04 SET ESTADO = 3
       *            WHERE ID_REGISTRO = :DB-ID-REGISTRO END-EXEC
            IF SQL-PREP OF SQL-STMT-10 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -730,11 +802,11 @@
              TO SQL-VAR-0001
            CALL 'OCSQLEXE' USING SQL-STMT-10
                                SQLCA
-                   PERFORM 9000-AFECTAR-CORE
-      *            EXEC SQL UPDATE TF04 SET ESTADO = :DB-ESTADO-FINAL,
-      *            COD_ERROR = :DB-COD-ERROR, ERROR_MESSAGE =
-      *            :DB-MSG-ERROR WHERE ID_REGISTRO = :DB-ID-REGISTRO
-      *            END-EXEC
+                   PERFORM 9000-EJECUTAR-CORE-REGLAS
+      *            EXEC SQL UPDATE tf04 SET ESTADO = :DB-ESTADO-FINAL,
+      *                 COD_ERROR = :DB-COD-ERROR,
+      *                  ERROR_MESSAGE = :DB-MSG-ERROR
+      *                 WHERE ID_REGISTRO = :DB-ID-REGISTRO END-EXEC
            IF SQL-PREP OF SQL-STMT-11 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  SQL-VAR-0006
@@ -775,8 +847,9 @@
 
        5000-PROCESAR-TF05.
       *    EXEC SQL DECLARE C5 CURSOR FOR
-      *        SELECT ID_REGISTRO, ID_LOTE, CUENTA, NUM_CREDITO, MONTO
-      *        FROM TF05 WHERE ID_LOTE = :DB-LOTE-BUSQUEDA
+      *        SELECT ID_REGISTRO, ID_LOTE, CUENTA, NUM_CREDITO, MONTO,
+      *               ID_TRANSACCION, TYPE_UPDATE
+      *        FROM tf05 WHERE ID_LOTE = :DB-LOTE-BUSQUEDA
       *        AND ESTADO = 2 END-EXEC.
                                       .
       *    EXEC SQL OPEN C5 END-EXEC.
@@ -798,7 +871,8 @@
                                     .
            PERFORM UNTIL WS-EOF-CURSOR = 'Y'
       *        EXEC SQL FETCH C5 INTO :DB-ID-REGISTRO, :DB-ID-LOTE,
-      *        :DB-CUENTA, :DB-NUM-CREDITO, :DB-MONTO END-EXEC
+      *             :DB-CUENTA, :DB-NUM-CREDITO, :DB-MONTO,
+      *             :DB-TXID, :DB-TYPE-UPD END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
              SQL-VAR-0001
            MOVE '3' TO SQL-TYPE(1)
@@ -812,7 +886,7 @@
            SET SQL-ADDR(3) TO ADDRESS OF
              SQL-VAR-0003
            MOVE '3' TO SQL-TYPE(3)
-           MOVE 7 TO SQL-LEN(3)
+           MOVE 5 TO SQL-LEN(3)
                MOVE X'00' TO SQL-PREC(3)
            SET SQL-ADDR(4) TO ADDRESS OF
              DB-NUM-CREDITO
@@ -823,7 +897,15 @@
            MOVE '3' TO SQL-TYPE(5)
            MOVE 8 TO SQL-LEN(5)
                MOVE X'02' TO SQL-PREC(5)
-           MOVE 5 TO SQL-COUNT
+           SET SQL-ADDR(6) TO ADDRESS OF
+             DB-TXID
+           MOVE 'X' TO SQL-TYPE(6)
+           MOVE 40 TO SQL-LEN(6)
+           SET SQL-ADDR(7) TO ADDRESS OF
+             DB-TYPE-UPD
+           MOVE 'X' TO SQL-TYPE(7)
+           MOVE 10 TO SQL-LEN(7)
+           MOVE 7 TO SQL-COUNT
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-12
                                SQLCA
@@ -832,7 +914,7 @@
            MOVE SQL-VAR-0003 TO DB-CUENTA
            MOVE SQL-VAR-0004 TO DB-MONTO
                IF SQLCODE = 0
-      *            EXEC SQL UPDATE TF05 SET ESTADO = 3
+      *            EXEC SQL UPDATE tf05 SET ESTADO = 3
       *             WHERE ID_REGISTRO = :DB-ID-REGISTRO END-EXEC
            IF SQL-PREP OF SQL-STMT-13 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -850,11 +932,11 @@
              TO SQL-VAR-0001
            CALL 'OCSQLEXE' USING SQL-STMT-13
                                SQLCA
-                   PERFORM 9000-AFECTAR-CORE
-      *            EXEC SQL UPDATE TF05 SET ESTADO = :DB-ESTADO-FINAL,
-      *             COD_ERROR = :DB-COD-ERROR, ERROR_MESSAGE =
-      *             :DB-MSG-ERROR WHERE ID_REGISTRO = :DB-ID-REGISTRO
-      *             END-EXEC
+                   PERFORM 9000-EJECUTAR-CORE-REGLAS
+      *            EXEC SQL UPDATE tf05 SET ESTADO = :DB-ESTADO-FINAL,
+      *                 COD_ERROR = :DB-COD-ERROR, ERROR_MESSAGE =
+      *                 :DB-MSG-ERROR
+      *                 WHERE ID_REGISTRO = :DB-ID-REGISTRO END-EXEC
            IF SQL-PREP OF SQL-STMT-14 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  SQL-VAR-0006
@@ -895,10 +977,11 @@
 
        6000-PROCESAR-TF06.
       *    EXEC SQL DECLARE C6 CURSOR FOR
-      *        SELECT ID_REGISTRO, ID_LOTE, CUENTA, NUM_CREDITO, MONTO
-      *        FROM TF06 WHERE ID_LOTE = :DB-LOTE-BUSQUEDA AND ESTADO
-      *        = 2 END-EXEC.
-                           .
+      *        SELECT ID_REGISTRO, ID_LOTE, CUENTA, NUM_CREDITO, MONTO,
+      *               ID_TRANSACCION, TYPE_UPDATE
+      *        FROM tf06 WHERE ID_LOTE = :DB-LOTE-BUSQUEDA
+      *         AND ESTADO = 2 END-EXEC.
+                                       .
       *    EXEC SQL OPEN C6 END-EXEC.
            IF SQL-PREP OF SQL-STMT-15 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -918,7 +1001,8 @@
                                     .
            PERFORM UNTIL WS-EOF-CURSOR = 'Y'
       *        EXEC SQL FETCH C6 INTO :DB-ID-REGISTRO, :DB-ID-LOTE,
-      *        :DB-CUENTA, :DB-NUM-CREDITO, :DB-MONTO END-EXEC
+      *             :DB-CUENTA, :DB-NUM-CREDITO, :DB-MONTO,
+      *             :DB-TXID, :DB-TYPE-UPD END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
              SQL-VAR-0001
            MOVE '3' TO SQL-TYPE(1)
@@ -932,7 +1016,7 @@
            SET SQL-ADDR(3) TO ADDRESS OF
              SQL-VAR-0003
            MOVE '3' TO SQL-TYPE(3)
-           MOVE 7 TO SQL-LEN(3)
+           MOVE 5 TO SQL-LEN(3)
                MOVE X'00' TO SQL-PREC(3)
            SET SQL-ADDR(4) TO ADDRESS OF
              DB-NUM-CREDITO
@@ -943,7 +1027,15 @@
            MOVE '3' TO SQL-TYPE(5)
            MOVE 8 TO SQL-LEN(5)
                MOVE X'02' TO SQL-PREC(5)
-           MOVE 5 TO SQL-COUNT
+           SET SQL-ADDR(6) TO ADDRESS OF
+             DB-TXID
+           MOVE 'X' TO SQL-TYPE(6)
+           MOVE 40 TO SQL-LEN(6)
+           SET SQL-ADDR(7) TO ADDRESS OF
+             DB-TYPE-UPD
+           MOVE 'X' TO SQL-TYPE(7)
+           MOVE 10 TO SQL-LEN(7)
+           MOVE 7 TO SQL-COUNT
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-15
                                SQLCA
@@ -952,7 +1044,7 @@
            MOVE SQL-VAR-0003 TO DB-CUENTA
            MOVE SQL-VAR-0004 TO DB-MONTO
                IF SQLCODE = 0
-      *            EXEC SQL UPDATE TF06 SET ESTADO = 3
+      *            EXEC SQL UPDATE tf06 SET ESTADO = 3
       *            WHERE ID_REGISTRO = :DB-ID-REGISTRO END-EXEC
            IF SQL-PREP OF SQL-STMT-16 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -970,11 +1062,11 @@
              TO SQL-VAR-0001
            CALL 'OCSQLEXE' USING SQL-STMT-16
                                SQLCA
-                   PERFORM 9000-AFECTAR-CORE
-      *            EXEC SQL UPDATE TF06 SET ESTADO = :DB-ESTADO-FINAL,
-      *            COD_ERROR = :DB-COD-ERROR, ERROR_MESSAGE =
-      *            :DB-MSG-ERROR WHERE ID_REGISTRO =
-      *            :DB-ID-REGISTRO END-EXEC
+                   PERFORM 9000-EJECUTAR-CORE-REGLAS
+      *            EXEC SQL UPDATE tf06 SET ESTADO = :DB-ESTADO-FINAL,
+      *                 COD_ERROR = :DB-COD-ERROR, ERROR_MESSAGE =
+      *                 :DB-MSG-ERROR
+      *                 WHERE ID_REGISTRO = :DB-ID-REGISTRO END-EXEC
            IF SQL-PREP OF SQL-STMT-17 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  SQL-VAR-0006
@@ -1013,33 +1105,141 @@
                                SQLCA
                                      .
 
-       9000-AFECTAR-CORE.
-           MOVE DB-CUENTA        TO CTA-ID-CLIENTE
-           MOVE DB-NUM-CREDITO   TO CTA-NUM-CREDITO
-           MOVE DB-MONTO         TO CTA-MONTO-MOV
+      *================================================================*
+      * 9000-EJECUTAR-CORE-REGLAS: NÚCLEO DRY DE INTELIGENCIA BANCARIA
+      *================================================================*
+       9000-EJECUTAR-CORE-REGLAS.
+           MOVE 0 TO MS-COUNT-MATCH
+           INITIALIZE MS-TIPO-DOC, MS-DOC-CLIENTE, MS-ESTADO-CTA,
+            MS-SALDO-ACTUAL
 
-           EVALUATE WS-TYPE-UPDATE
-               WHEN "RRD000" MOVE "D" TO LK-TF-ACCION
-               WHEN "RRR000" MOVE "D" TO LK-TF-ACCION
-               WHEN "RRC000" MOVE "C" TO LK-TF-ACCION
-               WHEN "RRP000" MOVE "P" TO LK-TF-ACCION
-               WHEN OTHER    MOVE "C" TO LK-TF-ACCION
+      * CORRECCIÓN CANDADO 1: Ajustado milimétricamente a ID_CUENTA y
+      *    EXEC SQL
+      *        SELECT COUNT(*), c.TIPO_DOC, c.DOC_CLIENTE,
+      *        cc.ESTADO_CUENTA, cc.SALDO_ACTUAL
+      *        INTO :MS-COUNT-MATCH, :MS-TIPO-DOC, :MS-DOC-CLIENTE,
+      *             :MS-ESTADO-CTA, :MS-SALDO-ACTUAL
+      *        FROM ctactes cc
+      *        INNER JOIN clientes c ON cc.ID_CLIENTE = c.ID_CLIENTE
+      *        WHERE cc.ID_CUENTA = :DB-CUENTA
+      *        GROUP BY c.TIPO_DOC, c.DOC_CLIENTE, cc.ESTADO_CUENTA,
+      *        cc.SALDO_ACTUAL
+      *    END-EXEC.
+           IF SQL-PREP OF SQL-STMT-18 = 'N'
+               SET SQL-ADDR(1) TO ADDRESS OF
+                 SQL-VAR-0007
+               MOVE '3' TO SQL-TYPE(1)
+               MOVE 1 TO SQL-LEN(1)
+               MOVE X'00' TO SQL-PREC(1)
+               SET SQL-ADDR(2) TO ADDRESS OF
+                 MS-TIPO-DOC
+               MOVE 'X' TO SQL-TYPE(2)
+               MOVE 3 TO SQL-LEN(2)
+               SET SQL-ADDR(3) TO ADDRESS OF
+                 MS-DOC-CLIENTE
+               MOVE 'X' TO SQL-TYPE(3)
+               MOVE 12 TO SQL-LEN(3)
+               SET SQL-ADDR(4) TO ADDRESS OF
+                 MS-ESTADO-CTA
+               MOVE 'X' TO SQL-TYPE(4)
+               MOVE 1 TO SQL-LEN(4)
+               SET SQL-ADDR(5) TO ADDRESS OF
+                 SQL-VAR-0008
+               MOVE '3' TO SQL-TYPE(5)
+               MOVE 8 TO SQL-LEN(5)
+               MOVE X'02' TO SQL-PREC(5)
+               SET SQL-ADDR(6) TO ADDRESS OF
+                 SQL-VAR-0003
+               MOVE '3' TO SQL-TYPE(6)
+               MOVE 5 TO SQL-LEN(6)
+               MOVE X'00' TO SQL-PREC(6)
+               MOVE 6 TO SQL-COUNT
+               CALL 'OCSQLPRE' USING SQLV
+                                   SQL-STMT-18
+                                   SQLCA
+               SET SQL-HCONN OF SQLCA TO NULL
+           END-IF
+           MOVE DB-CUENTA TO SQL-VAR-0003
+           CALL 'OCSQLEXE' USING SQL-STMT-18
+                               SQLCA
+           MOVE SQL-VAR-0007 TO MS-COUNT-MATCH
+           MOVE SQL-VAR-0008 TO MS-SALDO-ACTUAL
+                   .
+
+           IF MS-COUNT-MATCH = 0
+               MOVE 7 TO DB-ESTADO-FINAL
+               MOVE "NOEXISTE" TO DB-COD-ERROR
+               MOVE "CUENTA INEXISTENTE EN CATALOGO CORE"
+               TO DB-MSG-ERROR
+               EXIT PARAGRAPH
+           END-IF.
+
+      * CANDADO 2: Validación dinámica de longitud (CORRECCIÓN: CED =
+           MOVE 0 TO WS-ESPACIOS-DERECHA
+           INSPECT FUNCTION REVERSE(MS-DOC-CLIENTE)
+               TALLYING WS-ESPACIOS-DERECHA FOR LEADING SPACES
+           COMPUTE WS-LONGITUD-REAL =
+               FUNCTION LENGTH(MS-DOC-CLIENTE) - WS-ESPACIOS-DERECHA.
+
+           EVALUATE MS-TIPO-DOC
+               WHEN "CED"
+                   IF WS-LONGITUD-REAL NOT = 10
+                       MOVE 7 TO DB-ESTADO-FINAL
+                       MOVE "ID_INVALID" TO DB-COD-ERROR
+                       MOVE "LONGITUD DE CEDULA RECHAZADA (DEBE SER 10)"
+                       TO DB-MSG-ERROR
+                       EXIT PARAGRAPH
+                   END-IF
+               WHEN "PAS"
+                   IF WS-LONGITUD-REAL < 8 OR WS-LONGITUD-REAL > 12
+                       MOVE 7 TO DB-ESTADO-FINAL
+                       MOVE "ID_INVALID" TO DB-COD-ERROR
+                       MOVE "LONGITUD DE PASAPORTE RECHAZADA (8-12)"
+                       TO DB-MSG-ERROR
+                       EXIT PARAGRAPH
+                   END-IF
            END-EVALUATE.
 
+      * CANDADO 3: Control de activación (Alineado con tu estado 'A' de
+           IF MS-ESTADO-CTA NOT = "A"
+               MOVE 7 TO DB-ESTADO-FINAL
+               MOVE "CTA_CONGEL" TO DB-COD-ERROR
+               MOVE "CUENTA INACTIVA O BLOQUEADA ADMINISTRATIVAMENTE"
+               TO DB-MSG-ERROR
+               EXIT PARAGRAPH
+           END-IF.
+
+      * CANDADO 4: Traducción de Prefijos Posicionales Fijos a Acciones
+           MOVE DB-CUENTA        TO CTA-NRO-CUENTA
+           MOVE DB-NUM-CREDITO   TO CTA-NUM-CREDITO
+           MOVE DB-MONTO         TO CTA-MONTO-MOV
+           MOVE MS-SALDO-ACTUAL  TO CTA-SALDO-ACTUAL
+
+           EVALUATE DB-TYPE-UPD
+               WHEN "DEP_DDA" MOVE "C" TO LK-TF-ACCION
+               WHEN "RET_DDA" MOVE "D" TO LK-TF-ACCION
+               WHEN "TAR_CR"  MOVE "D" TO LK-TF-ACCION
+               WHEN "HIP_PR"  MOVE "P" TO LK-TF-ACCION
+               WHEN OTHER     MOVE "C" TO LK-TF-ACCION
+           END-EVALUATE.
+
+      * Invocación atómica del motor elemental de afectación de balan
            CALL "tkin01" USING REG-CTA, LK-TRICKLE-FEED-INTERFACE.
 
-      * FORMATEO DE AUDITORÍA BANCARIA DE RESULTADOS
+      *----------------------------------------------------------------*
+      * MESA DE CONTROL: Formateo contable final del estatus de la fila
+      *----------------------------------------------------------------*
            IF LK-TF-COD-RETORNO = 0
                MOVE 4 TO DB-ESTADO-FINAL
                MOVE "000" TO DB-COD-ERROR
                MOVE "OK" TO DB-MSG-ERROR
            ELSE
                MOVE 7 TO DB-ESTADO-FINAL
-               MOVE LK-TF-MENSAJE        TO DB-MSG-ERROR
+               MOVE LK-TF-MENSAJE TO DB-MSG-ERROR
                EVALUATE LK-TF-COD-RETORNO
                    WHEN 07 MOVE "INSFONDOS" TO DB-COD-ERROR
                    WHEN 01 MOVE "NOEXISTE"  TO DB-COD-ERROR
-                   WHEN OTHER MOVE "ERRDB"  TO DB-COD-ERROR
+                   WHEN OTHER MOVE "ERRCORE"  TO DB-COD-ERROR
                END-EVALUATE
            END-IF.
       **********************************************************************
@@ -1053,7 +1253,7 @@
       *  C5                       IN USE CURSOR
       *  C6                       IN USE CURSOR
       *  DB-COD-ERROR             IN USE CHAR(10)
-      *  DB-CUENTA                IN USE THROUGH TEMP VAR SQL-VAR-0003 DECIMAL(13,0)
+      *  DB-CUENTA                IN USE THROUGH TEMP VAR SQL-VAR-0003 DECIMAL(9,0)
       *  DB-ESTADO-FINAL          IN USE THROUGH TEMP VAR SQL-VAR-0006 DECIMAL(3,0)
       *  DB-ID-LOTE               IN USE THROUGH TEMP VAR SQL-VAR-0002 DECIMAL(9,0)
       *  DB-ID-REGISTRO           IN USE THROUGH TEMP VAR SQL-VAR-0001 DECIMAL(9,0)
@@ -1061,5 +1261,17 @@
       *  DB-MONTO                 IN USE THROUGH TEMP VAR SQL-VAR-0004 DECIMAL(15,2)
       *  DB-MSG-ERROR             IN USE CHAR(200)
       *  DB-NUM-CREDITO           IN USE CHAR(20)
-      *  DB-OP                NOT IN USE
+      *  DB-TXID                  IN USE CHAR(40)
+      *  DB-TYPE-UPD              IN USE CHAR(10)
+      *  DB-VALIDACION-MASTER NOT IN USE
+      *  DB-VALIDACION-MASTER.MS-COUNT-MATCH NOT IN USE
+      *  DB-VALIDACION-MASTER.MS-DOC-CLIENTE NOT IN USE
+      *  DB-VALIDACION-MASTER.MS-ESTADO-CTA NOT IN USE
+      *  DB-VALIDACION-MASTER.MS-SALDO-ACTUAL NOT IN USE
+      *  DB-VALIDACION-MASTER.MS-TIPO-DOC NOT IN USE
+      *  MS-COUNT-MATCH           IN USE THROUGH TEMP VAR SQL-VAR-0007 DECIMAL(1,0)
+      *  MS-DOC-CLIENTE           IN USE CHAR(12)
+      *  MS-ESTADO-CTA            IN USE CHAR(1)
+      *  MS-SALDO-ACTUAL          IN USE THROUGH TEMP VAR SQL-VAR-0008 DECIMAL(15,2)
+      *  MS-TIPO-DOC              IN USE CHAR(3)
       **********************************************************************

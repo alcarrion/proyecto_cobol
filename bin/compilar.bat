@@ -41,7 +41,7 @@ if %COMPILATION_FAILED% == 1 goto finalizar
 
 echo.
 echo ============================================
-echo  2. Generando Módulos Objeto Individuales (.o)
+echo  2. Generando Modulos Objeto Individuales (.o)
 echo ============================================
 cd /d "%MAINLINE_DIR%"
 
@@ -58,13 +58,13 @@ echo ============================================
 echo  3. Enlazando Binarios Core (Linkage Phase)
 echo ============================================
 
-:: CORRECCIÓN: El archivo principal se pasa como .cob para inyectar el Main Entry Point de consola
+:: CORRECCIÓN: Se añade tkin_dda.o al final de la cadena de objetos enlazados
 echo Enlazando BANCSMENU.exe (Interfaz Core Online)...
 "%COBC%" -x -v -o "%BIN_DIR%\BANCSMENU.exe" ^
     BANCSMENU.cob ^
     TFFILE.o CI0000.o IN0000.o TC0000.o BR0000.o ^
     DBIOCUSM.o DBIOINVM.o DBIOTARJ.o DBIOBORM.o DBIOTRAN.o ^
-    BNCR004.o TFMX.o RRD000.o XXXREP.o TFTRCT.o TFBATFIN.o tkin01.o ^
+    BNCR004.o TFMX.o RRD000.o XXXREP.o TFTRCT.o TFBATFIN.o tkin01.o tkin_dda.o ^
     -L "%COBOL_LIBS_ESQL%" -locsql
 if errorlevel 1 set "COMPILATION_FAILED=1"
 
@@ -72,8 +72,8 @@ echo Enlazando TFDRMAIN.exe (Orquestador Batch)...
 "%COBC%" -x -v -o "%BIN_DIR%\TFDRMAIN.exe" ^
     TFDRMAIN.cob ^
     TFFILE.o BNCR004.o TFMX.o RRD000.o XXXREP.o ^
-    TFTRCT.o TFBATFIN.o tkin01.o DBIOCUSM.o DBIOINVM.o DBIOTARJ.o ^
-    DBIOBORM.o DBIOTRAN.o IN0000.o BR0000.o ^
+    TFTRCT.o TFBATFIN.o tkin01.o tkin_dda.o DBIOCUSM.o DBIOINVM.o DBIOTARJ.o ^
+    IN0000.o BR0000.o DBIOBORM.o DBIOTRAN.o ^
     -L "%COBOL_LIBS_ESQL%" -locsql
 if errorlevel 1 set "COMPILATION_FAILED=1"
 
@@ -97,9 +97,9 @@ echo ============================================
 if %COMPILATION_FAILED% == 0 (
     echo.
     echo [OK] EXITO: Todos los ejecutables financieros generados en /bin
-    echo      - BANCSMENU.exe (Online Menu Core)
-    echo      - TFDRMAIN.exe  (Stage 2: Orchestrator Engine)
-    echo      - TFDRFILE.exe  (Stage 1: Ingestion Engine)
+    echo       - BANCSMENU.exe (Online Menu Core)
+    echo       - TFDRMAIN.exe  (Stage 2: Orchestrator Engine)
+    echo       - TFDRFILE.exe  (Stage 1: Ingestion Engine)
 ) else (
     echo.
     echo [X] ERROR CRITICO: Fallo la compilacion de uno o mas modulos.

@@ -1,10 +1,10 @@
        IDENTIFICATION DIVISION.
        PROGRAM-ID. TFFILE.
       *========================================================*
-      * MOTOR DE INGESTA, VALIDACION Y LOTEO DINAMICO 2.0
+      * MOTOR DE INGESTA, VALIDACIÓN Y LOTEO DINÁMICO VALIDADOR 3.0
       * REGLA DE NOMENCLATURA:
       * XXX-999-DDMMYY-XXXXXX-DDMMYY-00N.TXT
-      * (Proceso-Agencia-F.Ref-H.Ref-F.REAL-Secuencia)
+      * SOPORTE: Filtrado drástico de 5 prefijos y loteo estricto a 10,
       *========================================================*
 
        ENVIRONMENT DIVISION.
@@ -115,13 +115,20 @@
            05 DB-FECHA-PROC        PIC X(10).
       *    EXEC SQL END DECLARE SECTION END-EXEC.
 
-      * Variables de Control
+      * Variables de Control de Volumen Escalado
        01  WS-MAX-LOTE-NUM         PIC 9(09).
        01  WS-CONTROL-LOTEO.
            05 WS-REG-CONT          PIC 9(09) VALUE 0.
-           05 WS-LOTE-SEC          PIC 9(03) VALUE 1.
+           05 WS-LOTE-SEC          PIC 9(06) VALUE 1.
            05 WS-EOF-LISTA         PIC X(01) VALUE 'N'.
            05 WS-EOF-DATA          PIC X(01) VALUE 'N'.
+
+      * Banderas de Calidad Transaccional (Mesa de Control)
+       01  WS-FLAGS-VALIDACION.
+           05 WS-FILE-VALIDO       PIC X(01) VALUE 'Y'.
+           05 WS-REG-VALIDO        PIC X(01) VALUE 'Y'.
+           05 WS-REGS-PROCESADOS   PIC 9(09) VALUE 0.
+           05 WS-REGS-DESCARTADOS  PIC 9(09) VALUE 0.
 
       * Desglose del nombre de archivo (Estructura pedida)
        01  WS-FILE-PARSING.
@@ -140,17 +147,18 @@
            05 WS-FULLPATH-OUT      PIC X(250).
            05 WS-CMD               PIC X(500).
 
+       01  WS-FORMATO-BATCH.
+           05 WS-LOTE-SEC-3          PIC 9(03).
        PROCEDURE DIVISION.
        000-MAIN.
            DISPLAY " "
-           DISPLAY ">>> TFFILE: INICIANDO ETAPA DE INGESTA 2.0 <<<"
+           DISPLAY ">>> TFFILE: INICIANDO ETAPA DE INGESTA 3.0 <<<"
 
            PERFORM 100-CARGAR-PARAMETROS-BD
            PERFORM 200-GENERAR-LISTADO-INPUT
 
            OPEN INPUT LISTA-ARCHIVOS
            PERFORM UNTIL WS-EOF-LISTA = 'Y'
-      * CORRECCIÓN: Limpieza preventiva del buffer del nombre antes de
                INITIALIZE WS-FILE-NAME-CUR
                READ LISTA-ARCHIVOS INTO WS-FILE-NAME-CUR
                    AT END MOVE 'Y' TO WS-EOF-LISTA
@@ -162,7 +170,7 @@
            END-PERFORM
            CLOSE LISTA-ARCHIVOS.
 
-           DISPLAY ">>> TFFILE: INGESTA FINALIZADA <<<"
+           DISPLAY ">>> TFFILE: INGESTA FINALIZADA MAESTRA <<<"
            GOBACK.
 
        100-CARGAR-PARAMETROS-BD.
@@ -185,6 +193,11 @@
                                SQLCA
                    .
            MOVE WS-MAX-LOTE-STR TO WS-MAX-LOTE-NUM.
+
+      * Salvaguarda contable: Si la tabla no tiene el parámetro, forzam
+           IF WS-MAX-LOTE-NUM = 0
+               MOVE 10000 TO WS-MAX-LOTE-NUM
+           END-IF.
 
       *    EXEC SQL
       *        SELECT VALOR INTO :WS-RUTA-IN-SQL FROM TF_PARAMETROS
@@ -232,7 +245,9 @@
            CALL "SYSTEM" USING WS-CMD.
 
        300-PROCESAR-ARCHIVO.
-           DISPLAY "  [FILE] " WS-FILE-NAME-CUR
+           DISPLAY " "
+           DISPLAY "  [PROCESANDO DIRECTORIO] -> " WS-FILE-NAME-CUR
+           MOVE 'Y' TO WS-FILE-VALIDO
 
            UNSTRING WS-FILE-NAME-CUR DELIMITED BY "-"
                INTO WS-TIPO-PROC, WS-AGENCIA, WS-FECHA-REF,
@@ -243,25 +258,35 @@
                  WS-FECHA-REAL(1:2)
                  INTO WS-FECHA-ISO
 
+      *----------------------------------------------------------------*
+      * FILTRO DRÁSTICO 1: VALIDACIÓN Y EXCLUSIÓN DE PREFIJOS PERMITI
+      *----------------------------------------------------------------*
            EVALUATE WS-TIPO-PROC
-               WHEN "DEB" MOVE "RRD000" TO DB-TYPE-UPDATE
-               WHEN "RET" MOVE "RRR000" TO DB-TYPE-UPDATE
-               WHEN "CRE" MOVE "RRC000" TO DB-TYPE-UPDATE
-               WHEN "PAG" MOVE "RRP000" TO DB-TYPE-UPDATE
-               WHEN OTHER MOVE "UNKNOWN" TO DB-TYPE-UPDATE
+               WHEN "DEP" MOVE "DEP_DDA" TO DB-TYPE-UPDATE
+               WHEN "RET" MOVE "RET_DDA" TO DB-TYPE-UPDATE
+               WHEN "TAR" MOVE "TAR_CR"  TO DB-TYPE-UPDATE
+               WHEN "HIP" MOVE "HIP_PR"  TO DB-TYPE-UPDATE
+               WHEN "IMP" MOVE "IMP_TX"  TO DB-TYPE-UPDATE
+               WHEN OTHER
+                   MOVE 'N' TO WS-FILE-VALIDO
+                   DISPLAY "ARCHIVO DESCARTADO - PREFIJO NO COMPATIBLE:"
+                           WS-TIPO-PROC
            END-EVALUATE
 
-      * CORRECCIÓN: Inicialización obligatoria de la ruta de entrada p
-           INITIALIZE WS-FULLPATH-IN
-           STRING FUNCTION TRIM(WS-RUTA-IN-SQL)
-                  FUNCTION TRIM(WS-FILE-NAME-CUR)
-                  DELIMITED BY SIZE INTO WS-FULLPATH-IN
+           IF WS-FILE-VALIDO = 'Y'
+               INITIALIZE WS-FULLPATH-IN
+               STRING FUNCTION TRIM(WS-RUTA-IN-SQL)
+                      FUNCTION TRIM(WS-FILE-NAME-CUR)
+                      DELIMITED BY SIZE INTO WS-FULLPATH-IN
 
-           PERFORM 400-EJECUTAR-LOTEO.
+               PERFORM 400-EJECUTAR-LOTEO
+           END-IF.
 
        400-EJECUTAR-LOTEO.
            MOVE 1 TO WS-LOTE-SEC
            MOVE 0 TO WS-REG-CONT
+           MOVE 0 TO WS-REGS-PROCESADOS
+           MOVE 0 TO WS-REGS-DESCARTADOS
            MOVE "N" TO WS-EOF-DATA
 
            OPEN INPUT DATA-IN
@@ -270,46 +295,118 @@
            END-READ
 
            PERFORM UNTIL WS-EOF-DATA = 'Y'
-               IF WS-REG-CONT = 0
-                   PERFORM 500-GENERAR-FRAGMENTO-FISICO
+      * Filtro de Calidad de Trama por cada línea antes del empaque f
+               PERFORM 450-VALIDAR-ALINEACION-TRAMA
+
+               IF WS-REG-VALIDO = 'Y'
+      * Si es el primer registro del segmento o venimos de un quiebre, a
+                   IF WS-REG-CONT = 0
+                       PERFORM 500-GENERAR-FRAGMENTO-FISICO
+                   END-IF
+
+                   ADD 1 TO WS-REG-CONT
+                   ADD 1 TO WS-REGS-PROCESADOS
+                   WRITE REG-DATA-OUT FROM REG-DATA-IN
+
+      * Control de Quiebre de Bloque Masivo (Loteo estricto a 10,000)
+                   IF WS-REG-CONT >= WS-MAX-LOTE-NUM
+                       CLOSE DATA-OUT
+                       MOVE 0 TO WS-REG-CONT
+                       ADD 1 TO WS-LOTE-SEC
+                   END-IF
                END-IF
 
-               ADD 1 TO WS-REG-CONT
-               WRITE REG-DATA-OUT FROM REG-DATA-IN
-
                READ DATA-IN INTO REG-DATA-IN
-                   AT END
-                       MOVE 'Y' TO WS-EOF-DATA
-                   NOT AT END
-                       IF WS-REG-CONT >= WS-MAX-LOTE-NUM
-                           CLOSE DATA-OUT
-                           MOVE 0 TO WS-REG-CONT
-                           ADD 1 TO WS-LOTE-SEC
-                       END-IF
+                   AT END MOVE 'Y' TO WS-EOF-DATA
                END-READ
            END-PERFORM
 
-           IF WS-REG-CONT > 0 AND WS-REG-CONT < WS-MAX-LOTE-NUM
+      * Cierre preventivo del último fragmento si tiene remanentes meno
+           IF WS-REG-CONT > 0
                CLOSE DATA-OUT
            END-IF
            CLOSE DATA-IN.
 
+           DISPLAY "BALANCE DEL ARCHIVO: PROCESADOS: "
+               WS-REGS-PROCESADOS
+                   " | DESCARTADOS: " WS-REGS-DESCARTADOS
+
+      * Mover el archivo original tratado hacia históricos para liberar
            INITIALIZE WS-CMD
            STRING "move /Y """ FUNCTION TRIM(WS-FULLPATH-IN) """ "
                  """C:\banco\spool\Interfaces\BATCH-DONE\"""
                  DELIMITED BY SIZE INTO WS-CMD
            CALL "SYSTEM" USING WS-CMD.
 
+       450-VALIDAR-ALINEACION-TRAMA.
+           MOVE 'Y' TO WS-REG-VALIDO
+
+           EVALUATE WS-TIPO-PROC
+               WHEN "DEP"
+      * [ID_CUENTA:10][COD_MOV:3][IMPORTE:15] -> Total: 136 Bytes
+                   IF REG-DATA-IN(1:10) NOT NUMERIC OR
+                      REG-DATA-IN(11:3) NOT NUMERIC OR
+                      REG-DATA-IN(14:15) NOT NUMERIC OR
+                      REG-DATA-IN(137:1) NOT = SPACES
+                       MOVE 'N' TO WS-REG-VALIDO
+                   END-IF
+
+               WHEN "RET"
+      * [ID_CUENTA:10][COD_MOV:3][IMPORTE:15] -> Total: 136 Bytes
+                   IF REG-DATA-IN(1:10) NOT NUMERIC OR
+                      REG-DATA-IN(11:3) NOT NUMERIC OR
+                      REG-DATA-IN(14:15) NOT NUMERIC OR
+                      REG-DATA-IN(137:1) NOT = SPACES
+                       MOVE 'N' TO WS-REG-VALIDO
+                   END-IF
+
+               WHEN "TAR"
+      * [NRO_TARJETA:16][MONTO_COMPRA:15][CUOTAS_TOT:3][VALOR_CUOTA:12]
+                   IF REG-DATA-IN(1:16) NOT NUMERIC OR
+                      REG-DATA-IN(17:15) NOT NUMERIC OR
+                      REG-DATA-IN(32:3) NOT NUMERIC OR
+                      REG-DATA-IN(35:12) NOT NUMERIC OR
+                      REG-DATA-IN(168:1) NOT = SPACES
+                       MOVE 'N' TO WS-REG-VALIDO
+                   END-IF
+
+               WHEN "HIP"
+      * [ID_HIPOTECA:10][VALOR_CUOTA:15][VALOR_IMP:12][MESES_MORA:2] ->
+                   IF REG-DATA-IN(1:10) NOT NUMERIC OR
+                      REG-DATA-IN(11:15) NOT NUMERIC OR
+                      REG-DATA-IN(26:12) NOT NUMERIC OR
+                      REG-DATA-IN(38:2) NOT NUMERIC OR
+                      REG-DATA-IN(144:1) NOT = SPACES
+                       MOVE 'N' TO WS-REG-VALIDO
+                   END-IF
+
+               WHEN "IMP"
+      * [ID_CUENTA:10][TIPO_IMP:3][MONTO_IMP:15] -> Total: 132 Bytes
+                   IF REG-DATA-IN(1:10) NOT NUMERIC OR
+                      REG-DATA-IN(11:3) NOT NUMERIC OR
+                      REG-DATA-IN(14:15) NOT NUMERIC OR
+                      REG-DATA-IN(133:1) NOT = SPACES
+                       MOVE 'N' TO WS-REG-VALIDO
+                   END-IF
+           END-EVALUATE.
+
+           IF WS-REG-VALIDO = 'N'
+               ADD 1 TO WS-REGS-DESCARTADOS
+               DISPLAY "RECHAZO: INTERFAZ DESALINEADA O MAL FORMATO: "
+                       REG-DATA-IN(1:30) "..."
+           END-IF.
+
        500-GENERAR-FRAGMENTO-FISICO.
            INITIALIZE WS-FILE-NAME-NEW
-      * CORRECCIÓN: Se eliminó el comando READ de la lista de archivos
+
+      * Nivelación nativa: Al mover un número a un PIC 9(03), COBOL au
+           MOVE WS-LOTE-SEC TO WS-LOTE-SEC-3
 
            STRING WS-TIPO-PROC "-" WS-AGENCIA "-" WS-FECHA-REF "-"
-                 WS-HORA-REF "-" WS-FECHA-REAL "-"
-                 WS-LOTE-SEC ".TXT"
-                 DELIMITED BY SIZE INTO WS-FILE-NAME-NEW
+                  WS-HORA-REF "-" WS-FECHA-REAL "-"
+                  WS-LOTE-SEC-3 ".TXT"
+                  DELIMITED BY SIZE INTO WS-FILE-NAME-NEW
 
-      * CORRECCIÓN: Inicialización obligatoria de la ruta de salida
            INITIALIZE WS-FULLPATH-OUT
            STRING FUNCTION TRIM(WS-RUTA-UP-SQL) WS-FILE-NAME-NEW
                  DELIMITED BY SIZE INTO WS-FULLPATH-OUT
@@ -357,7 +454,8 @@
       *    EXEC SQL COMMIT END-EXEC
            CALL 'OCSQLCMT' USING SQLCA END-CALL
 
-           DISPLAY "    + Lote Generado: " WS-FILE-NAME-NEW.
+           DISPLAY "    + Fragmento Seguro Generado: "
+           WS-FILE-NAME-NEW.
       **********************************************************************
       *  : ESQL for GnuCOBOL/OpenCOBOL Version 3 (2024.04.30) Build May 10 2024
 

@@ -2,8 +2,9 @@
        PROGRAM-ID. TFBATFIN.
       *================================================================*
       * PROGRAMA: TFBATFIN.sqb                                         *
-      * FUNCION: Procesador Batch de transacciones por réplica        *
-      * CORRECCIÓN: Soporte Créditos, alineación Linkage y Logs de Error*
+      * RESPONSABILIDAD: Procesador Core Contable Masivo Asíncrono      *
+      * CORRECCIÓN: Alineación con columnas reales ID_CUENTA,          *
+      * ESTADO_CUENTA y validación de Cédula de 10 dígitos.*
       *================================================================*
        ENVIRONMENT DIVISION.
        CONFIGURATION SECTION.
@@ -15,25 +16,40 @@
            EXEC SQL INCLUDE SQLCA END-EXEC.
 
            EXEC SQL BEGIN DECLARE SECTION END-EXEC.
-      * 01  WS-REG-REPLICA.
-           01 DB-ID-REGISTRO       PIC 9(09).
-           01 DB-ID-LOTE           PIC 9(09).
-           01 DB-CUENTA            PIC 9(12).
-           01 DB-NUM-CREDITO       PIC X(20).
-           01 DB-MONTO             PIC S9(13)V99.  
-           01 DB-OP                PIC X(03).
-           01 DB-LOTE-BUSQUEDA     PIC 9(09).
-           01 DB-ESTADO-FINAL      PIC 9(02).
-           01 DB-COD-ERROR         PIC X(10).
-           01 DB-MSG-ERROR         PIC X(200).
+      * Variables de Control de Cursores de Réplicas
+       01  DB-ID-REGISTRO          PIC 9(09).
+       01  DB-ID-LOTE              PIC 9(09).
+       01  DB-CUENTA               PIC 9(09).
+       01  DB-NUM-CREDITO          PIC X(20).
+       01  DB-MONTO                PIC S9(13)V99.  
+       01  DB-TXID                 PIC X(40).
+       01  DB-TYPE-UPD             PIC X(10).
+       01  DB-LOTE-BUSQUEDA        PIC 9(09).
+       01  DB-ESTADO-FINAL         PIC 9(02).
+       01  DB-COD-ERROR            PIC X(10).
+       01  DB-MSG-ERROR            PIC X(200).
+
+      * Variables para Consulta de Cobertura e Identidad Bancaria
+       01  DB-VALIDACION-MASTER.
+           05 MS-COUNT-MATCH       PIC 9(01).
+           05 MS-TIPO-DOC          PIC X(03).
+           05 MS-DOC-CLIENTE       PIC X(12).
+           05 MS-ESTADO-CTA        PIC X(01).
+           05 MS-SALDO-ACTUAL      PIC S9(13)V99.
            EXEC SQL END DECLARE SECTION END-EXEC.
 
        01  WS-FLAGS.
            05 WS-EOF-CURSOR        PIC X(01) VALUE 'N'.
 
+      * Variables Locales para Cálculo de Longitud Exoficial
+       01  WS-AUDITORIA-INTERNA.
+           05 WS-ESPACIOS-DERECHA  PIC 9(02) VALUE 0.
+           05 WS-LONGITUD-REAL     PIC 9(02) VALUE 0.
+
+      * Registro de Comunicación de Interfaz con tkin01
        01  REG-CTA.
-           05 CTA-ID-CLIENTE       PIC 9(12).  *> Alineado a DB
-           05 CTA-NUM-CREDITO     PIC X(20).  *> NUEVO
+           05 CTA-NRO-CUENTA       PIC 9(09).
+           05 CTA-NUM-CREDITO      PIC X(20).
            05 CTA-SALDO-ACTUAL     PIC S9(13)V99.
            05 CTA-MONTO-MOV        PIC 9(13)V99.
 
@@ -47,12 +63,14 @@
            05 WS-REPLICA-ASIG      PIC X(04).
            05 WS-RETRY-COUNT       PIC 9(02).
 
-       PROCEDURE DIVISION USING WS-TFFM-VARS, LK-TRICKLE-FEED-INTERFACE.
+       PROCEDURE DIVISION USING WS-TFFM-VARS, 
+                                LK-TRICKLE-FEED-INTERFACE.
        0000-PRINCIPAL.
            MOVE "N" TO WS-EOF-CURSOR
            MOVE 00 TO LK-TF-COD-RETORNO
            MOVE WS-ID-LOTE TO DB-LOTE-BUSQUEDA.
 
+      * El orquestador deriva dinámicamente al hilo de la réplica asignada
            EVALUATE WS-REPLICA-ASIG
                WHEN "TF01" PERFORM 1000-PROCESAR-TF01
                WHEN "TF02" PERFORM 2000-PROCESAR-TF02
@@ -63,26 +81,30 @@
            END-EVALUATE.
            GOBACK.
 
+      *================================================================*
+      * CONTROLADORES DE CURSORES ASIGNADOS (Fase Extracción)
+      *================================================================*
        1000-PROCESAR-TF01.
            EXEC SQL DECLARE C1 CURSOR FOR
-               SELECT ID_REGISTRO, ID_LOTE, CUENTA, NUM_CREDITO, MONTO
-               FROM TF01 WHERE ID_LOTE = :DB-LOTE-BUSQUEDA 
+               SELECT ID_REGISTRO, ID_LOTE, CUENTA, NUM_CREDITO, MONTO, 
+                      ID_TRANSACCION, TYPE_UPDATE
+               FROM tf01 WHERE ID_LOTE = :DB-LOTE-BUSQUEDA 
                AND ESTADO = 2
            END-EXEC.
            EXEC SQL OPEN C1 END-EXEC.
            PERFORM UNTIL WS-EOF-CURSOR = 'Y'
                EXEC SQL FETCH C1 INTO :DB-ID-REGISTRO, :DB-ID-LOTE,
-                                      :DB-CUENTA, :DB-NUM-CREDITO, 
-                                      :DB-MONTO END-EXEC
+                    :DB-CUENTA, :DB-NUM-CREDITO, :DB-MONTO,
+                    :DB-TXID, :DB-TYPE-UPD END-EXEC
                IF SQLCODE = 0
-                   EXEC SQL UPDATE TF01 SET ESTADO = 3
+                   EXEC SQL UPDATE tf01 SET ESTADO = 3 
                             WHERE ID_REGISTRO = :DB-ID-REGISTRO 
                             END-EXEC
                    
-                   PERFORM 9000-AFECTAR-CORE
+                   PERFORM 9000-EJECUTAR-CORE-REGLAS
                    
                    EXEC SQL
-                       UPDATE TF01 
+                       UPDATE tf01 
                        SET ESTADO = :DB-ESTADO-FINAL,
                            COD_ERROR = :DB-COD-ERROR,
                            ERROR_MESSAGE = :DB-MSG-ERROR
@@ -94,139 +116,215 @@
            END-PERFORM.
            EXEC SQL CLOSE C1 END-EXEC.
 
-      * PÁRRAFOS 2000 A 6000 REPLICAN EXACTAMENTE LA LÓGICA DE 1000 
-      *CAMBIANDO LA TABLA (TF02-TF06)
        2000-PROCESAR-TF02.
            EXEC SQL DECLARE C2 CURSOR FOR 
-               SELECT ID_REGISTRO, ID_LOTE, CUENTA, NUM_CREDITO, MONTO 
-               FROM TF02 WHERE ID_LOTE = :DB-LOTE-BUSQUEDA AND 
-               ESTADO = 2 END-EXEC.
+               SELECT ID_REGISTRO, ID_LOTE, CUENTA, NUM_CREDITO, MONTO,
+                      ID_TRANSACCION, TYPE_UPDATE
+               FROM tf02 WHERE ID_LOTE = :DB-LOTE-BUSQUEDA 
+               AND ESTADO = 2 END-EXEC.
            EXEC SQL OPEN C2 END-EXEC.
            PERFORM UNTIL WS-EOF-CURSOR = 'Y'
                EXEC SQL FETCH C2 INTO :DB-ID-REGISTRO, :DB-ID-LOTE, 
-               :DB-CUENTA, :DB-NUM-CREDITO, :DB-MONTO END-EXEC
+                    :DB-CUENTA, :DB-NUM-CREDITO, :DB-MONTO,
+                    :DB-TXID, :DB-TYPE-UPD END-EXEC
                IF SQLCODE = 0
-                   EXEC SQL UPDATE TF02 SET ESTADO = 3 
+                   EXEC SQL UPDATE tf02 SET ESTADO = 3 
                    WHERE ID_REGISTRO = :DB-ID-REGISTRO END-EXEC
-                   PERFORM 9000-AFECTAR-CORE
-                   EXEC SQL UPDATE TF02 SET ESTADO = :DB-ESTADO-FINAL, 
-                   COD_ERROR = :DB-COD-ERROR, ERROR_MESSAGE = 
-                   :DB-MSG-ERROR WHERE ID_REGISTRO = 
-                   :DB-ID-REGISTRO END-EXEC
+                   PERFORM 9000-EJECUTAR-CORE-REGLAS
+                   EXEC SQL UPDATE tf02 SET ESTADO = :DB-ESTADO-FINAL, 
+                        COD_ERROR = :DB-COD-ERROR, ERROR_MESSAGE =
+                         :DB-MSG-ERROR 
+                        WHERE ID_REGISTRO = :DB-ID-REGISTRO END-EXEC
                ELSE MOVE 'Y' TO WS-EOF-CURSOR END-IF
            END-PERFORM.
            EXEC SQL CLOSE C2 END-EXEC.
 
        3000-PROCESAR-TF03.
            EXEC SQL DECLARE C3 CURSOR FOR 
-               SELECT ID_REGISTRO, ID_LOTE, CUENTA, NUM_CREDITO, MONTO 
-               FROM TF03 WHERE ID_LOTE = :DB-LOTE-BUSQUEDA AND 
+               SELECT ID_REGISTRO, ID_LOTE, CUENTA, NUM_CREDITO, MONTO,
+                      ID_TRANSACCION, TYPE_UPDATE
+               FROM tf03 WHERE ID_LOTE = :DB-LOTE-BUSQUEDA AND 
                ESTADO = 2 END-EXEC.
            EXEC SQL OPEN C3 END-EXEC.
            PERFORM UNTIL WS-EOF-CURSOR = 'Y'
                EXEC SQL FETCH C3 INTO :DB-ID-REGISTRO, :DB-ID-LOTE,
-                :DB-CUENTA, :DB-NUM-CREDITO, :DB-MONTO END-EXEC
+                    :DB-CUENTA, :DB-NUM-CREDITO, :DB-MONTO,
+                    :DB-TXID, :DB-TYPE-UPD END-EXEC
                IF SQLCODE = 0
-                   EXEC SQL UPDATE TF03 SET ESTADO = 3 
-                   WHERE ID_REGISTRO = :DB-ID-REGISTRO END-EXEC
-                   PERFORM 9000-AFECTAR-CORE
-                   EXEC SQL UPDATE TF03 SET ESTADO = :DB-ESTADO-FINAL, 
-                   COD_ERROR = :DB-COD-ERROR, ERROR_MESSAGE = 
-                   :DB-MSG-ERROR WHERE ID_REGISTRO = :DB-ID-REGISTRO 
-                   END-EXEC
+                   EXEC SQL UPDATE tf03 SET ESTADO = 3
+                    WHERE ID_REGISTRO = :DB-ID-REGISTRO END-EXEC
+                   PERFORM 9000-EJECUTAR-CORE-REGLAS
+                   EXEC SQL UPDATE tf03 SET ESTADO = :DB-ESTADO-FINAL, 
+                        COD_ERROR = :DB-COD-ERROR, ERROR_MESSAGE =
+                         :DB-MSG-ERROR 
+                        WHERE ID_REGISTRO = :DB-ID-REGISTRO END-EXEC
                ELSE MOVE 'Y' TO WS-EOF-CURSOR END-IF
            END-PERFORM.
            EXEC SQL CLOSE C3 END-EXEC.
 
        4000-PROCESAR-TF04.
            EXEC SQL DECLARE C4 CURSOR FOR 
-               SELECT ID_REGISTRO, ID_LOTE, CUENTA, NUM_CREDITO, MONTO 
-               FROM TF04 WHERE ID_LOTE = :DB-LOTE-BUSQUEDA 
-               AND ESTADO = 2 END-EXEC.
+               SELECT ID_REGISTRO, ID_LOTE, CUENTA, NUM_CREDITO, MONTO,
+                      ID_TRANSACCION, TYPE_UPDATE
+               FROM tf04 WHERE ID_LOTE = :DB-LOTE-BUSQUEDA
+                AND ESTADO = 2 END-EXEC.
            EXEC SQL OPEN C4 END-EXEC.
            PERFORM UNTIL WS-EOF-CURSOR = 'Y'
                EXEC SQL FETCH C4 INTO :DB-ID-REGISTRO, :DB-ID-LOTE, 
-               :DB-CUENTA, :DB-NUM-CREDITO, :DB-MONTO END-EXEC
+                    :DB-CUENTA, :DB-NUM-CREDITO, :DB-MONTO,
+                    :DB-TXID, :DB-TYPE-UPD END-EXEC
                IF SQLCODE = 0
-                   EXEC SQL UPDATE TF04 SET ESTADO = 3 
+                   EXEC SQL UPDATE tf04 SET ESTADO = 3 
                    WHERE ID_REGISTRO = :DB-ID-REGISTRO END-EXEC
-                   PERFORM 9000-AFECTAR-CORE
-                   EXEC SQL UPDATE TF04 SET ESTADO = :DB-ESTADO-FINAL, 
-                   COD_ERROR = :DB-COD-ERROR, ERROR_MESSAGE = 
-                   :DB-MSG-ERROR WHERE ID_REGISTRO = :DB-ID-REGISTRO 
-                   END-EXEC
+                   PERFORM 9000-EJECUTAR-CORE-REGLAS
+                   EXEC SQL UPDATE tf04 SET ESTADO = :DB-ESTADO-FINAL, 
+                        COD_ERROR = :DB-COD-ERROR,
+                         ERROR_MESSAGE = :DB-MSG-ERROR 
+                        WHERE ID_REGISTRO = :DB-ID-REGISTRO END-EXEC
                ELSE MOVE 'Y' TO WS-EOF-CURSOR END-IF
            END-PERFORM.
            EXEC SQL CLOSE C4 END-EXEC.
 
        5000-PROCESAR-TF05.
            EXEC SQL DECLARE C5 CURSOR FOR 
-               SELECT ID_REGISTRO, ID_LOTE, CUENTA, NUM_CREDITO, MONTO 
-               FROM TF05 WHERE ID_LOTE = :DB-LOTE-BUSQUEDA 
+               SELECT ID_REGISTRO, ID_LOTE, CUENTA, NUM_CREDITO, MONTO,
+                      ID_TRANSACCION, TYPE_UPDATE
+               FROM tf05 WHERE ID_LOTE = :DB-LOTE-BUSQUEDA 
                AND ESTADO = 2 END-EXEC.
            EXEC SQL OPEN C5 END-EXEC.
            PERFORM UNTIL WS-EOF-CURSOR = 'Y'
                EXEC SQL FETCH C5 INTO :DB-ID-REGISTRO, :DB-ID-LOTE, 
-               :DB-CUENTA, :DB-NUM-CREDITO, :DB-MONTO END-EXEC
+                    :DB-CUENTA, :DB-NUM-CREDITO, :DB-MONTO,
+                    :DB-TXID, :DB-TYPE-UPD END-EXEC
                IF SQLCODE = 0
-                   EXEC SQL UPDATE TF05 SET ESTADO = 3
+                   EXEC SQL UPDATE tf05 SET ESTADO = 3
                     WHERE ID_REGISTRO = :DB-ID-REGISTRO END-EXEC
-                   PERFORM 9000-AFECTAR-CORE
-                   EXEC SQL UPDATE TF05 SET ESTADO = :DB-ESTADO-FINAL,
-                    COD_ERROR = :DB-COD-ERROR, ERROR_MESSAGE = 
-                    :DB-MSG-ERROR WHERE ID_REGISTRO = :DB-ID-REGISTRO 
-                    END-EXEC
+                   PERFORM 9000-EJECUTAR-CORE-REGLAS
+                   EXEC SQL UPDATE tf05 SET ESTADO = :DB-ESTADO-FINAL,
+                        COD_ERROR = :DB-COD-ERROR, ERROR_MESSAGE = 
+                        :DB-MSG-ERROR 
+                        WHERE ID_REGISTRO = :DB-ID-REGISTRO END-EXEC
                ELSE MOVE 'Y' TO WS-EOF-CURSOR END-IF
            END-PERFORM.
            EXEC SQL CLOSE C5 END-EXEC.
 
        6000-PROCESAR-TF06.
            EXEC SQL DECLARE C6 CURSOR FOR 
-               SELECT ID_REGISTRO, ID_LOTE, CUENTA, NUM_CREDITO, MONTO 
-               FROM TF06 WHERE ID_LOTE = :DB-LOTE-BUSQUEDA AND ESTADO 
-               = 2 END-EXEC.
+               SELECT ID_REGISTRO, ID_LOTE, CUENTA, NUM_CREDITO, MONTO,
+                      ID_TRANSACCION, TYPE_UPDATE
+               FROM tf06 WHERE ID_LOTE = :DB-LOTE-BUSQUEDA
+                AND ESTADO = 2 END-EXEC.
            EXEC SQL OPEN C6 END-EXEC.
            PERFORM UNTIL WS-EOF-CURSOR = 'Y'
                EXEC SQL FETCH C6 INTO :DB-ID-REGISTRO, :DB-ID-LOTE, 
-               :DB-CUENTA, :DB-NUM-CREDITO, :DB-MONTO END-EXEC
+                    :DB-CUENTA, :DB-NUM-CREDITO, :DB-MONTO,
+                    :DB-TXID, :DB-TYPE-UPD END-EXEC
                IF SQLCODE = 0
-                   EXEC SQL UPDATE TF06 SET ESTADO = 3 
+                   EXEC SQL UPDATE tf06 SET ESTADO = 3 
                    WHERE ID_REGISTRO = :DB-ID-REGISTRO END-EXEC
-                   PERFORM 9000-AFECTAR-CORE
-                   EXEC SQL UPDATE TF06 SET ESTADO = :DB-ESTADO-FINAL, 
-                   COD_ERROR = :DB-COD-ERROR, ERROR_MESSAGE = 
-                   :DB-MSG-ERROR WHERE ID_REGISTRO = 
-                   :DB-ID-REGISTRO END-EXEC
+                   PERFORM 9000-EJECUTAR-CORE-REGLAS
+                   EXEC SQL UPDATE tf06 SET ESTADO = :DB-ESTADO-FINAL, 
+                        COD_ERROR = :DB-COD-ERROR, ERROR_MESSAGE = 
+                        :DB-MSG-ERROR 
+                        WHERE ID_REGISTRO = :DB-ID-REGISTRO END-EXEC
                ELSE MOVE 'Y' TO WS-EOF-CURSOR END-IF
            END-PERFORM.
            EXEC SQL CLOSE C6 END-EXEC.
 
-       9000-AFECTAR-CORE.
-           MOVE DB-CUENTA        TO CTA-ID-CLIENTE
-           MOVE DB-NUM-CREDITO   TO CTA-NUM-CREDITO
-           MOVE DB-MONTO         TO CTA-MONTO-MOV
+      *================================================================*
+      * 9000-EJECUTAR-CORE-REGLAS: NÚCLEO DRY DE INTELIGENCIA BANCARIA
+      *================================================================*
+       9000-EJECUTAR-CORE-REGLAS.
+           MOVE 0 TO MS-COUNT-MATCH
+           INITIALIZE MS-TIPO-DOC, MS-DOC-CLIENTE, MS-ESTADO-CTA,
+            MS-SALDO-ACTUAL
+           
+      * CORRECCIÓN CANDADO 1: Ajustado milimétricamente a ID_CUENTA y ESTADO_CUENTA
+           EXEC SQL
+               SELECT COUNT(*), c.TIPO_DOC, c.DOC_CLIENTE, 
+               cc.ESTADO_CUENTA, cc.SALDO_ACTUAL
+               INTO :MS-COUNT-MATCH, :MS-TIPO-DOC, :MS-DOC-CLIENTE, 
+                    :MS-ESTADO-CTA, :MS-SALDO-ACTUAL
+               FROM ctactes cc
+               INNER JOIN clientes c ON cc.ID_CLIENTE = c.ID_CLIENTE
+               WHERE cc.ID_CUENTA = :DB-CUENTA
+               GROUP BY c.TIPO_DOC, c.DOC_CLIENTE, cc.ESTADO_CUENTA, 
+               cc.SALDO_ACTUAL
+           END-EXEC.
 
-           EVALUATE WS-TYPE-UPDATE
-               WHEN "RRD000" MOVE "D" TO LK-TF-ACCION
-               WHEN "RRR000" MOVE "D" TO LK-TF-ACCION      
-               WHEN "RRC000" MOVE "C" TO LK-TF-ACCION
-               WHEN "RRP000" MOVE "P" TO LK-TF-ACCION    
-               WHEN OTHER    MOVE "C" TO LK-TF-ACCION
+           IF MS-COUNT-MATCH = 0
+               MOVE 7 TO DB-ESTADO-FINAL
+               MOVE "NOEXISTE" TO DB-COD-ERROR
+               MOVE "CUENTA INEXISTENTE EN CATALOGO CORE" 
+               TO DB-MSG-ERROR
+               EXIT PARAGRAPH
+           END-IF.
+
+      * CANDADO 2: Validación dinámica de longitud (CORRECCIÓN: CED = 10 Dígitos Ecuador)
+           MOVE 0 TO WS-ESPACIOS-DERECHA
+           INSPECT FUNCTION REVERSE(MS-DOC-CLIENTE)
+               TALLYING WS-ESPACIOS-DERECHA FOR LEADING SPACES
+           COMPUTE WS-LONGITUD-REAL = 
+               FUNCTION LENGTH(MS-DOC-CLIENTE) - WS-ESPACIOS-DERECHA.
+
+           EVALUATE MS-TIPO-DOC
+               WHEN "CED"
+                   IF WS-LONGITUD-REAL NOT = 10
+                       MOVE 7 TO DB-ESTADO-FINAL
+                       MOVE "ID_INVALID" TO DB-COD-ERROR
+                       MOVE "LONGITUD DE CEDULA RECHAZADA (DEBE SER 10)" 
+                       TO DB-MSG-ERROR
+                       EXIT PARAGRAPH
+                   END-IF
+               WHEN "PAS"
+                   IF WS-LONGITUD-REAL < 8 OR WS-LONGITUD-REAL > 12
+                       MOVE 7 TO DB-ESTADO-FINAL
+                       MOVE "ID_INVALID" TO DB-COD-ERROR
+                       MOVE "LONGITUD DE PASAPORTE RECHAZADA (8-12)" 
+                       TO DB-MSG-ERROR
+                       EXIT PARAGRAPH
+                   END-IF
            END-EVALUATE.
 
+      * CANDADO 3: Control de activación (Alineado con tu estado 'A' de cuenta activa)
+           IF MS-ESTADO-CTA NOT = "A"
+               MOVE 7 TO DB-ESTADO-FINAL
+               MOVE "CTA_CONGEL" TO DB-COD-ERROR
+               MOVE "CUENTA INACTIVA O BLOQUEADA ADMINISTRATIVAMENTE" 
+               TO DB-MSG-ERROR
+               EXIT PARAGRAPH
+           END-IF.
+
+      * CANDADO 4: Traducción de Prefijos Posicionales Fijos a Acciones Core
+           MOVE DB-CUENTA        TO CTA-NRO-CUENTA
+           MOVE DB-NUM-CREDITO   TO CTA-NUM-CREDITO
+           MOVE DB-MONTO         TO CTA-MONTO-MOV
+           MOVE MS-SALDO-ACTUAL  TO CTA-SALDO-ACTUAL
+
+           EVALUATE DB-TYPE-UPD
+               WHEN "DEP_DDA" MOVE "C" TO LK-TF-ACCION
+               WHEN "RET_DDA" MOVE "D" TO LK-TF-ACCION      
+               WHEN "TAR_CR"  MOVE "D" TO LK-TF-ACCION
+               WHEN "HIP_PR"  MOVE "P" TO LK-TF-ACCION    
+               WHEN OTHER     MOVE "C" TO LK-TF-ACCION
+           END-EVALUATE.
+
+      * Invocación atómica del motor elemental de afectación de balances
            CALL "tkin01" USING REG-CTA, LK-TRICKLE-FEED-INTERFACE.
 
-      * FORMATEO DE AUDITORÍA BANCARIA DE RESULTADOS
+      *----------------------------------------------------------------*
+      * MESA DE CONTROL: Formateo contable final del estatus de la fila
+      *----------------------------------------------------------------*
            IF LK-TF-COD-RETORNO = 0
                MOVE 4 TO DB-ESTADO-FINAL
                MOVE "000" TO DB-COD-ERROR
                MOVE "OK" TO DB-MSG-ERROR
            ELSE
                MOVE 7 TO DB-ESTADO-FINAL
-               MOVE LK-TF-MENSAJE        TO DB-MSG-ERROR
+               MOVE LK-TF-MENSAJE TO DB-MSG-ERROR
                EVALUATE LK-TF-COD-RETORNO
                    WHEN 07 MOVE "INSFONDOS" TO DB-COD-ERROR
                    WHEN 01 MOVE "NOEXISTE"  TO DB-COD-ERROR
-                   WHEN OTHER MOVE "ERRDB"  TO DB-COD-ERROR
+                   WHEN OTHER MOVE "ERRCORE"  TO DB-COD-ERROR
                END-EVALUATE
            END-IF.

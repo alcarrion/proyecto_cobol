@@ -1,9 +1,9 @@
        IDENTIFICATION DIVISION.
        PROGRAM-ID. TFTRCT.
       *==========================================================*
-      * PROGRAMA: TFTRCT.sqb                                     *
-      * FUNCION:  Orquestador de la Máquina de Estados (Batch)   *
-      * MODIFICACIÓN: Integración estricta del copybook LKTF     *
+      * PROGRAMA PRECOMPILABLE: TFTRCT.sqb                       *
+      * RESPONSABILIDAD: Orquestador y Máquina de Estados Core    *
+      * CORRECCIÓN: Variable host puente para LK-TF-MENSAJE      *
       *==========================================================*
        ENVIRONMENT DIVISION.
        CONFIGURATION SECTION.
@@ -26,17 +26,20 @@
        01  WS-REP-DISPONIBLE       PIC X(04).
        01  WS-PROG-FASE            PIC X(08).
        01  WS-FECHA-CONTABLE       PIC X(10).
+      * CORRECCIÓN: Variable Host asignada para el precompilador ESQL
+       01  DB-LK-MENSAJE           PIC X(200).
            EXEC SQL END DECLARE SECTION END-EXEC.
 
        01  WS-FLAGS.
            05 WS-HAY-LOTES-PEND    PIC X(01) VALUE 'S'.
            05 WS-LOTE-TERMINADO    PIC X(01) VALUE 'N'.
-      * CORRECCIÓN: Se sustituye LKCIF por el nuevo contrato batch LKTF
-           COPY LKTF.
+           
+           COPY LKTF. 
 
        PROCEDURE DIVISION.
        000-MAIN.
-           DISPLAY "--- INICIANDO ORQUESTADOR 2.0 ---"
+           DISPLAY " "
+           DISPLAY " [CORE ENGINE] INICIANDO ORQUESTADOR BATCH 3.0 ---"
            CALL "BNCR004" USING WS-FECHA-CONTABLE.
 
            PERFORM UNTIL WS-HAY-LOTES-PEND = 'N'
@@ -46,12 +49,16 @@
                    IF WS-REP-DISPONIBLE NOT = SPACES
                        PERFORM 300-PROCESAR-LOTE
                    ELSE
+                       DISPLAY "AVISO: NO HAY RÉPLICAS DISPONIBLES."
+                       " REINTENTANDO..."
                        MOVE 'N' TO WS-HAY-LOTES-PEND
                    END-IF
                ELSE
                    MOVE 'N' TO WS-HAY-LOTES-PEND
                END-IF
            END-PERFORM.
+           
+           DISPLAY "--- [CORE ENGINE] MÁQUINA DE ESTADOS EN REPOSO ---"
            GOBACK.
 
        100-BUSCAR-LOTE.
@@ -59,7 +66,7 @@
                SELECT ID_LOTE, FILE_NAME, FASE, TYPE_UPDATE
                INTO :WS-ID-LOTE, :WS-FILE-NAME, :WS-FASE,
                     :WS-TYPE-UPDATE 
-               FROM TFFM
+               FROM tffm
                WHERE FASE < '40' AND ESTADO_REPLICA = 'R'
                ORDER BY ID_LOTE ASC LIMIT 1
            END-EXEC.
@@ -68,16 +75,16 @@
            MOVE SPACES TO WS-REP-DISPONIBLE.
            EXEC SQL
                SELECT REPLICA_NO INTO :WS-REP-DISPONIBLE
-               FROM TF_REPLICAS WHERE STATUS = 'L' LIMIT 1
+               FROM tf_replicas WHERE STATUS = 'L' LIMIT 1
            END-EXEC.
 
            IF WS-REP-DISPONIBLE NOT = SPACES
                EXEC SQL
-                   UPDATE TF_REPLICAS SET STATUS = 'O'
+                   UPDATE tf_replicas SET STATUS = 'O'
                    WHERE REPLICA_NO = :WS-REP-DISPONIBLE
                END-EXEC
                EXEC SQL
-                   UPDATE TFFM 
+                   UPDATE tffm 
                    SET REPLICA_NO = :WS-REP-DISPONIBLE
                    WHERE ID_LOTE = :WS-ID-LOTE
                END-EXEC
@@ -88,12 +95,16 @@
            MOVE 'N' TO WS-LOTE-TERMINADO.
            PERFORM UNTIL WS-LOTE-TERMINADO = 'S'
                PERFORM 400-EVALUAR-FASE
+               
                IF LK-TF-COD-RETORNO = 0
                    PERFORM 500-AVANZAR-FASE
                    IF WS-FASE = '40' 
                       MOVE 'S' TO WS-LOTE-TERMINADO
                    END-IF
                ELSE
+                   DISPLAY " CRÍTICO: FALLO EN FASE " WS-FASE 
+                           " PARA EL LOTE " WS-ID-LOTE
+                   PERFORM 600-EVACUAR-LOTE-ERRONEO
                    MOVE 'S' TO WS-LOTE-TERMINADO
                END-IF
            END-PERFORM.
@@ -101,41 +112,52 @@
        400-EVALUAR-FASE.
            MOVE "SKIP" TO WS-PROG-FASE.
            
-           IF WS-FASE = '10' 
-              MOVE "TFMX" TO WS-PROG-FASE
-           END-IF.
-           
-           IF WS-FASE = '20' 
-              MOVE "TFBATFIN" TO WS-PROG-FASE
-           END-IF.
-           
-           IF WS-FASE = '30' 
-              MOVE "XXXREP" TO WS-PROG-FASE
-           END-IF.
+           IF WS-FASE = '00' MOVE "TFMX"     TO WS-PROG-FASE.
+           IF WS-FASE = '10' MOVE "TFBATFIN" TO WS-PROG-FASE.
+           IF WS-FASE = '20' MOVE "XXXREP"   TO WS-PROG-FASE.
 
            IF WS-PROG-FASE NOT = "SKIP"
                MOVE WS-REP-DISPONIBLE TO WS-REPLICA-ASIG
                CALL WS-PROG-FASE USING WS-TFFM-VARS,
-                                         LK-TRICKLE-FEED-INTERFACE
+                                       LK-TRICKLE-FEED-INTERFACE
            ELSE
                MOVE 0 TO LK-TF-COD-RETORNO
            END-IF.
 
        500-AVANZAR-FASE.
-           IF WS-FASE = '00' MOVE '10' TO WS-FASE
+           IF WS-FASE = '00'      MOVE '10' TO WS-FASE
            ELSE IF WS-FASE = '10' MOVE '20' TO WS-FASE
            ELSE IF WS-FASE = '20' MOVE '30' TO WS-FASE
            ELSE IF WS-FASE = '30' MOVE '40' TO WS-FASE.
 
            EXEC SQL
-               UPDATE TFFM SET FASE = :WS-FASE
+               UPDATE tffm SET FASE = :WS-FASE
                WHERE ID_LOTE = :WS-ID-LOTE
            END-EXEC.
 
            IF WS-FASE = '40'
                EXEC SQL
-                   UPDATE TF_REPLICAS SET STATUS = 'L'
+                   UPDATE tf_replicas SET STATUS = 'L'
                    WHERE REPLICA_NO = :WS-REP-DISPONIBLE
                END-EXEC
            END-IF.
+           EXEC SQL COMMIT END-EXEC.
+
+       600-EVACUAR-LOTE-ERRONEO.
+      * Mover el valor del copybook a la variable host aceptada por el SQL
+           MOVE LK-TF-MENSAJE TO DB-LK-MENSAJE
+
+      * Forzamos el lote a fase 99 (Abortado/Error) y liberamos la réplica física
+           EXEC SQL
+               UPDATE tffm 
+               SET FASE = '99',
+                   ERROR_CODE = 'ERR-BATCH',
+                   ERROR_MESSAGE = :DB-LK-MENSAJE
+               WHERE ID_LOTE = :WS-ID-LOTE
+           END-EXEC.
+
+           EXEC SQL
+               UPDATE tf_replicas SET STATUS = 'L'
+               WHERE REPLICA_NO = :WS-REP-DISPONIBLE
+           END-EXEC.
            EXEC SQL COMMIT END-EXEC.

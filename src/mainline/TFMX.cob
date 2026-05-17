@@ -1,33 +1,41 @@
        IDENTIFICATION DIVISION.
        PROGRAM-ID. TFMX.
-      *==========================================================
-      * FASE 10: INGESTA DINÁMICA A RÉPLICAS CORREGIDA (TF01 - TF06)
-      * Soporta parseo adaptativo para Cuentas (3 col) y Créditos (4 co
-      * CORRECCIÓN: Reseteo de bandera WS-EOF y parseo numérico seguro
-      *==========================================================
+
+      *==========================================================*
+      * FASE 00: INGESTA DINÁMICA A RÉPLICAS
+      * FORMATO POSICIONAL
+      *
+      * OPTIMIZACIÓN:
+      * Ajuste estricto de longitud de hash para
+      * ID_TRANSACCION (40 chars)
+      *==========================================================*
 
        ENVIRONMENT DIVISION.
        INPUT-OUTPUT SECTION.
+
        FILE-CONTROL.
-           SELECT ARCHIVO-ENTRADA ASSIGN TO WS-RUTA-COMPLETA
-           ORGANIZATION IS LINE SEQUENTIAL
-           FILE STATUS IS WS-FS.
+           SELECT ARCHIVO-ENTRADA
+               ASSIGN       TO WS-RUTA-COMPLETA
+               ORGANIZATION IS LINE SEQUENTIAL
+               FILE STATUS  IS WS-FS.
 
        DATA DIVISION.
+
        FILE SECTION.
+
        FD  ARCHIVO-ENTRADA.
-       01  REG-LINEA-ENTRADA           PIC X(500).
+       01  REG-LINEA-ENTRADA         PIC X(500).
 
        WORKING-STORAGE SECTION.
       **********************************************************************
       *******                EMBEDDED SQL VARIABLES                  *******
        01 SQLV.
-           05 SQL-ARRSZ  PIC S9(9) COMP-5 VALUE 7.
+           05 SQL-ARRSZ  PIC S9(9) COMP-5 VALUE 10.
            05 SQL-COUNT  PIC S9(9) COMP-5 VALUE ZERO.
-           05 SQL-ADDR   POINTER OCCURS 7 TIMES VALUE NULL.
-           05 SQL-LEN    PIC S9(9) COMP-5 OCCURS 7 TIMES VALUE ZERO.
-           05 SQL-TYPE   PIC X OCCURS 7 TIMES.
-           05 SQL-PREC   PIC X OCCURS 7 TIMES.
+           05 SQL-ADDR   POINTER OCCURS 10 TIMES VALUE NULL.
+           05 SQL-LEN    PIC S9(9) COMP-5 OCCURS 10 TIMES VALUE ZERO.
+           05 SQL-TYPE   PIC X OCCURS 10 TIMES.
+           05 SQL-PREC   PIC X OCCURS 10 TIMES.
       **********************************************************************
        01 SQL-STMT-0.
            05 SQL-IPTR   POINTER VALUE NULL.
@@ -42,71 +50,73 @@
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
-           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 7.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 101.
-           05 SQL-STMT   PIC X(101) VALUE 'INSERT INTO TF01 (ID_LOTE,EST
-      -    'ADO,DATOS_TX,REPLICA_NO,CUENTA,NUM_CREDITO,MONTO) VALUES (?,
-      -    '?,?,?,?,?,?)'.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 10.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 143.
+           05 SQL-STMT   PIC X(143) VALUE 'INSERT INTO TF01 (ID_LOTE,EST
+      -    'ADO,DATOS_TX,REPLICA_NO,CUENTA,NUM_CREDITO,MONTO,TRACE_ID,ID
+      -    '_TRANSACCION,TYPE_UPDATE) VALUES (?,?,?,?,?,?,?,?,?,?)'.
       **********************************************************************
        01 SQL-STMT-2.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
-           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 7.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 101.
-           05 SQL-STMT   PIC X(101) VALUE 'INSERT INTO TF02 (ID_LOTE,EST
-      -    'ADO,DATOS_TX,REPLICA_NO,CUENTA,NUM_CREDITO,MONTO) VALUES (?,
-      -    '?,?,?,?,?,?)'.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 10.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 143.
+           05 SQL-STMT   PIC X(143) VALUE 'INSERT INTO TF02 (ID_LOTE,EST
+      -    'ADO,DATOS_TX,REPLICA_NO,CUENTA,NUM_CREDITO,MONTO,TRACE_ID,ID
+      -    '_TRANSACCION,TYPE_UPDATE) VALUES (?,?,?,?,?,?,?,?,?,?)'.
       **********************************************************************
        01 SQL-STMT-3.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
-           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 7.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 101.
-           05 SQL-STMT   PIC X(101) VALUE 'INSERT INTO TF03 (ID_LOTE,EST
-      -    'ADO,DATOS_TX,REPLICA_NO,CUENTA,NUM_CREDITO,MONTO) VALUES (?,
-      -    '?,?,?,?,?,?)'.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 10.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 143.
+           05 SQL-STMT   PIC X(143) VALUE 'INSERT INTO TF03 (ID_LOTE,EST
+      -    'ADO,DATOS_TX,REPLICA_NO,CUENTA,NUM_CREDITO,MONTO,TRACE_ID,ID
+      -    '_TRANSACCION,TYPE_UPDATE) VALUES (?,?,?,?,?,?,?,?,?,?)'.
       **********************************************************************
        01 SQL-STMT-4.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
-           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 7.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 101.
-           05 SQL-STMT   PIC X(101) VALUE 'INSERT INTO TF04 (ID_LOTE,EST
-      -    'ADO,DATOS_TX,REPLICA_NO,CUENTA,NUM_CREDITO,MONTO) VALUES (?,
-      -    '?,?,?,?,?,?)'.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 10.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 143.
+           05 SQL-STMT   PIC X(143) VALUE 'INSERT INTO TF04 (ID_LOTE,EST
+      -    'ADO,DATOS_TX,REPLICA_NO,CUENTA,NUM_CREDITO,MONTO,TRACE_ID,ID
+      -    '_TRANSACCION,TYPE_UPDATE) VALUES (?,?,?,?,?,?,?,?,?,?)'.
       **********************************************************************
        01 SQL-STMT-5.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
-           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 7.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 101.
-           05 SQL-STMT   PIC X(101) VALUE 'INSERT INTO TF05 (ID_LOTE,EST
-      -    'ADO,DATOS_TX,REPLICA_NO,CUENTA,NUM_CREDITO,MONTO) VALUES (?,
-      -    '?,?,?,?,?,?)'.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 10.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 143.
+           05 SQL-STMT   PIC X(143) VALUE 'INSERT INTO TF05 (ID_LOTE,EST
+      -    'ADO,DATOS_TX,REPLICA_NO,CUENTA,NUM_CREDITO,MONTO,TRACE_ID,ID
+      -    '_TRANSACCION,TYPE_UPDATE) VALUES (?,?,?,?,?,?,?,?,?,?)'.
       **********************************************************************
        01 SQL-STMT-6.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
-           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 7.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 101.
-           05 SQL-STMT   PIC X(101) VALUE 'INSERT INTO TF06 (ID_LOTE,EST
-      -    'ADO,DATOS_TX,REPLICA_NO,CUENTA,NUM_CREDITO,MONTO) VALUES (?,
-      -    '?,?,?,?,?,?)'.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 10.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 143.
+           05 SQL-STMT   PIC X(143) VALUE 'INSERT INTO TF06 (ID_LOTE,EST
+      -    'ADO,DATOS_TX,REPLICA_NO,CUENTA,NUM_CREDITO,MONTO,TRACE_ID,ID
+      -    '_TRANSACCION,TYPE_UPDATE) VALUES (?,?,?,?,?,?,?,?,?,?)'.
       **********************************************************************
       *******          PRECOMPILER-GENERATED VARIABLES               *******
        01 SQLV-GEN-VARS.
            05 SQL-VAR-0001  PIC S9(9) COMP-3.
            05 SQL-VAR-0002  PIC S9(1) COMP-3.
-           05 SQL-VAR-0003  PIC S9(13) COMP-3.
-           05 SQL-VAR-0004  PIC S9(13)V9(2) COMP-3.
+           05 SQL-VAR-0003  PIC S9(13)V9(2) COMP-3.
       *******       END OF PRECOMPILER-GENERATED VARIABLES           *******
       **********************************************************************
-      *    EXEC SQL INCLUDE SQLCA END-EXEC.
+
+      *    EXEC SQL
+      *        INCLUDE SQLCA
+      *    END-EXEC.
        01 SQLCA.
            05 SQLSTATE PIC X(5).
               88  SQL-SUCCESS           VALUE '00000'.
@@ -126,54 +136,90 @@
            05 FILLER   PIC X(4).
            05 SQL-HCONN USAGE POINTER VALUE NULL.
 
-      *    EXEC SQL BEGIN DECLARE SECTION END-EXEC.
+      *    EXEC SQL
+      *        BEGIN DECLARE SECTION
+      *    END-EXEC.
+
        01  WS-HOST-VARS-TFMX.
-           05 WS-ID-LOTE-SQL       PIC 9(09).
-           05 WS-DATOS-TX-SQL      PIC X(500).
-           05 WS-ESTADO-SQL        PIC 9(01) VALUE 2.
-           05 WS-REPLICA-SQL       PIC X(04).
-           05 WS-CUENTA-SQL        PIC 9(12).
-           05 WS-CREDITO-SQL       PIC X(20).
-           05 WS-MONTO-SQL        PIC 9(13)V99.
-           05 WS-OP-SQL            PIC X(03).
-           05 WS-DIR-BASE-SQL      PIC X(120).
-      *    EXEC SQL END DECLARE SECTION END-EXEC.
+           05 WS-ID-LOTE-SQL         PIC 9(09).
+           05 WS-DATOS-TX-SQL        PIC X(500).
+           05 WS-ESTADO-SQL          PIC 9(01) VALUE 2.
+           05 WS-REPLICA-SQL         PIC X(04).
+           05 WS-TIPO-TX-SQL         PIC X(03).
+           05 WS-TRACE-ID-SQL        PIC X(40).
+           05 WS-DIR-BASE-SQL        PIC X(120).
+
+      * VARIABLES HOSTEADAS GENÉRICAS
+      * PARA EMPAREJAR CON LA BD REAL
+           05 DB-INS-CUENTA          PIC X(16).
+           05 DB-INS-NUM-CREDITO     PIC X(20).
+           05 DB-INS-MONTO           PIC S9(13)V99.
+           05 DB-INS-TYPE-UPDATE     PIC X(10).
+
+      * CORRECCIÓN:
+      * Variable de 40 bytes exactos
+      * para evitar SQL Error 1406
+           05 DB-INS-TXID            PIC X(40).
+
+      *    EXEC SQL
+      *        END DECLARE SECTION
+      *    END-EXEC.
 
        01  WS-CONTROL-FILE.
-           05 WS-RUTA-COMPLETA     PIC X(200).
-           05 WS-EOF               PIC X(01) VALUE 'N'.
-           05 WS-CONT-REGS         PIC 9(09) VALUE 0.
-           05 WS-FS                PIC X(02).
+           05 WS-RUTA-COMPLETA       PIC X(200).
+           05 WS-EOF                 PIC X(01) VALUE 'N'.
+           05 WS-CONT-REGS           PIC 9(09) VALUE 0.
+           05 WS-FS                  PIC X(02).
+           05 WS-TIPO-ARCHIVO        PIC X(03) VALUE SPACES.
 
-      * Variable temporal para evitar desborde de decimales implícitos
-       01  WS-MONTO-TEMP           PIC 9(15) VALUE 0.
+       01  WS-HASH-COMPLETO          PIC X(64).
 
        LINKAGE SECTION.
+
            COPY LKTF.
+
        01  WS-TFFM-VARS.
-           05 WS-ID-LOTE           PIC 9(09).
-           05 WS-FILE-NAME         PIC X(120).
-           05 WS-FASE              PIC X(02).
-           05 WS-TYPE-UPDATE       PIC X(10).
-           05 WS-REPLICA-ASIG      PIC X(04).
-           05 WS-RETRY-COUNT       PIC 9(02).
+           05 WS-ID-LOTE             PIC 9(09).
+           05 WS-FILE-NAME           PIC X(120).
+           05 WS-FASE                PIC X(02).
+           05 WS-TYPE-UPDATE         PIC X(10).
+           05 WS-REPLICA-ASIG        PIC X(04).
+           05 WS-RETRY-COUNT         PIC 9(02).
 
-       PROCEDURE DIVISION USING WS-TFFM-VARS,
-       LK-TRICKLE-FEED-INTERFACE.
+       PROCEDURE DIVISION
+           USING WS-TFFM-VARS,
+                 LK-TRICKLE-FEED-INTERFACE.
+
+      *==========================================================*
+      * 0000 - PRINCIPAL
+      *==========================================================*
        0000-PRINCIPAL.
-      * 1. Preparación de Entorno
-               INITIALIZE WS-HOST-VARS-TFMX, WS-RUTA-COMPLETA
 
+           INITIALIZE
+               WS-HOST-VARS-TFMX
+               WS-RUTA-COMPLETA
 
-               MOVE 'N' TO WS-EOF
-               MOVE 0   TO WS-CONT-REGS
+           MOVE 'N' TO WS-EOF
+           MOVE 0   TO WS-CONT-REGS
 
-               MOVE 2 TO WS-ESTADO-SQL
-      *        EXEC SQL
-      *            SELECT VALOR INTO :WS-DIR-BASE-SQL
-      *            FROM TF_PARAMETROS
-      *            WHERE PARAMETRO = 'RUTA_UPLOAD'
-      *        END-EXEC.
+           MOVE WS-FILE-NAME(1:3)
+             TO WS-TIPO-ARCHIVO
+
+           MOVE WS-FILE-NAME(1:3)
+             TO WS-TIPO-TX-SQL
+
+           MOVE WS-TYPE-UPDATE
+             TO DB-INS-TYPE-UPDATE
+
+           MOVE 2
+             TO WS-ESTADO-SQL
+
+      *    EXEC SQL
+      *        SELECT VALOR
+      *          INTO :WS-DIR-BASE-SQL
+      *          FROM TF_PARAMETROS
+      *         WHERE PARAMETRO = 'RUTA_UPLOAD'
+      *    END-EXEC
            IF SQL-PREP OF SQL-STMT-0 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  WS-DIR-BASE-SQL
@@ -187,89 +233,264 @@
            END-IF
            CALL 'OCSQLEXE' USING SQL-STMT-0
                                SQLCA
-                       .
 
-               IF SQLCODE NOT = 0
-                   MOVE "C:\banco\spool\Interfaces\BATCH-UPLOAD-S\"
-                     TO WS-DIR-BASE-SQL
-               END-IF.
+           IF SQLCODE NOT = 0
+               MOVE
+               "C:\banco\spool\Interfaces\BATCH-UPLOAD-S\"
+                 TO WS-DIR-BASE-SQL
+           END-IF
 
-               INSPECT WS-DIR-BASE-SQL REPLACING TRAILING
-                    SPACES BY LOW-VALUES.
+           INSPECT WS-DIR-BASE-SQL
+               REPLACING TRAILING SPACES BY LOW-VALUES
 
-               STRING WS-DIR-BASE-SQL    DELIMITED BY LOW-VALUES
-                      WS-FILE-NAME        DELIMITED BY SPACE
-                      INTO WS-RUTA-COMPLETA.
+           STRING
+               WS-DIR-BASE-SQL DELIMITED BY LOW-VALUES
+               WS-FILE-NAME    DELIMITED BY SPACE
+               INTO WS-RUTA-COMPLETA
+           END-STRING
 
-               DISPLAY "TFMX - REPLICA DESTINO: " WS-REPLICA-ASIG
-               DISPLAY "TFMX - CARGANDO DESDE : " WS-RUTA-COMPLETA
+           DISPLAY "TFMX - TIPO TRANSACCION: "
+                   WS-TIPO-ARCHIVO
 
-      * 2. Apertura de Archivo Troceado
-               OPEN INPUT ARCHIVO-ENTRADA
-               IF WS-FS NOT = "00"
-                   DISPLAY "ERROR: NO SE ENCONTRO ARCHIVO "
-                    WS-RUTA-COMPLETA
-                   MOVE 99 TO LK-TF-COD-RETORNO
-                   GOBACK
-               END-IF
+           DISPLAY "TFMX - REPLICA DESTINO: "
+                   WS-REPLICA-ASIG
 
-      * 3. Proceso de Carga Masiva
-               MOVE WS-ID-LOTE TO WS-ID-LOTE-SQL
-               MOVE WS-REPLICA-ASIG TO WS-REPLICA-SQL
+           DISPLAY "TFMX - CARGANDO DESDE : "
+                   WS-RUTA-COMPLETA
 
-               READ ARCHIVO-ENTRADA
-                    AT END MOVE 'Y' TO WS-EOF
-               END-READ
+           OPEN INPUT ARCHIVO-ENTRADA
 
-               PERFORM 1000-PROCESAR-LINEA UNTIL WS-EOF = 'Y'
+           IF WS-FS NOT = "00"
+               DISPLAY "ERROR: NO SE ENCONTRO ARCHIVO "
+                       WS-RUTA-COMPLETA
 
-      * 4. Cierre y Confirmación
-               CLOSE ARCHIVO-ENTRADA
-      *        EXEC SQL COMMIT END-EXEC
+               MOVE 99 TO LK-TF-COD-RETORNO
+               GOBACK
+           END-IF
+
+           MOVE WS-ID-LOTE
+             TO WS-ID-LOTE-SQL
+
+           MOVE WS-REPLICA-ASIG
+             TO WS-REPLICA-SQL
+
+           READ ARCHIVO-ENTRADA
+               AT END
+                   MOVE 'Y' TO WS-EOF
+           END-READ
+
+           PERFORM 1000-PROCESAR-LINEA
+               UNTIL WS-EOF = 'Y'
+
+           CLOSE ARCHIVO-ENTRADA
+
+      *    EXEC SQL
+      *        COMMIT
+      *    END-EXEC
            CALL 'OCSQLCMT' USING SQLCA END-CALL
 
-               DISPLAY "TFMX - CARGA FINALIZADA. TOTAL: " WS-CONT-REGS
-               MOVE 0 TO LK-TF-COD-RETORNO
-               GOBACK.
+           DISPLAY "TFMX - TIPO: "
+                   WS-TIPO-ARCHIVO
+                   " - CARGA FINALIZADA. TOTAL: "
+                   WS-CONT-REGS
 
-           1000-PROCESAR-LINEA.
-               MOVE REG-LINEA-ENTRADA TO WS-DATOS-TX-SQL
-               INITIALIZE WS-MONTO-TEMP
+           MOVE 0 TO LK-TF-COD-RETORNO
 
-      * PARSEO INTELIGENTE: Evaluamos la cabecera antes del desempaque
-               IF REG-LINEA-ENTRADA(1:3) = "PAG"
-      * Formato Créditos: TIPO|CUENTA|NUM_CREDITO|MONTO (4 campos)
-                   UNSTRING REG-LINEA-ENTRADA DELIMITED BY "|"
-                   INTO WS-OP-SQL, WS-CUENTA-SQL, WS-CREDITO-SQL,
-                        WS-MONTO-TEMP
-               ELSE
-      * Formato Cuentas: TIPO|NUM_CUENTA|MONTO (3 campos)
-                   MOVE SPACES TO WS-CREDITO-SQL
-                   UNSTRING REG-LINEA-ENTRADA DELIMITED BY "|"
-                   INTO WS-OP-SQL, WS-CUENTA-SQL, WS-MONTO-TEMP
-               END-IF
+           GOBACK.
 
-      * CORRECCIÓN: Asignación con escala decimal real dividiendo para
-               COMPUTE WS-MONTO-SQL = WS-MONTO-TEMP / 100
+      *==========================================================*
+      * 1000 - PROCESAR LINEA
+      *==========================================================*
+       1000-PROCESAR-LINEA.
 
-      * Ejecutar la inserción en la réplica asignada
-               PERFORM 2000-INSERTAR-DINAMICO
+           MOVE REG-LINEA-ENTRADA
+             TO WS-DATOS-TX-SQL
 
-               READ ARCHIVO-ENTRADA
-                    AT END MOVE 'Y' TO WS-EOF
-               END-READ.
+           INITIALIZE
+               DB-INS-CUENTA
+               DB-INS-NUM-CREDITO
+               DB-INS-MONTO
+               WS-TRACE-ID-SQL
+               WS-HASH-COMPLETO
+               DB-INS-TXID
 
-           2000-INSERTAR-DINAMICO.
-               EVALUATE WS-REPLICA-ASIG
-                   WHEN "TF01"
-      *                EXEC SQL
-      *                    INSERT INTO TF01 (ID_LOTE, ESTADO, DATOS_TX,
-      *                    REPLICA_NO, CUENTA, NUM_CREDITO, MONTO)
-      *                    VALUES (:WS-ID-LOTE-SQL, :WS-ESTADO-SQL,
-      *                    :WS-DATOS-TX-SQL, :WS-REPLICA-SQL,
-      *                    :WS-CUENTA-SQL, :WS-CREDITO-SQL,
-      *                    :WS-MONTO-SQL)
-      *                END-EXEC
+           EVALUATE WS-TIPO-ARCHIVO
+
+               WHEN "DEP"
+               WHEN "RET"
+                   PERFORM 2100-PARSEAR-DEP-RET
+
+               WHEN "TAR"
+                   PERFORM 2200-PARSEAR-TAR
+
+               WHEN "HIP"
+                   PERFORM 2300-PARSEAR-HIP
+
+               WHEN "IMP"
+                   PERFORM 2400-PARSEAR-IMP
+
+           END-EVALUATE
+
+      * Ajuste atómico de seguridad:
+      * Tomamos los primeros 40 bytes de la firma
+           MOVE WS-HASH-COMPLETO(1:40)
+             TO DB-INS-TXID
+
+           PERFORM 3000-INSERTAR-EN-REPLICA
+
+           READ ARCHIVO-ENTRADA
+               AT END
+                   MOVE 'Y' TO WS-EOF
+           END-READ.
+
+      *==========================================================*
+      * 2100 - PARSEAR DEP / RET
+      *==========================================================*
+       2100-PARSEAR-DEP-RET.
+
+           MOVE REG-LINEA-ENTRADA(1:10)
+             TO DB-INS-CUENTA
+
+           MOVE REG-LINEA-ENTRADA(11:3)
+             TO DB-INS-NUM-CREDITO
+
+           COMPUTE DB-INS-MONTO =
+               FUNCTION NUMVAL(
+                   REG-LINEA-ENTRADA(14:15)
+               ) / 100
+
+           MOVE REG-LINEA-ENTRADA(29:40)
+             TO WS-TRACE-ID-SQL
+
+           MOVE REG-LINEA-ENTRADA(73:64)
+             TO WS-HASH-COMPLETO.
+
+      *==========================================================*
+      * 2200 - PARSEAR TAR
+      *==========================================================*
+       2200-PARSEAR-TAR.
+
+           MOVE REG-LINEA-ENTRADA(1:16)
+             TO DB-INS-CUENTA
+
+           MOVE REG-LINEA-ENTRADA(32:3)
+             TO DB-INS-NUM-CREDITO
+
+           COMPUTE DB-INS-MONTO =
+               FUNCTION NUMVAL(
+                   REG-LINEA-ENTRADA(17:15)
+               ) / 100
+
+           MOVE REG-LINEA-ENTRADA(64:40)
+             TO WS-TRACE-ID-SQL
+
+           MOVE REG-LINEA-ENTRADA(104:64)
+             TO WS-HASH-COMPLETO.
+
+      *==========================================================*
+      * 2300 - PARSEAR HIP
+      *==========================================================*
+       2300-PARSEAR-HIP.
+
+           MOVE REG-LINEA-ENTRADA(1:10)
+             TO DB-INS-CUENTA
+
+           MOVE REG-LINEA-ENTRADA(38:2)
+             TO DB-INS-NUM-CREDITO
+
+           COMPUTE DB-INS-MONTO =
+               FUNCTION NUMVAL(
+                   REG-LINEA-ENTRADA(11:15)
+               ) / 100
+
+           MOVE REG-LINEA-ENTRADA(40:40)
+             TO WS-TRACE-ID-SQL
+
+           MOVE REG-LINEA-ENTRADA(80:64)
+             TO WS-HASH-COMPLETO.
+
+      *==========================================================*
+      * 2400 - PARSEAR IMP
+      *==========================================================*
+       2400-PARSEAR-IMP.
+
+           MOVE REG-LINEA-ENTRADA(1:10)
+             TO DB-INS-CUENTA
+
+           MOVE REG-LINEA-ENTRADA(11:3)
+             TO DB-INS-NUM-CREDITO
+
+           COMPUTE DB-INS-MONTO =
+               FUNCTION NUMVAL(
+                   REG-LINEA-ENTRADA(14:15)
+               ) / 100
+
+           MOVE REG-LINEA-ENTRADA(29:40)
+             TO WS-TRACE-ID-SQL
+
+           MOVE REG-LINEA-ENTRADA(69:64)
+             TO WS-HASH-COMPLETO.
+
+      *==========================================================*
+      * 3000 - INSERTAR EN REPLICA
+      *==========================================================*
+       3000-INSERTAR-EN-REPLICA.
+
+           EVALUATE WS-REPLICA-ASIG
+
+               WHEN "TF01"
+                   PERFORM 3100-INSERT-TF01
+
+               WHEN "TF02"
+                   PERFORM 3100-INSERT-TF02
+
+               WHEN "TF03"
+                   PERFORM 3100-INSERT-TF03
+
+               WHEN "TF04"
+                   PERFORM 3100-INSERT-TF04
+
+               WHEN "TF05"
+                   PERFORM 3100-INSERT-TF05
+
+               WHEN "TF06"
+                   PERFORM 3100-INSERT-TF06
+
+           END-EVALUATE.
+
+      *==========================================================*
+      * 3100 - INSERT TF01
+      *==========================================================*
+       3100-INSERT-TF01.
+
+      *    EXEC SQL
+      *        INSERT INTO TF01
+      *        (
+      *            ID_LOTE,
+      *            ESTADO,
+      *            DATOS_TX,
+      *            REPLICA_NO,
+      *            CUENTA,
+      *            NUM_CREDITO,
+      *            MONTO,
+      *            TRACE_ID,
+      *            ID_TRANSACCION,
+      *            TYPE_UPDATE
+      *        )
+      *        VALUES
+      *        (
+      *            :WS-ID-LOTE-SQL,
+      *            :WS-ESTADO-SQL,
+      *            :WS-DATOS-TX-SQL,
+      *            :WS-REPLICA-SQL,
+      *            :DB-INS-CUENTA,
+      *            :DB-INS-NUM-CREDITO,
+      *            :DB-INS-MONTO,
+      *            :WS-TRACE-ID-SQL,
+      *            :DB-INS-TXID,
+      *            :DB-INS-TYPE-UPDATE
+      *        )
+      *    END-EXEC
            IF SQL-PREP OF SQL-STMT-1 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  SQL-VAR-0001
@@ -290,20 +511,31 @@
                MOVE 'X' TO SQL-TYPE(4)
                MOVE 4 TO SQL-LEN(4)
                SET SQL-ADDR(5) TO ADDRESS OF
-                 SQL-VAR-0003
-               MOVE '3' TO SQL-TYPE(5)
-               MOVE 7 TO SQL-LEN(5)
-               MOVE X'00' TO SQL-PREC(5)
+                 DB-INS-CUENTA
+               MOVE 'X' TO SQL-TYPE(5)
+               MOVE 16 TO SQL-LEN(5)
                SET SQL-ADDR(6) TO ADDRESS OF
-                 WS-CREDITO-SQL
+                 DB-INS-NUM-CREDITO
                MOVE 'X' TO SQL-TYPE(6)
                MOVE 20 TO SQL-LEN(6)
                SET SQL-ADDR(7) TO ADDRESS OF
-                 SQL-VAR-0004
+                 SQL-VAR-0003
                MOVE '3' TO SQL-TYPE(7)
                MOVE 8 TO SQL-LEN(7)
                MOVE X'02' TO SQL-PREC(7)
-               MOVE 7 TO SQL-COUNT
+               SET SQL-ADDR(8) TO ADDRESS OF
+                 WS-TRACE-ID-SQL
+               MOVE 'X' TO SQL-TYPE(8)
+               MOVE 40 TO SQL-LEN(8)
+               SET SQL-ADDR(9) TO ADDRESS OF
+                 DB-INS-TXID
+               MOVE 'X' TO SQL-TYPE(9)
+               MOVE 40 TO SQL-LEN(9)
+               SET SQL-ADDR(10) TO ADDRESS OF
+                 DB-INS-TYPE-UPDATE
+               MOVE 'X' TO SQL-TYPE(10)
+               MOVE 10 TO SQL-LEN(10)
+               MOVE 10 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
                                    SQL-STMT-1
                                    SQLCA
@@ -313,21 +545,46 @@
              TO SQL-VAR-0001
            MOVE WS-ESTADO-SQL
              TO SQL-VAR-0002
-           MOVE WS-CUENTA-SQL
+           MOVE DB-INS-MONTO
              TO SQL-VAR-0003
-           MOVE WS-MONTO-SQL
-             TO SQL-VAR-0004
            CALL 'OCSQLEXE' USING SQL-STMT-1
                                SQLCA
-                   WHEN "TF02"
-      *                EXEC SQL
-      *                    INSERT INTO TF02 (ID_LOTE, ESTADO, DATOS_TX,
-      *                    REPLICA_NO, CUENTA, NUM_CREDITO, MONTO)
-      *                    VALUES (:WS-ID-LOTE-SQL, :WS-ESTADO-SQL,
-      *                    :WS-DATOS-TX-SQL, :WS-REPLICA-SQL,
-      *                    :WS-CUENTA-SQL, :WS-CREDITO-SQL,
-      *                    :WS-MONTO-SQL)
-      *                END-EXEC
+
+           PERFORM 3200-VALIDAR-INSERT.
+
+      *==========================================================*
+      * 3100 - INSERT TF02
+      *==========================================================*
+       3100-INSERT-TF02.
+
+      *    EXEC SQL
+      *        INSERT INTO TF02
+      *        (
+      *            ID_LOTE,
+      *            ESTADO,
+      *            DATOS_TX,
+      *            REPLICA_NO,
+      *            CUENTA,
+      *            NUM_CREDITO,
+      *            MONTO,
+      *            TRACE_ID,
+      *            ID_TRANSACCION,
+      *            TYPE_UPDATE
+      *        )
+      *        VALUES
+      *        (
+      *            :WS-ID-LOTE-SQL,
+      *            :WS-ESTADO-SQL,
+      *            :WS-DATOS-TX-SQL,
+      *            :WS-REPLICA-SQL,
+      *            :DB-INS-CUENTA,
+      *            :DB-INS-NUM-CREDITO,
+      *            :DB-INS-MONTO,
+      *            :WS-TRACE-ID-SQL,
+      *            :DB-INS-TXID,
+      *            :DB-INS-TYPE-UPDATE
+      *        )
+      *    END-EXEC
            IF SQL-PREP OF SQL-STMT-2 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  SQL-VAR-0001
@@ -348,20 +605,31 @@
                MOVE 'X' TO SQL-TYPE(4)
                MOVE 4 TO SQL-LEN(4)
                SET SQL-ADDR(5) TO ADDRESS OF
-                 SQL-VAR-0003
-               MOVE '3' TO SQL-TYPE(5)
-               MOVE 7 TO SQL-LEN(5)
-               MOVE X'00' TO SQL-PREC(5)
+                 DB-INS-CUENTA
+               MOVE 'X' TO SQL-TYPE(5)
+               MOVE 16 TO SQL-LEN(5)
                SET SQL-ADDR(6) TO ADDRESS OF
-                 WS-CREDITO-SQL
+                 DB-INS-NUM-CREDITO
                MOVE 'X' TO SQL-TYPE(6)
                MOVE 20 TO SQL-LEN(6)
                SET SQL-ADDR(7) TO ADDRESS OF
-                 SQL-VAR-0004
+                 SQL-VAR-0003
                MOVE '3' TO SQL-TYPE(7)
                MOVE 8 TO SQL-LEN(7)
                MOVE X'02' TO SQL-PREC(7)
-               MOVE 7 TO SQL-COUNT
+               SET SQL-ADDR(8) TO ADDRESS OF
+                 WS-TRACE-ID-SQL
+               MOVE 'X' TO SQL-TYPE(8)
+               MOVE 40 TO SQL-LEN(8)
+               SET SQL-ADDR(9) TO ADDRESS OF
+                 DB-INS-TXID
+               MOVE 'X' TO SQL-TYPE(9)
+               MOVE 40 TO SQL-LEN(9)
+               SET SQL-ADDR(10) TO ADDRESS OF
+                 DB-INS-TYPE-UPDATE
+               MOVE 'X' TO SQL-TYPE(10)
+               MOVE 10 TO SQL-LEN(10)
+               MOVE 10 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
                                    SQL-STMT-2
                                    SQLCA
@@ -371,21 +639,46 @@
              TO SQL-VAR-0001
            MOVE WS-ESTADO-SQL
              TO SQL-VAR-0002
-           MOVE WS-CUENTA-SQL
+           MOVE DB-INS-MONTO
              TO SQL-VAR-0003
-           MOVE WS-MONTO-SQL
-             TO SQL-VAR-0004
            CALL 'OCSQLEXE' USING SQL-STMT-2
                                SQLCA
-                   WHEN "TF03"
-      *                EXEC SQL
-      *                    INSERT INTO TF03 (ID_LOTE, ESTADO, DATOS_TX,
-      *                    REPLICA_NO, CUENTA, NUM_CREDITO, MONTO)
-      *                    VALUES (:WS-ID-LOTE-SQL, :WS-ESTADO-SQL,
-      *                    :WS-DATOS-TX-SQL, :WS-REPLICA-SQL,
-      *                    :WS-CUENTA-SQL, :WS-CREDITO-SQL,
-      *                     :WS-MONTO-SQL)
-      *                END-EXEC
+
+           PERFORM 3200-VALIDAR-INSERT.
+
+      *==========================================================*
+      * 3100 - INSERT TF03
+      *==========================================================*
+       3100-INSERT-TF03.
+
+      *    EXEC SQL
+      *        INSERT INTO TF03
+      *        (
+      *            ID_LOTE,
+      *            ESTADO,
+      *            DATOS_TX,
+      *            REPLICA_NO,
+      *            CUENTA,
+      *            NUM_CREDITO,
+      *            MONTO,
+      *            TRACE_ID,
+      *            ID_TRANSACCION,
+      *            TYPE_UPDATE
+      *        )
+      *        VALUES
+      *        (
+      *            :WS-ID-LOTE-SQL,
+      *            :WS-ESTADO-SQL,
+      *            :WS-DATOS-TX-SQL,
+      *            :WS-REPLICA-SQL,
+      *            :DB-INS-CUENTA,
+      *            :DB-INS-NUM-CREDITO,
+      *            :DB-INS-MONTO,
+      *            :WS-TRACE-ID-SQL,
+      *            :DB-INS-TXID,
+      *            :DB-INS-TYPE-UPDATE
+      *        )
+      *    END-EXEC
            IF SQL-PREP OF SQL-STMT-3 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  SQL-VAR-0001
@@ -406,20 +699,31 @@
                MOVE 'X' TO SQL-TYPE(4)
                MOVE 4 TO SQL-LEN(4)
                SET SQL-ADDR(5) TO ADDRESS OF
-                 SQL-VAR-0003
-               MOVE '3' TO SQL-TYPE(5)
-               MOVE 7 TO SQL-LEN(5)
-               MOVE X'00' TO SQL-PREC(5)
+                 DB-INS-CUENTA
+               MOVE 'X' TO SQL-TYPE(5)
+               MOVE 16 TO SQL-LEN(5)
                SET SQL-ADDR(6) TO ADDRESS OF
-                 WS-CREDITO-SQL
+                 DB-INS-NUM-CREDITO
                MOVE 'X' TO SQL-TYPE(6)
                MOVE 20 TO SQL-LEN(6)
                SET SQL-ADDR(7) TO ADDRESS OF
-                 SQL-VAR-0004
+                 SQL-VAR-0003
                MOVE '3' TO SQL-TYPE(7)
                MOVE 8 TO SQL-LEN(7)
                MOVE X'02' TO SQL-PREC(7)
-               MOVE 7 TO SQL-COUNT
+               SET SQL-ADDR(8) TO ADDRESS OF
+                 WS-TRACE-ID-SQL
+               MOVE 'X' TO SQL-TYPE(8)
+               MOVE 40 TO SQL-LEN(8)
+               SET SQL-ADDR(9) TO ADDRESS OF
+                 DB-INS-TXID
+               MOVE 'X' TO SQL-TYPE(9)
+               MOVE 40 TO SQL-LEN(9)
+               SET SQL-ADDR(10) TO ADDRESS OF
+                 DB-INS-TYPE-UPDATE
+               MOVE 'X' TO SQL-TYPE(10)
+               MOVE 10 TO SQL-LEN(10)
+               MOVE 10 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
                                    SQL-STMT-3
                                    SQLCA
@@ -429,21 +733,46 @@
              TO SQL-VAR-0001
            MOVE WS-ESTADO-SQL
              TO SQL-VAR-0002
-           MOVE WS-CUENTA-SQL
+           MOVE DB-INS-MONTO
              TO SQL-VAR-0003
-           MOVE WS-MONTO-SQL
-             TO SQL-VAR-0004
            CALL 'OCSQLEXE' USING SQL-STMT-3
                                SQLCA
-                   WHEN "TF04"
-      *                EXEC SQL
-      *                    INSERT INTO TF04 (ID_LOTE, ESTADO, DATOS_TX,
-      *                    REPLICA_NO, CUENTA, NUM_CREDITO, MONTO)
-      *                    VALUES (:WS-ID-LOTE-SQL, :WS-ESTADO-SQL,
-      *                    :WS-DATOS-TX-SQL, :WS-REPLICA-SQL,
-      *                    :WS-CUENTA-SQL, :WS-CREDITO-SQL,
-      *                    :WS-MONTO-SQL)
-      *                END-EXEC
+
+           PERFORM 3200-VALIDAR-INSERT.
+
+      *==========================================================*
+      * 3100 - INSERT TF04
+      *==========================================================*
+       3100-INSERT-TF04.
+
+      *    EXEC SQL
+      *        INSERT INTO TF04
+      *        (
+      *            ID_LOTE,
+      *            ESTADO,
+      *            DATOS_TX,
+      *            REPLICA_NO,
+      *            CUENTA,
+      *            NUM_CREDITO,
+      *            MONTO,
+      *            TRACE_ID,
+      *            ID_TRANSACCION,
+      *            TYPE_UPDATE
+      *        )
+      *        VALUES
+      *        (
+      *            :WS-ID-LOTE-SQL,
+      *            :WS-ESTADO-SQL,
+      *            :WS-DATOS-TX-SQL,
+      *            :WS-REPLICA-SQL,
+      *            :DB-INS-CUENTA,
+      *            :DB-INS-NUM-CREDITO,
+      *            :DB-INS-MONTO,
+      *            :WS-TRACE-ID-SQL,
+      *            :DB-INS-TXID,
+      *            :DB-INS-TYPE-UPDATE
+      *        )
+      *    END-EXEC
            IF SQL-PREP OF SQL-STMT-4 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  SQL-VAR-0001
@@ -464,20 +793,31 @@
                MOVE 'X' TO SQL-TYPE(4)
                MOVE 4 TO SQL-LEN(4)
                SET SQL-ADDR(5) TO ADDRESS OF
-                 SQL-VAR-0003
-               MOVE '3' TO SQL-TYPE(5)
-               MOVE 7 TO SQL-LEN(5)
-               MOVE X'00' TO SQL-PREC(5)
+                 DB-INS-CUENTA
+               MOVE 'X' TO SQL-TYPE(5)
+               MOVE 16 TO SQL-LEN(5)
                SET SQL-ADDR(6) TO ADDRESS OF
-                 WS-CREDITO-SQL
+                 DB-INS-NUM-CREDITO
                MOVE 'X' TO SQL-TYPE(6)
                MOVE 20 TO SQL-LEN(6)
                SET SQL-ADDR(7) TO ADDRESS OF
-                 SQL-VAR-0004
+                 SQL-VAR-0003
                MOVE '3' TO SQL-TYPE(7)
                MOVE 8 TO SQL-LEN(7)
                MOVE X'02' TO SQL-PREC(7)
-               MOVE 7 TO SQL-COUNT
+               SET SQL-ADDR(8) TO ADDRESS OF
+                 WS-TRACE-ID-SQL
+               MOVE 'X' TO SQL-TYPE(8)
+               MOVE 40 TO SQL-LEN(8)
+               SET SQL-ADDR(9) TO ADDRESS OF
+                 DB-INS-TXID
+               MOVE 'X' TO SQL-TYPE(9)
+               MOVE 40 TO SQL-LEN(9)
+               SET SQL-ADDR(10) TO ADDRESS OF
+                 DB-INS-TYPE-UPDATE
+               MOVE 'X' TO SQL-TYPE(10)
+               MOVE 10 TO SQL-LEN(10)
+               MOVE 10 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
                                    SQL-STMT-4
                                    SQLCA
@@ -487,21 +827,46 @@
              TO SQL-VAR-0001
            MOVE WS-ESTADO-SQL
              TO SQL-VAR-0002
-           MOVE WS-CUENTA-SQL
+           MOVE DB-INS-MONTO
              TO SQL-VAR-0003
-           MOVE WS-MONTO-SQL
-             TO SQL-VAR-0004
            CALL 'OCSQLEXE' USING SQL-STMT-4
                                SQLCA
-                   WHEN "TF05"
-      *                EXEC SQL
-      *                    INSERT INTO TF05 (ID_LOTE, ESTADO, DATOS_TX,
-      *                    REPLICA_NO, CUENTA, NUM_CREDITO, MONTO)
-      *                    VALUES (:WS-ID-LOTE-SQL, :WS-ESTADO-SQL,
-      *                    :WS-DATOS-TX-SQL, :WS-REPLICA-SQL,
-      *                    :WS-CUENTA-SQL, :WS-CREDITO-SQL,
-      *                    :WS-MONTO-SQL)
-      *                END-EXEC
+
+           PERFORM 3200-VALIDAR-INSERT.
+
+      *==========================================================*
+      * 3100 - INSERT TF05
+      *==========================================================*
+       3100-INSERT-TF05.
+
+      *    EXEC SQL
+      *        INSERT INTO TF05
+      *        (
+      *            ID_LOTE,
+      *            ESTADO,
+      *            DATOS_TX,
+      *            REPLICA_NO,
+      *            CUENTA,
+      *            NUM_CREDITO,
+      *            MONTO,
+      *            TRACE_ID,
+      *            ID_TRANSACCION,
+      *            TYPE_UPDATE
+      *        )
+      *        VALUES
+      *        (
+      *            :WS-ID-LOTE-SQL,
+      *            :WS-ESTADO-SQL,
+      *            :WS-DATOS-TX-SQL,
+      *            :WS-REPLICA-SQL,
+      *            :DB-INS-CUENTA,
+      *            :DB-INS-NUM-CREDITO,
+      *            :DB-INS-MONTO,
+      *            :WS-TRACE-ID-SQL,
+      *            :DB-INS-TXID,
+      *            :DB-INS-TYPE-UPDATE
+      *        )
+      *    END-EXEC
            IF SQL-PREP OF SQL-STMT-5 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  SQL-VAR-0001
@@ -522,20 +887,31 @@
                MOVE 'X' TO SQL-TYPE(4)
                MOVE 4 TO SQL-LEN(4)
                SET SQL-ADDR(5) TO ADDRESS OF
-                 SQL-VAR-0003
-               MOVE '3' TO SQL-TYPE(5)
-               MOVE 7 TO SQL-LEN(5)
-               MOVE X'00' TO SQL-PREC(5)
+                 DB-INS-CUENTA
+               MOVE 'X' TO SQL-TYPE(5)
+               MOVE 16 TO SQL-LEN(5)
                SET SQL-ADDR(6) TO ADDRESS OF
-                 WS-CREDITO-SQL
+                 DB-INS-NUM-CREDITO
                MOVE 'X' TO SQL-TYPE(6)
                MOVE 20 TO SQL-LEN(6)
                SET SQL-ADDR(7) TO ADDRESS OF
-                 SQL-VAR-0004
+                 SQL-VAR-0003
                MOVE '3' TO SQL-TYPE(7)
                MOVE 8 TO SQL-LEN(7)
                MOVE X'02' TO SQL-PREC(7)
-               MOVE 7 TO SQL-COUNT
+               SET SQL-ADDR(8) TO ADDRESS OF
+                 WS-TRACE-ID-SQL
+               MOVE 'X' TO SQL-TYPE(8)
+               MOVE 40 TO SQL-LEN(8)
+               SET SQL-ADDR(9) TO ADDRESS OF
+                 DB-INS-TXID
+               MOVE 'X' TO SQL-TYPE(9)
+               MOVE 40 TO SQL-LEN(9)
+               SET SQL-ADDR(10) TO ADDRESS OF
+                 DB-INS-TYPE-UPDATE
+               MOVE 'X' TO SQL-TYPE(10)
+               MOVE 10 TO SQL-LEN(10)
+               MOVE 10 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
                                    SQL-STMT-5
                                    SQLCA
@@ -545,21 +921,46 @@
              TO SQL-VAR-0001
            MOVE WS-ESTADO-SQL
              TO SQL-VAR-0002
-           MOVE WS-CUENTA-SQL
+           MOVE DB-INS-MONTO
              TO SQL-VAR-0003
-           MOVE WS-MONTO-SQL
-             TO SQL-VAR-0004
            CALL 'OCSQLEXE' USING SQL-STMT-5
                                SQLCA
-                   WHEN "TF06"
-      *                EXEC SQL
-      *                    INSERT INTO TF06 (ID_LOTE, ESTADO, DATOS_TX,
-      *                    REPLICA_NO, CUENTA, NUM_CREDITO, MONTO)
-      *                    VALUES (:WS-ID-LOTE-SQL, :WS-ESTADO-SQL,
-      *                    :WS-DATOS-TX-SQL, :WS-REPLICA-SQL,
-      *                    :WS-CUENTA-SQL, :WS-CREDITO-SQL,
-      *                    :WS-MONTO-SQL)
-      *                END-EXEC
+
+           PERFORM 3200-VALIDAR-INSERT.
+
+      *==========================================================*
+      * 3100 - INSERT TF06
+      *==========================================================*
+       3100-INSERT-TF06.
+
+      *    EXEC SQL
+      *        INSERT INTO TF06
+      *        (
+      *            ID_LOTE,
+      *            ESTADO,
+      *            DATOS_TX,
+      *            REPLICA_NO,
+      *            CUENTA,
+      *            NUM_CREDITO,
+      *            MONTO,
+      *            TRACE_ID,
+      *            ID_TRANSACCION,
+      *            TYPE_UPDATE
+      *        )
+      *        VALUES
+      *        (
+      *            :WS-ID-LOTE-SQL,
+      *            :WS-ESTADO-SQL,
+      *            :WS-DATOS-TX-SQL,
+      *            :WS-REPLICA-SQL,
+      *            :DB-INS-CUENTA,
+      *            :DB-INS-NUM-CREDITO,
+      *            :DB-INS-MONTO,
+      *            :WS-TRACE-ID-SQL,
+      *            :DB-INS-TXID,
+      *            :DB-INS-TYPE-UPDATE
+      *        )
+      *    END-EXEC
            IF SQL-PREP OF SQL-STMT-6 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  SQL-VAR-0001
@@ -580,20 +981,31 @@
                MOVE 'X' TO SQL-TYPE(4)
                MOVE 4 TO SQL-LEN(4)
                SET SQL-ADDR(5) TO ADDRESS OF
-                 SQL-VAR-0003
-               MOVE '3' TO SQL-TYPE(5)
-               MOVE 7 TO SQL-LEN(5)
-               MOVE X'00' TO SQL-PREC(5)
+                 DB-INS-CUENTA
+               MOVE 'X' TO SQL-TYPE(5)
+               MOVE 16 TO SQL-LEN(5)
                SET SQL-ADDR(6) TO ADDRESS OF
-                 WS-CREDITO-SQL
+                 DB-INS-NUM-CREDITO
                MOVE 'X' TO SQL-TYPE(6)
                MOVE 20 TO SQL-LEN(6)
                SET SQL-ADDR(7) TO ADDRESS OF
-                 SQL-VAR-0004
+                 SQL-VAR-0003
                MOVE '3' TO SQL-TYPE(7)
                MOVE 8 TO SQL-LEN(7)
                MOVE X'02' TO SQL-PREC(7)
-               MOVE 7 TO SQL-COUNT
+               SET SQL-ADDR(8) TO ADDRESS OF
+                 WS-TRACE-ID-SQL
+               MOVE 'X' TO SQL-TYPE(8)
+               MOVE 40 TO SQL-LEN(8)
+               SET SQL-ADDR(9) TO ADDRESS OF
+                 DB-INS-TXID
+               MOVE 'X' TO SQL-TYPE(9)
+               MOVE 40 TO SQL-LEN(9)
+               SET SQL-ADDR(10) TO ADDRESS OF
+                 DB-INS-TYPE-UPDATE
+               MOVE 'X' TO SQL-TYPE(10)
+               MOVE 10 TO SQL-LEN(10)
+               MOVE 10 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
                                    SQL-STMT-6
                                    SQLCA
@@ -603,48 +1015,58 @@
              TO SQL-VAR-0001
            MOVE WS-ESTADO-SQL
              TO SQL-VAR-0002
-           MOVE WS-CUENTA-SQL
+           MOVE DB-INS-MONTO
              TO SQL-VAR-0003
-           MOVE WS-MONTO-SQL
-             TO SQL-VAR-0004
            CALL 'OCSQLEXE' USING SQL-STMT-6
                                SQLCA
-                   WHEN OTHER
-                       DISPLAY "ERROR: REPLICA NO CONFIGURADA: "
-                       WS-REPLICA-ASIG
-                       MOVE 99 TO LK-TF-COD-RETORNO
-                       MOVE "Y" TO WS-EOF
-               END-EVALUATE.
 
-               IF SQLCODE NOT = 0
-                   DISPLAY "FALLO INSERT EN REPLICA " WS-REPLICA-ASIG
-                   DISPLAY "SQLCODE: " SQLCODE
-                   MOVE 99 TO LK-TF-COD-RETORNO
-                   MOVE "Y" TO WS-EOF
-               ELSE
-                   ADD 1 TO WS-CONT-REGS
-               END-IF.
+           PERFORM 3200-VALIDAR-INSERT.
+
+      *==========================================================*
+      * 3200 - VALIDAR INSERT
+      *==========================================================*
+       3200-VALIDAR-INSERT.
+
+           IF SQLCODE NOT = 0
+               DISPLAY "FALLO INSERT EN REPLICA "
+                       WS-REPLICA-ASIG
+
+               DISPLAY "SQLCODE: "
+                       SQLCODE
+
+               MOVE 99 TO LK-TF-COD-RETORNO
+               MOVE "Y" TO WS-EOF
+
+           ELSE
+               ADD 1 TO WS-CONT-REGS
+           END-IF.
       **********************************************************************
       *  : ESQL for GnuCOBOL/OpenCOBOL Version 3 (2024.04.30) Build May 10 2024
 
       *******               EMBEDDED SQL VARIABLES USAGE             *******
-      *  WS-CREDITO-SQL           IN USE CHAR(20)
-      *  WS-CUENTA-SQL            IN USE THROUGH TEMP VAR SQL-VAR-0003 DECIMAL(13,0)
+      *  DB-INS-CUENTA            IN USE CHAR(16)
+      *  DB-INS-MONTO             IN USE THROUGH TEMP VAR SQL-VAR-0003 DECIMAL(15,2)
+      *  DB-INS-NUM-CREDITO       IN USE CHAR(20)
+      *  DB-INS-TXID              IN USE CHAR(40)
+      *  DB-INS-TYPE-UPDATE       IN USE CHAR(10)
       *  WS-DATOS-TX-SQL          IN USE CHAR(500)
       *  WS-DIR-BASE-SQL          IN USE CHAR(120)
       *  WS-ESTADO-SQL            IN USE THROUGH TEMP VAR SQL-VAR-0002 DECIMAL(1,0)
       *  WS-HOST-VARS-TFMX    NOT IN USE
-      *  WS-HOST-VARS-TFMX.WS-CREDITO-SQL NOT IN USE
-      *  WS-HOST-VARS-TFMX.WS-CUENTA-SQL NOT IN USE
+      *  WS-HOST-VARS-TFMX.DB-INS-CUENTA NOT IN USE
+      *  WS-HOST-VARS-TFMX.DB-INS-MONTO NOT IN USE
+      *  WS-HOST-VARS-TFMX.DB-INS-NUM-CREDITO NOT IN USE
+      *  WS-HOST-VARS-TFMX.DB-INS-TXID NOT IN USE
+      *  WS-HOST-VARS-TFMX.DB-INS-TYPE-UPDATE NOT IN USE
       *  WS-HOST-VARS-TFMX.WS-DATOS-TX-SQL NOT IN USE
       *  WS-HOST-VARS-TFMX.WS-DIR-BASE-SQL NOT IN USE
       *  WS-HOST-VARS-TFMX.WS-ESTADO-SQL NOT IN USE
       *  WS-HOST-VARS-TFMX.WS-ID-LOTE-SQL NOT IN USE
-      *  WS-HOST-VARS-TFMX.WS-MONTO-SQL NOT IN USE
-      *  WS-HOST-VARS-TFMX.WS-OP-SQL NOT IN USE
       *  WS-HOST-VARS-TFMX.WS-REPLICA-SQL NOT IN USE
+      *  WS-HOST-VARS-TFMX.WS-TIPO-TX-SQL NOT IN USE
+      *  WS-HOST-VARS-TFMX.WS-TRACE-ID-SQL NOT IN USE
       *  WS-ID-LOTE-SQL           IN USE THROUGH TEMP VAR SQL-VAR-0001 DECIMAL(9,0)
-      *  WS-MONTO-SQL             IN USE THROUGH TEMP VAR SQL-VAR-0004 DECIMAL(15,2)
-      *  WS-OP-SQL            NOT IN USE
       *  WS-REPLICA-SQL           IN USE CHAR(4)
+      *  WS-TIPO-TX-SQL       NOT IN USE
+      *  WS-TRACE-ID-SQL          IN USE CHAR(40)
       **********************************************************************
