@@ -1,19 +1,23 @@
 @echo off
 setlocal
 color 0B
-title Compilador - Sistema Bancario COBOL
+title Compilador - BANCO LAF v3.0 - Clientes, Cuentas y Tarjetas
 
-:: 1. Configurar las rutas
+:: ============================================================
+:: 1. Configurar rutas de GnuCOBOL y ESQL
+:: ============================================================
 set "COBOL_MAIN=C:\Program Files (x86)\OpenCobolIDE\GnuCOBOL"
 set "COBOL_BIN=%COBOL_MAIN%\bin"
 set "COBOL_LIBS_ESQL=%COBOL_MAIN%\binaries3\win32\release"
 
-:: Variables de entorno
+:: Variables de entorno necesarias
 set "COB_MAIN_DIR=%COBOL_MAIN%"
 set "COB_CONFIG_DIR=%COBOL_MAIN%\config"
 set "PATH=%COBOL_BIN%;%COBOL_LIBS_ESQL%;%PATH%"
 
-:: 2. Definir rutas del proyecto
+:: ============================================================
+:: 2. Rutas del proyecto
+:: ============================================================
 set "ROOT=%~dp0.."
 set "SQL_DIR=%ROOT%\sql"
 set "MAINLINE_DIR=%ROOT%\src\mainline"
@@ -22,51 +26,111 @@ set "COPIES_DIR=%ROOT%\src\copies"
 set "COBCPY=%COPIES_DIR%"
 
 set "COBC=%COBOL_BIN%\cobc.exe"
-:: Nota: Según la arquitectura de 3 capas, el precompilador suele ser esq10C.exe [cite: 172, 179]
 set "PRECOMPILADOR=%COBOL_LIBS_ESQL%\esqlOC.exe"
 
 echo ============================================
-echo  1. Pre-compilando archivos SQL (.sqb)
+echo  BANCO LAF v3.0 - COMPILACION FASE CLIENTES + CUENTAS
 echo ============================================
-
-for %%f in ("%SQL_DIR%\*.sqb") do (
-    echo Procesando: %%~nxf ...
-    "%PRECOMPILADOR%" -I "%COPIES_DIR%" -static -o "%MAINLINE_DIR%\%%~nf.cob" "%%f"
-)
+echo ROOT       : %ROOT%
+echo SQL_DIR    : %SQL_DIR%
+echo MAINLINE   : %MAINLINE_DIR%
+echo COPIES     : %COPIES_DIR%
+echo BIN        : %BIN_DIR%
+echo ============================================
 
 echo.
 echo ============================================
-echo  2. Compilando Sistema Bancario COBOL
+echo  0. Limpiando COB generados de esta fase
 echo ============================================
 
-:: Compilación y enlace de todos los módulos 
-:: IMPORTANTE: No dejar líneas en blanco entre los archivos con '^'
-"%COBC%" -x -v -I "%COPIES_DIR%" ^
-    -L "%COBOL_LIBS_ESQL%" ^
-    -locsql ^
-    "%MAINLINE_DIR%\BANCSMENU.cob" ^
-    "%MAINLINE_DIR%\CI0000.cbl" ^
-    "%MAINLINE_DIR%\IN0000.cbl" ^
-    "%MAINLINE_DIR%\TC0000.cbl" ^
-    "%MAINLINE_DIR%\BR0000.cbl" ^
-    "%MAINLINE_DIR%\DBIOCUSM.cob" ^
-    "%MAINLINE_DIR%\DBIOINVM.cob" ^
-    "%MAINLINE_DIR%\DBIOTARJ.cob" ^
-    "%MAINLINE_DIR%\DBIOBORM.cob" ^
-    "%MAINLINE_DIR%\DBIOTRAN.cob" ^
-    "%MAINLINE_DIR%\SYSLOG.cbl" ^
-    "%MAINLINE_DIR%\BNCR004.cob" ^
-    "%MAINLINE_DIR%\TFMX.cob" ^
-    "%MAINLINE_DIR%\RRD000.cob" ^
-    "%MAINLINE_DIR%\XXXREP.cob" ^
-    "%MAINLINE_DIR%\TFTRCT.cob" ^
-    -o "%BIN_DIR%\BANCSMENU.exe"
+if exist "%MAINLINE_DIR%\BANCSMENU.cob" del /f /q "%MAINLINE_DIR%\BANCSMENU.cob"
+if exist "%MAINLINE_DIR%\DBIOCUSM.cob" del /f /q "%MAINLINE_DIR%\DBIOCUSM.cob"
+if exist "%MAINLINE_DIR%\DBIOTRAN.cob" del /f /q "%MAINLINE_DIR%\DBIOTRAN.cob"
+if exist "%MAINLINE_DIR%\DBIOINVM.cob" del /f /q "%MAINLINE_DIR%\DBIOINVM.cob"
+if exist "%MAINLINE_DIR%\DBIOTARJ.cob" del /f /q "%MAINLINE_DIR%\DBIOTARJ.cob"
 
+echo Archivos generados anteriores eliminados.
+echo Tus .SQB y .CBL editables estan a salvo.
+
+echo.
+echo ============================================
+echo  1. Pre-compilando SQL embebido
+echo ============================================
+
+echo [1/2] BANCSMENU.sqb  -> BANCSMENU.cob
+"%PRECOMPILADOR%" -I "%COPIES_DIR%" -static -o "%MAINLINE_DIR%\BANCSMENU.cob" "%SQL_DIR%\BANCSMENU.sqb"
+
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo ERROR: Fallo al precompilar BANCSMENU.sqb
+    pause
+    exit /b 1
+)
+
+echo [2/2] DBIOCUSM.sqb   -> DBIOCUSM.cob
+"%PRECOMPILADOR%" -I "%COPIES_DIR%" -static -o "%MAINLINE_DIR%\DBIOCUSM.cob" "%SQL_DIR%\DBIOCUSM.sqb"
+
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo ERROR: Fallo al precompilar DBIOCUSM.sqb
+    pause
+    exit /b 1
+)
+
+echo [3/3] DBIOTRAN.sqb   -> DBIOTRAN.cob
+"%PRECOMPILADOR%" -I "%COPIES_DIR%" -static -o "%MAINLINE_DIR%\DBIOTRAN.cob" "%SQL_DIR%\DBIOTRAN.sqb"
+
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo ERROR: Fallo al precompilar DBIOTRAN.sqb
+    pause
+    exit /b 1
+)
+
+echo [4/4] DBIOINVM.sqb   -> DBIOINVM.cob
+"%PRECOMPILADOR%" -I "%COPIES_DIR%" -static -o "%MAINLINE_DIR%\DBIOINVM.cob" "%SQL_DIR%\DBIOINVM.sqb"
+
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo ERROR: Fallo al precompilar DBIOINVM.sqb
+    pause
+    exit /b 1
+)
+
+echo [5/5] DBIOTARJ.sqb   -> DBIOTARJ.cob
+"%PRECOMPILADOR%" -I "%COPIES_DIR%" -static -o "%MAINLINE_DIR%\DBIOTARJ.cob" "%SQL_DIR%\DBIOTARJ.sqb"
+
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo ERROR: Fallo al precompilar DBIOTARJ.sqb
+    pause
+    exit /b 1
+)
+
+echo.
+echo Precompilacion SQL finalizada.
+
+echo.
+echo ============================================
+echo  2. Compilando Menu + Clientes
+echo ============================================
+
+"%COBC%" -x -v -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql "%MAINLINE_DIR%\BANCSMENU.cob" "%MAINLINE_DIR%\DBIOCUSM.cob" "%MAINLINE_DIR%\DBIOTRAN.cob" "%MAINLINE_DIR%\DBIOINVM.cob" "%MAINLINE_DIR%\DBIOTARJ.cob" "%MAINLINE_DIR%\CI0000.cbl" "%MAINLINE_DIR%\IN0000.cbl" "%MAINLINE_DIR%\DF0000.cbl" "%MAINLINE_DIR%\TC0000.cbl" -o "%BIN_DIR%\BANCSMENU.exe"
 if %ERRORLEVEL% == 0 (
     echo.
-    echo EXITO: Compilacion finalizada.
+    echo ============================================
+    echo  EXITO: COMPILACION FASE CLIENTES COMPLETA
+    echo ============================================
+    echo Ejecutable generado:
+    echo %BIN_DIR%\BANCSMENU.exe
+    echo ============================================
 ) else (
     echo.
-    echo ERROR: El compilador dio un error critico.
+    echo ============================================
+    echo  ERROR: FALLO LA COMPILACION COBOL
+    echo ============================================
+    echo Revisa los errores mostrados arriba.
+    echo ============================================
 )
+
 pause
