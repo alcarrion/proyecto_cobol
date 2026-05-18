@@ -6,14 +6,12 @@
       *            - DESCONTAR CUOTA DE CUENTA SI HAY FONDOS          *
       *            - DAR DE BAJA TARJETAS VENCIDAS                    *
       *            - RESET OPERATIVO DE TARJETAS                      *
-      *            - ROLLBACK si algo falla*
+      *            - ROLLBACK si algo falla
       * LLAMADO  : BANCSMENU (OPCION 5)                               *
       * PRECOMP  : esqlOC BAT000.sqb  ->  BAT000.cob                  *
       *================================================================*
        IDENTIFICATION DIVISION.
        PROGRAM-ID. BAT000.
-
-       ENVIRONMENT DIVISION.
 
        DATA DIVISION.
        WORKING-STORAGE SECTION.
@@ -37,7 +35,7 @@
       -    'C,C.DOC_CLIENTE,C.FECHA_ALTA,C.NOMBRE_CLIENTE,C.APELLIDOS_CL
       -    'IENTE,C.SALDO_CLIENTE,C.CTA_ACTIVA,C.TARJETA,C.HIPOTECA,I.SA
       -    'LDO_ACTUAL,I.COD_ULT_MOV,I.FECHA_ULT_MOV,I.IMPORTE_MOV FROM 
-      -    'clientes C LEFT JOIN ctactes I ON C.ID_CLIENTE = I.ID_CLIENT
+      -    'CLIENTES C LEFT JOIN CTACTES I ON C.ID_CLIENTE = I.ID_CLIENT
       -    'E ORDER BY C.ID_CLIENTE'.
            05 SQL-CNAME  PIC X(11) VALUE 'CUR-MAESTRA'.
            05 FILLER     PIC X VALUE LOW-VALUE.
@@ -71,18 +69,13 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE 'C'.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 0.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 610.
-           05 SQL-STMT   PIC X(610) VALUE 'SELECT H.ID_HIPOTECA,H.ID_CLI
-      -    'ENTE,H.SALDO_ACTUAL,H.MONTO_ORIGINAL,H.ESTADO,TIMESTAMPDIFF(
-      -    'MONTH,H.FECHA_INICIO,H.FECHA_VENCTO),TIMESTAMPDIFF(MONTH,H.F
-      -    'ECHA_INICIO,CURDATE()),(H.MONTO_ORIGINAL * H.TASA_INTERES) /
-      -    ' TIMESTAMPDIFF(MONTH,H.FECHA_INICIO,H.FECHA_VENCTO),H.MONTO_
-      -    'ORIGINAL - ((H.MONTO_ORIGINAL * H.TASA_INTERES) / TIMESTAMPD
-      -    'IFF(MONTH,H.FECHA_INICIO,H.FECHA_VENCTO)) * TIMESTAMPDIFF(MO
-      -    'NTH,H.FECHA_INICIO,CURDATE()),(SELECT COUNT(*) FROM AUDIT_HI
-      -    'POTECAS A WHERE A.ID_HIPOTECA = H.ID_HIPOTECA AND A.ESTADO =
-      -    ' ''MOROSO'') FROM HIPOTECAS H WHERE H.ESTADO IN (''ACTIVO'',
-      -    '''MOROSO'') ORDER BY H.ID_CLIENTE,H.ID_HIPOTECA'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 323.
+           05 SQL-STMT   PIC X(323) VALUE 'SELECT H.ID_HIPOTECA,H.ID_CLI
+      -    'ENTE,H.SALDO_ACTUAL,H.MONTO_ORIGINAL,H.ESTADO,H.CUOTA_MENSUA
+      -    'L,H.CUOTA_MENSUAL * GREATEST(TIMESTAMPDIFF(MONTH,H.FECHA_INI
+      -    'CIO,H.FECHA_VENCTO) - TIMESTAMPDIFF(MONTH,H.FECHA_INICIO,CUR
+      -    'DATE()),0),H.MESES_MORA FROM HIPOTECAS H WHERE H.ESTADO IN (
+      -    '''ACTIVO'',''MOROSO'') ORDER BY H.ID_CLIENTE,H.ID_HIPOTECA'.
            05 SQL-CNAME  PIC X(8) VALUE 'CUR-MORA'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
@@ -132,9 +125,9 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 2.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 53.
-           05 SQL-STMT   PIC X(53) VALUE 'UPDATE HIPOTECAS SET ESTADO = 
-      -    '? WHERE ID_HIPOTECA = ?'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 81.
+           05 SQL-STMT   PIC X(81) VALUE 'UPDATE HIPOTECAS SET ESTADO = 
+      -    '?,MESES_MORA = MESES_MORA + 1 WHERE ID_HIPOTECA = ?'.
       **********************************************************************
        01 SQL-STMT-9.
            05 SQL-IPTR   POINTER VALUE NULL.
@@ -142,8 +135,8 @@
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 55.
-           05 SQL-STMT   PIC X(55) VALUE 'SELECT SALDO_CLIENTE FROM clie
-      -    'ntes WHERE ID_CLIENTE = ?'.
+           05 SQL-STMT   PIC X(55) VALUE 'SELECT SALDO_CLIENTE FROM CLIE
+      -    'NTES WHERE ID_CLIENTE = ?'.
       **********************************************************************
        01 SQL-STMT-10.
            05 SQL-IPTR   POINTER VALUE NULL.
@@ -151,36 +144,46 @@
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 2.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 74.
-           05 SQL-STMT   PIC X(74) VALUE 'UPDATE clientes SET SALDO_CLIE
+           05 SQL-STMT   PIC X(74) VALUE 'UPDATE CLIENTES SET SALDO_CLIE
       -    'NTE = SALDO_CLIENTE - ? WHERE ID_CLIENTE = ?'.
       **********************************************************************
        01 SQL-STMT-11.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
-           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 60.
-           05 SQL-STMT   PIC X(60) VALUE 'UPDATE HIPOTECAS SET ESTADO = 
-      -    '''ACTIVO'' WHERE ID_HIPOTECA = ?'.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 2.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 101.
+           05 SQL-STMT   PIC X(101) VALUE 'UPDATE HIPOTECAS SET SALDO_AC
+      -    'TUAL = SALDO_ACTUAL - ?,FECHA_ULT_PAGO = CURDATE() WHERE ID_
+      -    'HIPOTECA = ?'.
       **********************************************************************
        01 SQL-STMT-12.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
-           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 0.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 85.
-           05 SQL-STMT   PIC X(85) VALUE 'UPDATE TARJETAS SET ESTADO = '
-      -    ''I'' WHERE FECHA_VENCIMIENTO < CURDATE() AND ESTADO = ''A'''
-           .
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 102.
+           05 SQL-STMT   PIC X(102) VALUE 'UPDATE HIPOTECAS SET ESTADO =
+      -    ' ''ACTIVO'',MESES_MORA = 0,FECHA_ULT_PAGO = CURDATE() WHERE 
+      -    'ID_HIPOTECA = ?'.
       **********************************************************************
        01 SQL-STMT-13.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
-           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 0.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 78.
-           05 SQL-STMT   PIC X(78) VALUE 'UPDATE TARJETAS SET LIQUIDACIO
-      -    'N_MES = ACUM_MES,ACUM_MES = 0 WHERE ESTADO = ''A'''.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 2.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 81.
+           05 SQL-STMT   PIC X(81) VALUE 'UPDATE TARJETAS SET ESTADO = ?
+      -    ' WHERE FECHA_VENCIMIENTO < CURDATE() AND ESTADO = ?'.
+      **********************************************************************
+       01 SQL-STMT-14.
+           05 SQL-IPTR   POINTER VALUE NULL.
+           05 SQL-PREP   PIC X VALUE 'N'.
+           05 SQL-OPT    PIC X VALUE SPACE.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 76.
+           05 SQL-STMT   PIC X(76) VALUE 'UPDATE TARJETAS SET LIQUIDACIO
+      -    'N_MES = ACUM_MES,ACUM_MES = 0 WHERE ESTADO = ?'.
       **********************************************************************
       *******          PRECOMPILER-GENERATED VARIABLES               *******
        01 SQLV-GEN-VARS.
@@ -205,13 +208,11 @@
            05 SQL-VAR-0019  PIC S9(9) COMP-3.
            05 SQL-VAR-0020  PIC S9(13)V9(2) COMP-3.
            05 SQL-VAR-0021  PIC S9(13)V9(2) COMP-3.
-           05 SQL-VAR-0022  PIC S9(5) COMP-3.
-           05 SQL-VAR-0023  PIC S9(5) COMP-3.
-           05 SQL-VAR-0024  PIC S9(13)V9(2) COMP-3.
-           05 SQL-VAR-0025  PIC S9(13)V9(2) COMP-3.
-           05 SQL-VAR-0026  PIC S9(5) COMP-3.
-           05 SQL-VAR-0027  PIC S9(11)V9(2) COMP-3.
-           05 SQL-VAR-0028  PIC S9(7) COMP-3.
+           05 SQL-VAR-0022  PIC S9(13)V9(2) COMP-3.
+           05 SQL-VAR-0023  PIC S9(13)V9(2) COMP-3.
+           05 SQL-VAR-0024  PIC S9(5) COMP-3.
+           05 SQL-VAR-0025  PIC S9(11)V9(2) COMP-3.
+           05 SQL-VAR-0026  PIC S9(7) COMP-3.
       *******       END OF PRECOMPILER-GENERATED VARIABLES           *******
       **********************************************************************
 
@@ -243,7 +244,7 @@
       *    Control de periodo
        01  WS-PERIODO              PIC X(6).
 
-      *    Variables host - AUDIT_MAESTRA / clientes + ctactes
+      *    Variables host - AUDIT_MAESTRA / CLIENTES + CTACTES
        01  WS-HOST-MAESTRA.
            05 HV-ID-CLIENTE        PIC 9(8).
            05 HV-TIPO-DOC          PIC X(3).
@@ -259,7 +260,7 @@
            05 HV-COD-ULT-MOV       PIC 9(2).
            05 HV-FECHA-ULT-MOV     PIC X(10).
            05 HV-IMPORTE-MOV       PIC S9(10)V99.
-      *    Indicadores de NULL para el LEFT JOIN con ctactes
+      *    Indicadores de NULL para el LEFT JOIN con CTACTES
            05 HV-IND-SALDO-CTA     PIC S9(4) COMP-5.
            05 HV-IND-COD-MOV       PIC S9(4) COMP-5.
            05 HV-IND-FECHA-MOV     PIC S9(4) COMP-5.
@@ -291,8 +292,6 @@
            05 HV-MORA-SALDO-ACT    PIC S9(13)V99.
            05 HV-MORA-MONTO-ORIG   PIC S9(13)V99.
            05 HV-MORA-ESTADO       PIC X(20).
-           05 HV-MORA-MESES-TOT    PIC 9(4).
-           05 HV-MORA-MESES-TRANS  PIC 9(4).
            05 HV-MORA-PAGO-MENS    PIC S9(13)V99.
            05 HV-MORA-SALDO-ESP    PIC S9(13)V99.
            05 HV-MORA-MESES-MORA   PIC 9(4).
@@ -300,6 +299,11 @@
       *    Variables host para UPDATE de estado hipoteca y descuento
            05 HV-MORA-NUEVO-ESTADO PIC X(20).
            05 HV-MORA-CLI-SALDO    PIC S9(10)V99.
+
+      *    Variables host para estados de tarjeta (evita literales SQL)
+       01  WS-HOST-ESTADOS.
+           05 HV-ESTADO-INACTIVO   PIC X(1).
+           05 HV-ESTADO-ACTIVO     PIC X(1).
 
       *    Verificacion de periodo duplicado
        01  HV-COUNT-PERIODO        PIC 9(6).
@@ -325,8 +329,8 @@
       *               I.COD_ULT_MOV,
       *               I.FECHA_ULT_MOV,
       *               I.IMPORTE_MOV
-      *        FROM   clientes C
-      *        LEFT JOIN ctactes I
+      *        FROM   CLIENTES C
+      *        LEFT JOIN CTACTES I
       *               ON C.ID_CLIENTE = I.ID_CLIENTE
       *        ORDER BY C.ID_CLIENTE
       *    END-EXEC.
@@ -354,29 +358,23 @@
       *        ORDER BY ID_CLIENTE, ID_HIPOTECA
       *    END-EXEC.
 
-      *    Cursor de mora: MySQL calcula todos los valores necesarios
+      *    Cursor de mora: usa CUOTA_MENSUAL y MESES_MORA de la BD.
+      *    SALDO_ESPERADO = cuota * (meses_totales - meses_transcurridos
+      *    GREATEST(...,0) evita saldos negativos para creditos vencidos
       *    EXEC SQL DECLARE CUR-MORA CURSOR FOR
       *        SELECT H.ID_HIPOTECA,
       *               H.ID_CLIENTE,
       *               H.SALDO_ACTUAL,
       *               H.MONTO_ORIGINAL,
       *               H.ESTADO,
-      *               TIMESTAMPDIFF(MONTH,
-      *                   H.FECHA_INICIO, H.FECHA_VENCTO),
-      *               TIMESTAMPDIFF(MONTH,
-      *                   H.FECHA_INICIO, CURDATE()),
-      *               (H.MONTO_ORIGINAL * H.TASA_INTERES) /
-      *               TIMESTAMPDIFF(MONTH,
-      *                   H.FECHA_INICIO, H.FECHA_VENCTO),
-      *               H.MONTO_ORIGINAL -
-      *               ((H.MONTO_ORIGINAL * H.TASA_INTERES) /
-      *               TIMESTAMPDIFF(MONTH,
-      *                   H.FECHA_INICIO, H.FECHA_VENCTO)) *
-      *               TIMESTAMPDIFF(MONTH,
-      *                   H.FECHA_INICIO, CURDATE()),
-      *               (SELECT COUNT(*) FROM AUDIT_HIPOTECAS A
-      *                WHERE  A.ID_HIPOTECA = H.ID_HIPOTECA
-      *                AND    A.ESTADO      = 'MOROSO')
+      *               H.CUOTA_MENSUAL,
+      *               H.CUOTA_MENSUAL * GREATEST(
+      *                   TIMESTAMPDIFF(MONTH,
+      *                       H.FECHA_INICIO, H.FECHA_VENCTO) -
+      *                   TIMESTAMPDIFF(MONTH,
+      *                       H.FECHA_INICIO, CURDATE()),
+      *                   0),
+      *               H.MESES_MORA
       *        FROM   HIPOTECAS H
       *        WHERE  H.ESTADO IN ('ACTIVO', 'MOROSO')
       *        ORDER BY H.ID_CLIENTE, H.ID_HIPOTECA
@@ -407,7 +405,22 @@
            05 WS-CTR-ERRORES       PIC 9(6) VALUE 0.
            05 WS-CTR-MOROSAS       PIC 9(6) VALUE 0.
            05 WS-CTR-CASTIGADAS    PIC 9(6) VALUE 0.
+           05 WS-CTR-REGULARIZADAS PIC 9(6) VALUE 0.
            05 WS-CTR-TARJ-BAJA     PIC 9(6) VALUE 0.
+
+      *================================================================*
+      *   WORKING STORAGE - LOG A ARCHIVO                              *
+      *================================================================*
+       01  WS-LOG-LINE             PIC X(200).
+       01  WS-MODULO-LOG           PIC X(03) VALUE 'BAT'.
+       01  WS-CLS-CMD              PIC X(04) VALUE 'cls'.
+       01  WS-AUX-SQLCODE          PIC +9(9).
+       01  WS-AUX-ID8              PIC 9(8).
+       01  WS-AUX-ID9              PIC 9(9).
+       01  WS-AUX-CTR              PIC 9(6).
+       01  WS-AUX-MONTO13         PIC -9(13).99.
+       01  WS-AUX-MONTO10         PIC -9(10).99.
+       01  WS-TECLA                PIC X.
 
       *================================================================*
       *   LINKAGE SECTION                                              *
@@ -415,9 +428,6 @@
        LINKAGE SECTION.
            COPY LKCIF.
 
-      *================================================================*
-      *   PROCEDURE DIVISION                                           *
-      *================================================================*
        PROCEDURE DIVISION USING LK-DATOS-TRANSACCION.
 
        0000-PRINCIPAL.
@@ -447,6 +457,7 @@
                PERFORM 6000-RESET-OPERATIVO
            END-IF
            PERFORM 7000-FINALIZAR
+           PERFORM 8000-PAUSA-RESULTADO
 
            EXIT PROGRAM.
 
@@ -469,11 +480,30 @@
                   INTO WS-FECHA-HOY
            END-STRING
 
-           DISPLAY '================================================'
-           DISPLAY ' BAT000 - PROCESO DE CIERRE MENSUAL'
-           DISPLAY ' PERIODO : ' WS-PERIODO
-           DISPLAY ' FECHA   : ' WS-FECHA-HOY
-           DISPLAY '================================================'.
+           MOVE 'A' TO HV-ESTADO-ACTIVO
+           MOVE 'I' TO HV-ESTADO-INACTIVO
+
+
+
+           MOVE '================================================'
+               TO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE
+           MOVE ' BAT000 - PROCESO DE CIERRE MENSUAL'
+               TO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE
+           MOVE SPACES TO WS-LOG-LINE
+           STRING ' PERIODO : ' DELIMITED BY SIZE
+                  WS-PERIODO    DELIMITED BY SIZE
+               INTO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE
+           MOVE SPACES TO WS-LOG-LINE
+           STRING ' FECHA   : ' DELIMITED BY SIZE
+                  WS-FECHA-HOY  DELIMITED BY SIZE
+               INTO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE
+           MOVE '================================================'
+               TO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE.
 
       *================================================================*
       *   2000 - VALIDAR QUE EL PERIODO NO EXISTA YA EN AUDITORIA     *
@@ -489,7 +519,7 @@
       *    END-EXEC
            IF SQL-PREP OF SQL-STMT-4 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
-                 SQL-VAR-0028
+                 SQL-VAR-0026
                MOVE '3' TO SQL-TYPE(1)
                MOVE 4 TO SQL-LEN(1)
                MOVE X'00' TO SQL-PREC(1)
@@ -505,25 +535,46 @@
            END-IF
            CALL 'OCSQLEXE' USING SQL-STMT-4
                                SQLCA
-           MOVE SQL-VAR-0028 TO HV-COUNT-PERIODO
+           MOVE SQL-VAR-0026 TO HV-COUNT-PERIODO
 
            PERFORM 9000-EVALUAR-SQL
 
            IF LK-COD-RETORNO = 99
-               DISPLAY 'ERROR AL VERIFICAR PERIODO. SQLCODE: '
-                       SQLCODE
+               MOVE SQLCODE TO WS-AUX-SQLCODE
+               MOVE SPACES TO WS-LOG-LINE
+               STRING 'ERROR AL VERIFICAR PERIODO. SQLCODE: '
+                          DELIMITED BY SIZE
+                      WS-AUX-SQLCODE
+                          DELIMITED BY SIZE
+                   INTO WS-LOG-LINE
+               PERFORM 9100-LOG-WRITE
                MOVE 'S' TO WS-ABORT
            ELSE
                IF HV-COUNT-PERIODO > 0
-                   DISPLAY 'ADVERTENCIA: PERIODO ' WS-PERIODO
-                           ' YA FUE PROCESADO.'
+                   MOVE SPACES TO WS-LOG-LINE
+                   STRING 'ADVERTENCIA: PERIODO '
+                              DELIMITED BY SIZE
+                          WS-PERIODO
+                              DELIMITED BY SIZE
+                          ' YA FUE PROCESADO.'
+                              DELIMITED BY SIZE
+                       INTO WS-LOG-LINE
+                   PERFORM 9100-LOG-WRITE
                    MOVE 10 TO LK-COD-RETORNO
                    MOVE 'PERIODO YA PROCESADO. CIERRE CANCELADO.'
                        TO LK-MENSAJE
                    MOVE 'S' TO WS-ABORT
                ELSE
                    MOVE 0 TO LK-COD-RETORNO
-                   DISPLAY 'PERIODO ' WS-PERIODO ' HABILITADO OK.'
+                   MOVE SPACES TO WS-LOG-LINE
+                   STRING 'PERIODO '
+                              DELIMITED BY SIZE
+                          WS-PERIODO
+                              DELIMITED BY SIZE
+                          ' HABILITADO OK.'
+                              DELIMITED BY SIZE
+                       INTO WS-LOG-LINE
+                   PERFORM 9100-LOG-WRITE
                END-IF
            END-IF.
 
@@ -531,7 +582,9 @@
       *   3000 - SNAPSHOT AUDIT_MAESTRA (CLIENTES + CTACTES)          *
       *================================================================*
        3000-SNAPSHOT-MAESTRA.
-           DISPLAY '>>> INICIANDO SNAPSHOT AUDIT_MAESTRA...'
+           MOVE '>>> INICIANDO SNAPSHOT AUDIT_MAESTRA...'
+               TO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE
 
       *    EXEC SQL OPEN CUR-MAESTRA END-EXEC
            IF SQL-PREP OF SQL-STMT-0 = 'N'
@@ -545,7 +598,14 @@
            END-CALL
 
            IF SQLCODE NOT = 0
-               DISPLAY 'ERROR ABRIENDO CUR-MAESTRA: ' SQLCODE
+               MOVE SQLCODE TO WS-AUX-SQLCODE
+               MOVE SPACES TO WS-LOG-LINE
+               STRING 'ERROR ABRIENDO CUR-MAESTRA: '
+                          DELIMITED BY SIZE
+                      WS-AUX-SQLCODE
+                          DELIMITED BY SIZE
+                   INTO WS-LOG-LINE
+               PERFORM 9100-LOG-WRITE
                MOVE 99 TO LK-COD-RETORNO
                MOVE 'ERROR CRITICO ABRIENDO CURSOR CLIENTES'
                    TO LK-MENSAJE
@@ -796,9 +856,19 @@
                        IF SQLCODE = 0
                            ADD 1 TO WS-CTR-CLIENTES
                        ELSE
-                           DISPLAY 'ERROR INSERT MAESTRA ID: '
-                                   HV-ID-CLIENTE
-                                   ' SQLCODE: ' SQLCODE
+                           MOVE SQLCODE      TO WS-AUX-SQLCODE
+                           MOVE HV-ID-CLIENTE TO WS-AUX-ID8
+                           MOVE SPACES TO WS-LOG-LINE
+                           STRING 'ERROR INSERT MAESTRA ID: '
+                                      DELIMITED BY SIZE
+                                  WS-AUX-ID8
+                                      DELIMITED BY SIZE
+                                  ' SQLCODE: '
+                                      DELIMITED BY SIZE
+                                  WS-AUX-SQLCODE
+                                      DELIMITED BY SIZE
+                               INTO WS-LOG-LINE
+                           PERFORM 9100-LOG-WRITE
                            ADD 1   TO WS-CTR-ERRORES
                            MOVE 'S' TO WS-ABORT
                            MOVE 'S' TO WS-FIN-MAESTRA
@@ -808,7 +878,14 @@
                        MOVE 'S' TO WS-FIN-MAESTRA
 
                    WHEN OTHER
-                       DISPLAY 'ERROR FETCH CUR-MAESTRA: ' SQLCODE
+                       MOVE SQLCODE TO WS-AUX-SQLCODE
+                       MOVE SPACES TO WS-LOG-LINE
+                       STRING 'ERROR FETCH CUR-MAESTRA: '
+                                  DELIMITED BY SIZE
+                              WS-AUX-SQLCODE
+                                  DELIMITED BY SIZE
+                           INTO WS-LOG-LINE
+                       PERFORM 9100-LOG-WRITE
                        ADD 1   TO WS-CTR-ERRORES
                        MOVE 'S' TO WS-ABORT
                        MOVE 'S' TO WS-FIN-MAESTRA
@@ -821,8 +898,16 @@
                                SQLCA
 
            IF WS-ABORT = 'N'
-               DISPLAY ' AUDIT_MAESTRA  : ' WS-CTR-CLIENTES
-                       ' REGISTROS INSERTADOS.'
+               MOVE WS-CTR-CLIENTES TO WS-AUX-CTR
+               MOVE SPACES TO WS-LOG-LINE
+               STRING ' AUDIT_MAESTRA  : '
+                          DELIMITED BY SIZE
+                      WS-AUX-CTR
+                          DELIMITED BY SIZE
+                      ' REGISTROS INSERTADOS.'
+                          DELIMITED BY SIZE
+                   INTO WS-LOG-LINE
+               PERFORM 9100-LOG-WRITE
            ELSE
                MOVE 99 TO LK-COD-RETORNO
                MOVE 'ERROR EN SNAPSHOT MAESTRA - SE HARA ROLLBACK'
@@ -833,7 +918,9 @@
       *   4000 - SNAPSHOT AUDIT_TARJETAS                              *
       *================================================================*
        4000-SNAPSHOT-TARJETAS.
-           DISPLAY '>>> INICIANDO SNAPSHOT AUDIT_TARJETAS...'
+           MOVE '>>> INICIANDO SNAPSHOT AUDIT_TARJETAS...'
+               TO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE
 
       *    EXEC SQL OPEN CUR-TARJETAS END-EXEC
            IF SQL-PREP OF SQL-STMT-1 = 'N'
@@ -847,7 +934,14 @@
            END-CALL
 
            IF SQLCODE NOT = 0
-               DISPLAY 'ERROR ABRIENDO CUR-TARJETAS: ' SQLCODE
+               MOVE SQLCODE TO WS-AUX-SQLCODE
+               MOVE SPACES TO WS-LOG-LINE
+               STRING 'ERROR ABRIENDO CUR-TARJETAS: '
+                          DELIMITED BY SIZE
+                      WS-AUX-SQLCODE
+                          DELIMITED BY SIZE
+                   INTO WS-LOG-LINE
+               PERFORM 9100-LOG-WRITE
                MOVE 99 TO LK-COD-RETORNO
                MOVE 'ERROR CRITICO ABRIENDO CURSOR TARJETAS'
                    TO LK-MENSAJE
@@ -973,9 +1067,18 @@
                        IF SQLCODE = 0
                            ADD 1 TO WS-CTR-TARJETAS
                        ELSE
-                           DISPLAY 'ERROR INSERT TARJETA NRO: '
-                                   HV-TARJ-NRO
-                                   ' SQLCODE: ' SQLCODE
+                           MOVE SQLCODE    TO WS-AUX-SQLCODE
+                           MOVE SPACES TO WS-LOG-LINE
+                           STRING 'ERROR INSERT TARJETA NRO: '
+                                      DELIMITED BY SIZE
+                                  HV-TARJ-NRO
+                                      DELIMITED BY SIZE
+                                  ' SQLCODE: '
+                                      DELIMITED BY SIZE
+                                  WS-AUX-SQLCODE
+                                      DELIMITED BY SIZE
+                               INTO WS-LOG-LINE
+                           PERFORM 9100-LOG-WRITE
                            ADD 1   TO WS-CTR-ERRORES
                            MOVE 'S' TO WS-ABORT
                            MOVE 'S' TO WS-FIN-TARJETAS
@@ -985,7 +1088,14 @@
                        MOVE 'S' TO WS-FIN-TARJETAS
 
                    WHEN OTHER
-                       DISPLAY 'ERROR FETCH CUR-TARJETAS: ' SQLCODE
+                       MOVE SQLCODE TO WS-AUX-SQLCODE
+                       MOVE SPACES TO WS-LOG-LINE
+                       STRING 'ERROR FETCH CUR-TARJETAS: '
+                                  DELIMITED BY SIZE
+                              WS-AUX-SQLCODE
+                                  DELIMITED BY SIZE
+                           INTO WS-LOG-LINE
+                       PERFORM 9100-LOG-WRITE
                        ADD 1   TO WS-CTR-ERRORES
                        MOVE 'S' TO WS-ABORT
                        MOVE 'S' TO WS-FIN-TARJETAS
@@ -998,8 +1108,16 @@
                                SQLCA
 
            IF WS-ABORT = 'N'
-               DISPLAY ' AUDIT_TARJETAS : ' WS-CTR-TARJETAS
-                       ' REGISTROS INSERTADOS.'
+               MOVE WS-CTR-TARJETAS TO WS-AUX-CTR
+               MOVE SPACES TO WS-LOG-LINE
+               STRING ' AUDIT_TARJETAS : '
+                          DELIMITED BY SIZE
+                      WS-AUX-CTR
+                          DELIMITED BY SIZE
+                      ' REGISTROS INSERTADOS.'
+                          DELIMITED BY SIZE
+                   INTO WS-LOG-LINE
+               PERFORM 9100-LOG-WRITE
            ELSE
                MOVE 99 TO LK-COD-RETORNO
                MOVE 'ERROR EN SNAPSHOT TARJETAS - SE HARA ROLLBACK'
@@ -1010,7 +1128,9 @@
       *   5000 - SNAPSHOT AUDIT_HIPOTECAS                             *
       *================================================================*
        5000-SNAPSHOT-HIPOTECAS.
-           DISPLAY '>>> INICIANDO SNAPSHOT AUDIT_HIPOTECAS...'
+           MOVE '>>> INICIANDO SNAPSHOT AUDIT_HIPOTECAS...'
+               TO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE
 
       *    EXEC SQL OPEN CUR-HIPOTECAS END-EXEC
            IF SQL-PREP OF SQL-STMT-2 = 'N'
@@ -1024,7 +1144,14 @@
            END-CALL
 
            IF SQLCODE NOT = 0
-               DISPLAY 'ERROR ABRIENDO CUR-HIPOTECAS: ' SQLCODE
+               MOVE SQLCODE TO WS-AUX-SQLCODE
+               MOVE SPACES TO WS-LOG-LINE
+               STRING 'ERROR ABRIENDO CUR-HIPOTECAS: '
+                          DELIMITED BY SIZE
+                      WS-AUX-SQLCODE
+                          DELIMITED BY SIZE
+                   INTO WS-LOG-LINE
+               PERFORM 9100-LOG-WRITE
                MOVE 99 TO LK-COD-RETORNO
                MOVE 'ERROR CRITICO ABRIENDO CURSOR HIPOTECAS'
                    TO LK-MENSAJE
@@ -1164,9 +1291,19 @@
                        IF SQLCODE = 0
                            ADD 1 TO WS-CTR-HIPOTECAS
                        ELSE
-                           DISPLAY 'ERROR INSERT HIPOTECA ID: '
-                                   HV-HIPO-ID-HIPO
-                                   ' SQLCODE: ' SQLCODE
+                           MOVE SQLCODE       TO WS-AUX-SQLCODE
+                           MOVE HV-HIPO-ID-HIPO TO WS-AUX-ID9
+                           MOVE SPACES TO WS-LOG-LINE
+                           STRING 'ERROR INSERT HIPOTECA ID: '
+                                      DELIMITED BY SIZE
+                                  WS-AUX-ID9
+                                      DELIMITED BY SIZE
+                                  ' SQLCODE: '
+                                      DELIMITED BY SIZE
+                                  WS-AUX-SQLCODE
+                                      DELIMITED BY SIZE
+                               INTO WS-LOG-LINE
+                           PERFORM 9100-LOG-WRITE
                            ADD 1   TO WS-CTR-ERRORES
                            MOVE 'S' TO WS-ABORT
                            MOVE 'S' TO WS-FIN-HIPOTECAS
@@ -1176,7 +1313,14 @@
                        MOVE 'S' TO WS-FIN-HIPOTECAS
 
                    WHEN OTHER
-                       DISPLAY 'ERROR FETCH CUR-HIPOTECAS: ' SQLCODE
+                       MOVE SQLCODE TO WS-AUX-SQLCODE
+                       MOVE SPACES TO WS-LOG-LINE
+                       STRING 'ERROR FETCH CUR-HIPOTECAS: '
+                                  DELIMITED BY SIZE
+                              WS-AUX-SQLCODE
+                                  DELIMITED BY SIZE
+                           INTO WS-LOG-LINE
+                       PERFORM 9100-LOG-WRITE
                        ADD 1   TO WS-CTR-ERRORES
                        MOVE 'S' TO WS-ABORT
                        MOVE 'S' TO WS-FIN-HIPOTECAS
@@ -1189,8 +1333,16 @@
                                SQLCA
 
            IF WS-ABORT = 'N'
-               DISPLAY ' AUDIT_HIPOTECAS: ' WS-CTR-HIPOTECAS
-                       ' REGISTROS INSERTADOS.'
+               MOVE WS-CTR-HIPOTECAS TO WS-AUX-CTR
+               MOVE SPACES TO WS-LOG-LINE
+               STRING ' AUDIT_HIPOTECAS: '
+                          DELIMITED BY SIZE
+                      WS-AUX-CTR
+                          DELIMITED BY SIZE
+                      ' REGISTROS INSERTADOS.'
+                          DELIMITED BY SIZE
+                   INTO WS-LOG-LINE
+               PERFORM 9100-LOG-WRITE
            ELSE
                MOVE 99 TO LK-COD-RETORNO
                MOVE 'ERROR EN SNAPSHOT HIPOTECAS - SE HARA ROLLBACK'
@@ -1201,7 +1353,9 @@
       *   5100 - PROCESAR MORA EN HIPOTECAS                           *
       *================================================================*
        5100-PROCESAR-MORA-HIPOTECAS.
-           DISPLAY '>>> PROCESANDO MORA EN HIPOTECAS...'
+           MOVE '>>> PROCESANDO MORA EN HIPOTECAS...'
+               TO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE
 
       *    EXEC SQL OPEN CUR-MORA END-EXEC
            IF SQL-PREP OF SQL-STMT-3 = 'N'
@@ -1215,7 +1369,14 @@
            END-CALL
 
            IF SQLCODE NOT = 0
-               DISPLAY 'ERROR ABRIENDO CUR-MORA: ' SQLCODE
+               MOVE SQLCODE TO WS-AUX-SQLCODE
+               MOVE SPACES TO WS-LOG-LINE
+               STRING 'ERROR ABRIENDO CUR-MORA: '
+                          DELIMITED BY SIZE
+                      WS-AUX-SQLCODE
+                          DELIMITED BY SIZE
+                   INTO WS-LOG-LINE
+               PERFORM 9100-LOG-WRITE
                MOVE 99 TO LK-COD-RETORNO
                MOVE 'ERROR CRITICO ABRIENDO CURSOR MORA'
                    TO LK-MENSAJE
@@ -1234,8 +1395,6 @@
       *                :HV-MORA-SALDO-ACT,
       *                :HV-MORA-MONTO-ORIG,
       *                :HV-MORA-ESTADO,
-      *                :HV-MORA-MESES-TOT,
-      *                :HV-MORA-MESES-TRANS,
       *                :HV-MORA-PAGO-MENS,
       *                :HV-MORA-SALDO-ESP,
       *                :HV-MORA-MESES-MORA
@@ -1267,29 +1426,19 @@
            SET SQL-ADDR(6) TO ADDRESS OF
              SQL-VAR-0022
            MOVE '3' TO SQL-TYPE(6)
-           MOVE 3 TO SQL-LEN(6)
-               MOVE X'00' TO SQL-PREC(6)
+           MOVE 8 TO SQL-LEN(6)
+               MOVE X'02' TO SQL-PREC(6)
            SET SQL-ADDR(7) TO ADDRESS OF
              SQL-VAR-0023
            MOVE '3' TO SQL-TYPE(7)
-           MOVE 3 TO SQL-LEN(7)
-               MOVE X'00' TO SQL-PREC(7)
+           MOVE 8 TO SQL-LEN(7)
+               MOVE X'02' TO SQL-PREC(7)
            SET SQL-ADDR(8) TO ADDRESS OF
              SQL-VAR-0024
            MOVE '3' TO SQL-TYPE(8)
-           MOVE 8 TO SQL-LEN(8)
-               MOVE X'02' TO SQL-PREC(8)
-           SET SQL-ADDR(9) TO ADDRESS OF
-             SQL-VAR-0025
-           MOVE '3' TO SQL-TYPE(9)
-           MOVE 8 TO SQL-LEN(9)
-               MOVE X'02' TO SQL-PREC(9)
-           SET SQL-ADDR(10) TO ADDRESS OF
-             SQL-VAR-0026
-           MOVE '3' TO SQL-TYPE(10)
-           MOVE 3 TO SQL-LEN(10)
-               MOVE X'00' TO SQL-PREC(10)
-           MOVE 10 TO SQL-COUNT
+           MOVE 3 TO SQL-LEN(8)
+               MOVE X'00' TO SQL-PREC(8)
+           MOVE 8 TO SQL-COUNT
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-3
                                SQLCA
@@ -1297,11 +1446,9 @@
            MOVE SQL-VAR-0019 TO HV-MORA-ID-CLI
            MOVE SQL-VAR-0020 TO HV-MORA-SALDO-ACT
            MOVE SQL-VAR-0021 TO HV-MORA-MONTO-ORIG
-           MOVE SQL-VAR-0022 TO HV-MORA-MESES-TOT
-           MOVE SQL-VAR-0023 TO HV-MORA-MESES-TRANS
-           MOVE SQL-VAR-0024 TO HV-MORA-PAGO-MENS
-           MOVE SQL-VAR-0025 TO HV-MORA-SALDO-ESP
-           MOVE SQL-VAR-0026 TO HV-MORA-MESES-MORA
+           MOVE SQL-VAR-0022 TO HV-MORA-PAGO-MENS
+           MOVE SQL-VAR-0023 TO HV-MORA-SALDO-ESP
+           MOVE SQL-VAR-0024 TO HV-MORA-MESES-MORA
 
                EVALUATE SQLCODE
                    WHEN 0
@@ -1312,23 +1459,42 @@
                            IF HV-MORA-MESES-MORA >= 3
                                MOVE 'CASTIGADO' TO HV-MORA-NUEVO-ESTADO
                                ADD 1 TO WS-CTR-CASTIGADAS
-                               DISPLAY ' HIPOTECA CASTIGADA: '
-                                       HV-MORA-ID-HIPO
-                                       ' CLIENTE: '
-                                       HV-MORA-ID-CLI
+                               MOVE HV-MORA-ID-HIPO TO WS-AUX-ID9
+                               MOVE HV-MORA-ID-CLI  TO WS-AUX-ID8
+                               MOVE SPACES TO WS-LOG-LINE
+                               STRING ' HIPOTECA CASTIGADA: '
+                                          DELIMITED BY SIZE
+                                      WS-AUX-ID9
+                                          DELIMITED BY SIZE
+                                      ' CLIENTE: '
+                                          DELIMITED BY SIZE
+                                      WS-AUX-ID8
+                                          DELIMITED BY SIZE
+                                   INTO WS-LOG-LINE
+                               PERFORM 9100-LOG-WRITE
                            ELSE
                                MOVE 'MOROSO' TO HV-MORA-NUEVO-ESTADO
                                ADD 1 TO WS-CTR-MOROSAS
-                               DISPLAY ' HIPOTECA MOROSA: '
-                                       HV-MORA-ID-HIPO
-                                       ' CLIENTE: '
-                                       HV-MORA-ID-CLI
+                               MOVE HV-MORA-ID-HIPO TO WS-AUX-ID9
+                               MOVE HV-MORA-ID-CLI  TO WS-AUX-ID8
+                               MOVE SPACES TO WS-LOG-LINE
+                               STRING ' HIPOTECA MOROSA: '
+                                          DELIMITED BY SIZE
+                                      WS-AUX-ID9
+                                          DELIMITED BY SIZE
+                                      ' CLIENTE: '
+                                          DELIMITED BY SIZE
+                                      WS-AUX-ID8
+                                          DELIMITED BY SIZE
+                                   INTO WS-LOG-LINE
+                               PERFORM 9100-LOG-WRITE
                            END-IF
 
-      *                    Actualizar estado de la hipoteca
+      *                    Actualizar estado e incrementar MESES_MORA
       *                    EXEC SQL
       *                        UPDATE HIPOTECAS
-      *                        SET    ESTADO = :HV-MORA-NUEVO-ESTADO
+      *                        SET    ESTADO = :HV-MORA-NUEVO-ESTADO,
+      *                               MESES_MORA = MESES_MORA + 1
       *                        WHERE  ID_HIPOTECA = :HV-MORA-ID-HIPO
       *                    END-EXEC
            IF SQL-PREP OF SQL-STMT-8 = 'N'
@@ -1353,9 +1519,19 @@
                                SQLCA
 
                            IF SQLCODE NOT = 0
-                               DISPLAY 'ERROR UPDATE ESTADO HIPOTECA: '
-                                       HV-MORA-ID-HIPO
-                                       ' SQLCODE: ' SQLCODE
+                               MOVE SQLCODE         TO WS-AUX-SQLCODE
+                               MOVE HV-MORA-ID-HIPO TO WS-AUX-ID9
+                               MOVE SPACES TO WS-LOG-LINE
+                               STRING 'ERROR UPDATE ESTADO HIPOTECA: '
+                                          DELIMITED BY SIZE
+                                      WS-AUX-ID9
+                                          DELIMITED BY SIZE
+                                      ' SQLCODE: '
+                                          DELIMITED BY SIZE
+                                      WS-AUX-SQLCODE
+                                          DELIMITED BY SIZE
+                                   INTO WS-LOG-LINE
+                               PERFORM 9100-LOG-WRITE
                                ADD 1 TO WS-CTR-ERRORES
                                MOVE 'S' TO WS-ABORT
                                MOVE 'S' TO WS-FIN-MORA
@@ -1365,12 +1541,12 @@
       *                    EXEC SQL
       *                        SELECT SALDO_CLIENTE
       *                        INTO   :HV-MORA-CLI-SALDO
-      *                        FROM   clientes
+      *                        FROM   CLIENTES
       *                        WHERE  ID_CLIENTE = :HV-MORA-ID-CLI
       *                    END-EXEC
            IF SQL-PREP OF SQL-STMT-9 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
-                 SQL-VAR-0027
+                 SQL-VAR-0025
                MOVE '3' TO SQL-TYPE(1)
                MOVE 7 TO SQL-LEN(1)
                MOVE X'02' TO SQL-PREC(1)
@@ -1388,14 +1564,14 @@
            MOVE HV-MORA-ID-CLI TO SQL-VAR-0019
            CALL 'OCSQLEXE' USING SQL-STMT-9
                                SQLCA
-           MOVE SQL-VAR-0027 TO HV-MORA-CLI-SALDO
+           MOVE SQL-VAR-0025 TO HV-MORA-CLI-SALDO
 
                            IF SQLCODE = 0
       *                        Si el cliente tiene fondos descontar
                                IF HV-MORA-CLI-SALDO >=
                                   HV-MORA-PAGO-MENS
       *                            EXEC SQL
-      *                                UPDATE clientes
+      *                                UPDATE CLIENTES
       *                                SET    SALDO_CLIENTE =
       *                                       SALDO_CLIENTE -
       *                                       :HV-MORA-PAGO-MENS
@@ -1404,7 +1580,7 @@
       *                            END-EXEC
            IF SQL-PREP OF SQL-STMT-10 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
-                 SQL-VAR-0024
+                 SQL-VAR-0022
                MOVE '3' TO SQL-TYPE(1)
                MOVE 8 TO SQL-LEN(1)
                MOVE X'02' TO SQL-PREC(1)
@@ -1420,48 +1596,131 @@
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
            MOVE HV-MORA-PAGO-MENS
-             TO SQL-VAR-0024
+             TO SQL-VAR-0022
            MOVE HV-MORA-ID-CLI
              TO SQL-VAR-0019
            CALL 'OCSQLEXE' USING SQL-STMT-10
                                SQLCA
                                    IF SQLCODE NOT = 0
-                                       DISPLAY 'ERROR DESCUENTO CLI: '
-                                               HV-MORA-ID-CLI
-                                               ' SQLCODE: ' SQLCODE
+                                       MOVE SQLCODE      TO
+                                            WS-AUX-SQLCODE
+                                       MOVE HV-MORA-ID-CLI TO
+                                            WS-AUX-ID8
+                                       MOVE SPACES TO WS-LOG-LINE
+                                       STRING 'ERROR DESCUENTO CLI: '
+                                                  DELIMITED BY SIZE
+                                              WS-AUX-ID8
+                                                  DELIMITED BY SIZE
+                                              ' SQLCODE: '
+                                                  DELIMITED BY SIZE
+                                              WS-AUX-SQLCODE
+                                                  DELIMITED BY SIZE
+                                           INTO WS-LOG-LINE
+                                       PERFORM 9100-LOG-WRITE
                                        ADD 1 TO WS-CTR-ERRORES
                                        MOVE 'S' TO WS-ABORT
                                        MOVE 'S' TO WS-FIN-MORA
                                    ELSE
-                                       DISPLAY ' DESCUENTO APLICADO'
-                                               ' CLI: '
-                                               HV-MORA-ID-CLI
-                                               ' MONTO: '
-                                               HV-MORA-PAGO-MENS
+      *                                Descontar cuota tambien del
+      *                                SALDO_ACTUAL de la hipoteca.
+      *                                EXEC SQL
+      *                                    UPDATE HIPOTECAS
+      *                                    SET    SALDO_ACTUAL =
+      *                                           SALDO_ACTUAL -
+      *                                           :HV-MORA-PAGO-MENS,
+      *                                           FECHA_ULT_PAGO =
+      *                                           CURDATE()
+      *                                    WHERE  ID_HIPOTECA =
+      *                                           :HV-MORA-ID-HIPO
+      *                                END-EXEC
+           IF SQL-PREP OF SQL-STMT-11 = 'N'
+               SET SQL-ADDR(1) TO ADDRESS OF
+                 SQL-VAR-0022
+               MOVE '3' TO SQL-TYPE(1)
+               MOVE 8 TO SQL-LEN(1)
+               MOVE X'02' TO SQL-PREC(1)
+               SET SQL-ADDR(2) TO ADDRESS OF
+                 SQL-VAR-0018
+               MOVE '3' TO SQL-TYPE(2)
+               MOVE 5 TO SQL-LEN(2)
+               MOVE X'00' TO SQL-PREC(2)
+               MOVE 2 TO SQL-COUNT
+               CALL 'OCSQLPRE' USING SQLV
+                                   SQL-STMT-11
+                                   SQLCA
+               SET SQL-HCONN OF SQLCA TO NULL
+           END-IF
+           MOVE HV-MORA-PAGO-MENS
+             TO SQL-VAR-0022
+           MOVE HV-MORA-ID-HIPO
+             TO SQL-VAR-0018
+           CALL 'OCSQLEXE' USING SQL-STMT-11
+                               SQLCA
+
+                                       MOVE HV-MORA-ID-CLI  TO
+                                            WS-AUX-ID8
+                                       MOVE HV-MORA-PAGO-MENS TO
+                                            WS-AUX-MONTO13
+                                       MOVE SPACES TO WS-LOG-LINE
+                                       STRING ' DESCUENTO APLICADO'
+                                                  DELIMITED BY SIZE
+                                              ' CLI: '
+                                                  DELIMITED BY SIZE
+                                              WS-AUX-ID8
+                                                  DELIMITED BY SIZE
+                                              ' MONTO: '
+                                                  DELIMITED BY SIZE
+                                              WS-AUX-MONTO13
+                                                  DELIMITED BY SIZE
+                                           INTO WS-LOG-LINE
+                                       PERFORM 9100-LOG-WRITE
                                    END-IF
                                ELSE
-                                   DISPLAY ' SIN FONDOS CLI: '
-                                           HV-MORA-ID-CLI
-                                           ' SALDO: '
-                                           HV-MORA-CLI-SALDO
+                                   MOVE HV-MORA-ID-CLI    TO WS-AUX-ID8
+                                   MOVE HV-MORA-CLI-SALDO TO
+                                        WS-AUX-MONTO10
+                                   MOVE SPACES TO WS-LOG-LINE
+                                   STRING ' SIN FONDOS CLI: '
+                                              DELIMITED BY SIZE
+                                          WS-AUX-ID8
+                                              DELIMITED BY SIZE
+                                          ' SALDO: '
+                                              DELIMITED BY SIZE
+                                          WS-AUX-MONTO10
+                                              DELIMITED BY SIZE
+                                       INTO WS-LOG-LINE
+                                   PERFORM 9100-LOG-WRITE
                                END-IF
                            ELSE
-                               DISPLAY 'ERROR CONSULTA SALDO CLI: '
-                                       HV-MORA-ID-CLI
-                                       ' SQLCODE: ' SQLCODE
+                               MOVE SQLCODE      TO WS-AUX-SQLCODE
+                               MOVE HV-MORA-ID-CLI TO WS-AUX-ID8
+                               MOVE SPACES TO WS-LOG-LINE
+                               STRING 'ERROR CONSULTA SALDO CLI: '
+                                          DELIMITED BY SIZE
+                                      WS-AUX-ID8
+                                          DELIMITED BY SIZE
+                                      ' SQLCODE: '
+                                          DELIMITED BY SIZE
+                                      WS-AUX-SQLCODE
+                                          DELIMITED BY SIZE
+                                   INTO WS-LOG-LINE
+                               PERFORM 9100-LOG-WRITE
                                ADD 1 TO WS-CTR-ERRORES
                            END-IF
 
                        ELSE
-      *                    Saldo correcto, hipoteca activa
-                           IF HV-MORA-ESTADO NOT = 'ACTIVO'
+      *                    Saldo correcto - si estaba MOROSO, regulariza
+      *                    Resetea MESES_MORA y marca FECHA_ULT_PAGO.
+                           IF HV-MORA-ESTADO = 'MOROSO'
       *                        EXEC SQL
       *                            UPDATE HIPOTECAS
-      *                            SET    ESTADO = 'ACTIVO'
+      *                            SET    ESTADO = 'ACTIVO',
+      *                                   MESES_MORA = 0,
+      *                                   FECHA_ULT_PAGO = CURDATE()
       *                            WHERE  ID_HIPOTECA =
       *                                   :HV-MORA-ID-HIPO
       *                        END-EXEC
-           IF SQL-PREP OF SQL-STMT-11 = 'N'
+           IF SQL-PREP OF SQL-STMT-12 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  SQL-VAR-0018
                MOVE '3' TO SQL-TYPE(1)
@@ -1469,14 +1728,49 @@
                MOVE X'00' TO SQL-PREC(1)
                MOVE 1 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-11
+                                   SQL-STMT-12
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
            MOVE HV-MORA-ID-HIPO
              TO SQL-VAR-0018
-           CALL 'OCSQLEXE' USING SQL-STMT-11
+           CALL 'OCSQLEXE' USING SQL-STMT-12
                                SQLCA
+
+                               IF SQLCODE = 0
+                                   ADD 1 TO WS-CTR-REGULARIZADAS
+                                   MOVE HV-MORA-ID-HIPO TO WS-AUX-ID9
+                                   MOVE HV-MORA-ID-CLI  TO WS-AUX-ID8
+                                   MOVE SPACES TO WS-LOG-LINE
+                                   STRING ' HIPOTECA REGULARIZADA: '
+                                              DELIMITED BY SIZE
+                                          WS-AUX-ID9
+                                              DELIMITED BY SIZE
+                                          ' CLIENTE: '
+                                              DELIMITED BY SIZE
+                                          WS-AUX-ID8
+                                              DELIMITED BY SIZE
+                                       INTO WS-LOG-LINE
+                                   PERFORM 9100-LOG-WRITE
+                               ELSE
+                                   MOVE SQLCODE         TO
+                                        WS-AUX-SQLCODE
+                                   MOVE HV-MORA-ID-HIPO TO WS-AUX-ID9
+                                   MOVE SPACES TO WS-LOG-LINE
+                                   STRING 'ERROR REGULARIZAR HIPOTECA: '
+                                          DELIMITED BY SIZE
+                                          WS-AUX-ID9
+                                          DELIMITED BY SIZE
+                                          ' SQLCODE: '
+                                          DELIMITED BY SIZE
+                                          WS-AUX-SQLCODE
+                                          DELIMITED BY SIZE
+                                       INTO WS-LOG-LINE
+                                   PERFORM 9100-LOG-WRITE
+                                   ADD 1 TO WS-CTR-ERRORES
+                                   MOVE 'S' TO WS-ABORT
+                                   MOVE 'S' TO WS-FIN-MORA
+                               END-IF
                            END-IF
                        END-IF
 
@@ -1484,7 +1778,14 @@
                        MOVE 'S' TO WS-FIN-MORA
 
                    WHEN OTHER
-                       DISPLAY 'ERROR FETCH CUR-MORA: ' SQLCODE
+                       MOVE SQLCODE TO WS-AUX-SQLCODE
+                       MOVE SPACES TO WS-LOG-LINE
+                       STRING 'ERROR FETCH CUR-MORA: '
+                                  DELIMITED BY SIZE
+                              WS-AUX-SQLCODE
+                                  DELIMITED BY SIZE
+                           INTO WS-LOG-LINE
+                       PERFORM 9100-LOG-WRITE
                        ADD 1   TO WS-CTR-ERRORES
                        MOVE 'S' TO WS-ABORT
                        MOVE 'S' TO WS-FIN-MORA
@@ -1497,8 +1798,22 @@
                                SQLCA
 
            IF WS-ABORT = 'N'
-               DISPLAY ' HIPOTECAS MOROSAS   : ' WS-CTR-MOROSAS
-               DISPLAY ' HIPOTECAS CASTIGADAS: ' WS-CTR-CASTIGADAS
+               MOVE WS-CTR-MOROSAS TO WS-AUX-CTR
+               MOVE SPACES TO WS-LOG-LINE
+               STRING ' HIPOTECAS MOROSAS   : '
+                          DELIMITED BY SIZE
+                      WS-AUX-CTR
+                          DELIMITED BY SIZE
+                   INTO WS-LOG-LINE
+               PERFORM 9100-LOG-WRITE
+               MOVE WS-CTR-CASTIGADAS TO WS-AUX-CTR
+               MOVE SPACES TO WS-LOG-LINE
+               STRING ' HIPOTECAS CASTIGADAS: '
+                          DELIMITED BY SIZE
+                      WS-AUX-CTR
+                          DELIMITED BY SIZE
+                   INTO WS-LOG-LINE
+               PERFORM 9100-LOG-WRITE
            ELSE
                MOVE 99 TO LK-COD-RETORNO
                MOVE 'ERROR EN PROC. MORA - SE HARA ROLLBACK'
@@ -1510,30 +1825,53 @@
       *                                                                *
       *================================================================*
        5200-BAJA-TARJETAS-VENCIDAS.
-           DISPLAY '>>> BAJA DE TARJETAS VENCIDAS...'
+           MOVE '>>> BAJA DE TARJETAS VENCIDAS...'
+               TO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE
 
       *    EXEC SQL
       *        UPDATE TARJETAS
-      *        SET    ESTADO = 'I'
+      *        SET    ESTADO = :HV-ESTADO-INACTIVO
       *        WHERE  FECHA_VENCIMIENTO < CURDATE()
-      *        AND    ESTADO = 'A'
+      *        AND    ESTADO = :HV-ESTADO-ACTIVO
       *    END-EXEC
-           IF SQL-PREP OF SQL-STMT-12 = 'N'
-               MOVE 0 TO SQL-COUNT
+           IF SQL-PREP OF SQL-STMT-13 = 'N'
+               SET SQL-ADDR(1) TO ADDRESS OF
+                 HV-ESTADO-INACTIVO
+               MOVE 'X' TO SQL-TYPE(1)
+               MOVE 1 TO SQL-LEN(1)
+               SET SQL-ADDR(2) TO ADDRESS OF
+                 HV-ESTADO-ACTIVO
+               MOVE 'X' TO SQL-TYPE(2)
+               MOVE 1 TO SQL-LEN(2)
+               MOVE 2 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-12
+                                   SQL-STMT-13
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
-           CALL 'OCSQLEXE' USING SQL-STMT-12
+           CALL 'OCSQLEXE' USING SQL-STMT-13
                                SQLCA
 
            IF SQLCODE = 0
                MOVE SQLERRD(3)       TO WS-CTR-TARJ-BAJA
-               DISPLAY ' TARJETAS DADAS DE BAJA: '
-                       WS-CTR-TARJ-BAJA
+               MOVE WS-CTR-TARJ-BAJA TO WS-AUX-CTR
+               MOVE SPACES TO WS-LOG-LINE
+               STRING ' TARJETAS DADAS DE BAJA: '
+                          DELIMITED BY SIZE
+                      WS-AUX-CTR
+                          DELIMITED BY SIZE
+                   INTO WS-LOG-LINE
+               PERFORM 9100-LOG-WRITE
            ELSE
-               DISPLAY 'ERROR EN BAJA TARJETAS: ' SQLCODE
+               MOVE SQLCODE TO WS-AUX-SQLCODE
+               MOVE SPACES TO WS-LOG-LINE
+               STRING 'ERROR EN BAJA TARJETAS: '
+                          DELIMITED BY SIZE
+                      WS-AUX-SQLCODE
+                          DELIMITED BY SIZE
+                   INTO WS-LOG-LINE
+               PERFORM 9100-LOG-WRITE
                MOVE 99 TO LK-COD-RETORNO
                MOVE 'ERROR EN BAJA TARJETAS - SE HARA ROLLBACK'
                    TO LK-MENSAJE
@@ -1547,28 +1885,42 @@
       *   Solo aplica a tarjetas ACTIVAS (ESTADO = 'A')               *
       *================================================================*
        6000-RESET-OPERATIVO.
-           DISPLAY '>>> RESET OPERATIVO TARJETAS...'
+           MOVE '>>> RESET OPERATIVO TARJETAS...'
+               TO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE
 
       *    EXEC SQL
       *        UPDATE TARJETAS
       *        SET    LIQUIDACION_MES = ACUM_MES,
       *               ACUM_MES        = 0
-      *        WHERE  ESTADO = 'A'
+      *        WHERE  ESTADO = :HV-ESTADO-ACTIVO
       *    END-EXEC
-           IF SQL-PREP OF SQL-STMT-13 = 'N'
-               MOVE 0 TO SQL-COUNT
+           IF SQL-PREP OF SQL-STMT-14 = 'N'
+               SET SQL-ADDR(1) TO ADDRESS OF
+                 HV-ESTADO-ACTIVO
+               MOVE 'X' TO SQL-TYPE(1)
+               MOVE 1 TO SQL-LEN(1)
+               MOVE 1 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-13
+                                   SQL-STMT-14
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
-           CALL 'OCSQLEXE' USING SQL-STMT-13
+           CALL 'OCSQLEXE' USING SQL-STMT-14
                                SQLCA
 
            IF SQLCODE = 0
-               DISPLAY ' RESET TARJETAS: OK'
+               MOVE ' RESET TARJETAS: OK' TO WS-LOG-LINE
+               PERFORM 9100-LOG-WRITE
            ELSE
-               DISPLAY 'ERROR EN RESET TARJETAS. SQLCODE: ' SQLCODE
+               MOVE SQLCODE TO WS-AUX-SQLCODE
+               MOVE SPACES TO WS-LOG-LINE
+               STRING 'ERROR EN RESET TARJETAS. SQLCODE: '
+                          DELIMITED BY SIZE
+                      WS-AUX-SQLCODE
+                          DELIMITED BY SIZE
+                   INTO WS-LOG-LINE
+               PERFORM 9100-LOG-WRITE
                MOVE 99 TO LK-COD-RETORNO
                MOVE 'ERROR EN RESET OPERATIVO - SE HARA ROLLBACK'
                    TO LK-MENSAJE
@@ -1580,16 +1932,75 @@
       *   7000 - FINALIZAR: COMMIT GLOBAL O ROLLBACK                  *
       *================================================================*
        7000-FINALIZAR.
-           DISPLAY '================================================'
-           DISPLAY ' RESUMEN - CIERRE MENSUAL PERIODO: ' WS-PERIODO
-           DISPLAY ' CLIENTES  PROCESADOS : ' WS-CTR-CLIENTES
-           DISPLAY ' TARJETAS  PROCESADAS : ' WS-CTR-TARJETAS
-           DISPLAY ' HIPOTECAS PROCESADAS : ' WS-CTR-HIPOTECAS
-           DISPLAY ' HIPOTECAS MOROSAS    : ' WS-CTR-MOROSAS
-           DISPLAY ' HIPOTECAS CASTIGADAS : ' WS-CTR-CASTIGADAS
-           DISPLAY ' TARJETAS DADAS BAJA  : ' WS-CTR-TARJ-BAJA
-           DISPLAY ' ERRORES   DETECTADOS : ' WS-CTR-ERRORES
-           DISPLAY '================================================'
+           MOVE '================================================'
+               TO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE
+           MOVE SPACES TO WS-LOG-LINE
+           STRING ' RESUMEN - CIERRE MENSUAL PERIODO: '
+                      DELIMITED BY SIZE
+                  WS-PERIODO
+                      DELIMITED BY SIZE
+               INTO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE
+           MOVE WS-CTR-CLIENTES TO WS-AUX-CTR
+           MOVE SPACES TO WS-LOG-LINE
+           STRING ' CLIENTES  PROCESADOS : '
+                      DELIMITED BY SIZE
+                  WS-AUX-CTR DELIMITED BY SIZE
+               INTO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE
+           MOVE WS-CTR-TARJETAS TO WS-AUX-CTR
+           MOVE SPACES TO WS-LOG-LINE
+           STRING ' TARJETAS  PROCESADAS : '
+                      DELIMITED BY SIZE
+                  WS-AUX-CTR DELIMITED BY SIZE
+               INTO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE
+           MOVE WS-CTR-HIPOTECAS TO WS-AUX-CTR
+           MOVE SPACES TO WS-LOG-LINE
+           STRING ' HIPOTECAS PROCESADAS : '
+                      DELIMITED BY SIZE
+                  WS-AUX-CTR DELIMITED BY SIZE
+               INTO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE
+           MOVE WS-CTR-MOROSAS TO WS-AUX-CTR
+           MOVE SPACES TO WS-LOG-LINE
+           STRING ' HIPOTECAS MOROSAS    : '
+                      DELIMITED BY SIZE
+                  WS-AUX-CTR DELIMITED BY SIZE
+               INTO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE
+           MOVE WS-CTR-CASTIGADAS TO WS-AUX-CTR
+           MOVE SPACES TO WS-LOG-LINE
+           STRING ' HIPOTECAS CASTIGADAS : '
+                      DELIMITED BY SIZE
+                  WS-AUX-CTR DELIMITED BY SIZE
+               INTO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE
+           MOVE WS-CTR-REGULARIZADAS TO WS-AUX-CTR
+           MOVE SPACES TO WS-LOG-LINE
+           STRING ' HIPOTECAS REGULARIZADAS: '
+                      DELIMITED BY SIZE
+                  WS-AUX-CTR DELIMITED BY SIZE
+               INTO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE
+           MOVE WS-CTR-TARJ-BAJA TO WS-AUX-CTR
+           MOVE SPACES TO WS-LOG-LINE
+           STRING ' TARJETAS DADAS BAJA  : '
+                      DELIMITED BY SIZE
+                  WS-AUX-CTR DELIMITED BY SIZE
+               INTO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE
+           MOVE WS-CTR-ERRORES TO WS-AUX-CTR
+           MOVE SPACES TO WS-LOG-LINE
+           STRING ' ERRORES   DETECTADOS : '
+                      DELIMITED BY SIZE
+                  WS-AUX-CTR DELIMITED BY SIZE
+               INTO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE
+           MOVE '================================================'
+               TO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE
 
            IF WS-ABORT = 'N' AND WS-CTR-ERRORES = 0
       *        EXEC SQL COMMIT END-EXEC
@@ -1597,7 +2008,8 @@
                MOVE 0  TO LK-COD-RETORNO
                MOVE 'CIERRE MENSUAL COMPLETADO EXITOSAMENTE'
                    TO LK-MENSAJE
-               DISPLAY 'COMMIT REALIZADO.'
+               MOVE 'COMMIT REALIZADO.' TO WS-LOG-LINE
+               PERFORM 9100-LOG-WRITE
            ELSE
       *        EXEC SQL ROLLBACK END-EXEC
            CALL 'OCSQLRBK' USING SQLCA END-CALL
@@ -1606,11 +2018,50 @@
                END-IF
                MOVE 'CIERRE FALLIDO - DATOS REVERTIDOS'
                    TO LK-MENSAJE
-               DISPLAY 'ROLLBACK EJECUTADO - DATOS REVERTIDOS.'
+               MOVE 'ROLLBACK EJECUTADO - DATOS REVERTIDOS.'
+                   TO WS-LOG-LINE
+               PERFORM 9100-LOG-WRITE
            END-IF
 
-           DISPLAY ' RESULTADO: ' LK-MENSAJE
-           DISPLAY '================================================'.
+           MOVE SPACES TO WS-LOG-LINE
+           STRING ' RESULTADO: '
+                      DELIMITED BY SIZE
+                  LK-MENSAJE
+                      DELIMITED BY SIZE
+               INTO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE
+           MOVE '================================================'
+               TO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE.
+
+
+      *================================================================*
+      *   8000 - PAUSA FINAL: MUESTRA RESULTADO Y ESPERA TECLA       *
+      *================================================================*
+       8000-PAUSA-RESULTADO.
+           PERFORM 9900-LIMPIAR-PANTALLA
+           DISPLAY '================================================'
+           DISPLAY ' BAT000 - PROCESO DE CIERRE MENSUAL'
+           DISPLAY ' PERIODO: ' WS-PERIODO
+           DISPLAY '================================================'
+           DISPLAY ' '
+           IF WS-ABORT = 'N' AND WS-CTR-ERRORES = 0
+               DISPLAY '>>> EXITO EN EJECUCION DE CIERRE MENSUAL'
+           ELSE
+               DISPLAY '>>> FALLO EN EJECUCION DE CIERRE MENSUAL'
+           END-IF
+           DISPLAY ' '
+           DISPLAY ' Consulte el detalle en: '
+           DISPLAY '   docs/logs/BAT_LOGS_' WS-PERIODO '.txt'
+           DISPLAY ' '
+           DISPLAY 'Presione ENTER para regresar al menu...'
+           ACCEPT WS-TECLA.
+
+      *================================================================*
+      *   9900 - LIMPIAR PANTALLA (Windows: cls)                       *
+      *================================================================*
+       9900-LIMPIAR-PANTALLA.
+           CALL "SYSTEM" USING WS-CLS-CMD.
 
       *================================================================*
       *   9000 - EVALUAR SQL             *
@@ -1628,6 +2079,15 @@
                        TO LK-MENSAJE
            END-EVALUATE.
 
+      *================================================================*
+      *   9100 - ESCRIBIR LINEA AL ARCHIVO DE LOG                     *
+      *           Destino: ..\docs\logs\BAT_LOGS_<PERIODO>.txt         *
+      *================================================================*
+       9100-LOG-WRITE.
+           CALL 'LOGFILE' USING WS-MODULO-LOG,
+                                WS-PERIODO,
+                                WS-LOG-LINE.
+
        END PROGRAM BAT000.
       **********************************************************************
       *  : ESQL for GnuCOBOL/OpenCOBOL Version 3 (2024.04.30) Build May 10 2024
@@ -1639,9 +2099,11 @@
       *  CUR-TARJETAS             IN USE CURSOR
       *  HV-APELLIDOS             IN USE CHAR(25)
       *  HV-COD-ULT-MOV           IN USE THROUGH TEMP VAR SQL-VAR-0007 DECIMAL(3,0)
-      *  HV-COUNT-PERIODO         IN USE THROUGH TEMP VAR SQL-VAR-0028 DECIMAL(7,0)
+      *  HV-COUNT-PERIODO         IN USE THROUGH TEMP VAR SQL-VAR-0026 DECIMAL(7,0)
       *  HV-CTA-ACTIVA            IN USE THROUGH TEMP VAR SQL-VAR-0003 DECIMAL(1,0)
       *  HV-DOC-CLIENTE           IN USE CHAR(12)
+      *  HV-ESTADO-ACTIVO         IN USE CHAR(1)
+      *  HV-ESTADO-INACTIVO       IN USE CHAR(1)
       *  HV-FECHA-ALTA            IN USE CHAR(10)
       *  HV-FECHA-ULT-MOV         IN USE CHAR(10)
       *  HV-HIPO-ESTADO           IN USE CHAR(20)
@@ -1657,18 +2119,16 @@
       *  HV-IND-FECHA-MOV         IN USE INTEGER(2 BYTES)
       *  HV-IND-IMPORTE-MOV       IN USE INTEGER(2 BYTES)
       *  HV-IND-SALDO-CTA         IN USE INTEGER(2 BYTES)
-      *  HV-MORA-CLI-SALDO        IN USE THROUGH TEMP VAR SQL-VAR-0027 DECIMAL(13,2)
+      *  HV-MORA-CLI-SALDO        IN USE THROUGH TEMP VAR SQL-VAR-0025 DECIMAL(13,2)
       *  HV-MORA-ESTADO           IN USE CHAR(20)
       *  HV-MORA-ID-CLI           IN USE THROUGH TEMP VAR SQL-VAR-0019 DECIMAL(9,0)
       *  HV-MORA-ID-HIPO          IN USE THROUGH TEMP VAR SQL-VAR-0018 DECIMAL(9,0)
-      *  HV-MORA-MESES-MORA       IN USE THROUGH TEMP VAR SQL-VAR-0026 DECIMAL(5,0)
-      *  HV-MORA-MESES-TOT        IN USE THROUGH TEMP VAR SQL-VAR-0022 DECIMAL(5,0)
-      *  HV-MORA-MESES-TRANS      IN USE THROUGH TEMP VAR SQL-VAR-0023 DECIMAL(5,0)
+      *  HV-MORA-MESES-MORA       IN USE THROUGH TEMP VAR SQL-VAR-0024 DECIMAL(5,0)
       *  HV-MORA-MONTO-ORIG       IN USE THROUGH TEMP VAR SQL-VAR-0021 DECIMAL(15,2)
       *  HV-MORA-NUEVO-ESTADO     IN USE CHAR(20)
-      *  HV-MORA-PAGO-MENS        IN USE THROUGH TEMP VAR SQL-VAR-0024 DECIMAL(15,2)
+      *  HV-MORA-PAGO-MENS        IN USE THROUGH TEMP VAR SQL-VAR-0022 DECIMAL(15,2)
       *  HV-MORA-SALDO-ACT        IN USE THROUGH TEMP VAR SQL-VAR-0020 DECIMAL(15,2)
-      *  HV-MORA-SALDO-ESP        IN USE THROUGH TEMP VAR SQL-VAR-0025 DECIMAL(15,2)
+      *  HV-MORA-SALDO-ESP        IN USE THROUGH TEMP VAR SQL-VAR-0023 DECIMAL(15,2)
       *  HV-NOMBRE                IN USE CHAR(25)
       *  HV-SALDO-CLI             IN USE THROUGH TEMP VAR SQL-VAR-0002 DECIMAL(13,2)
       *  HV-SALDO-CTA             IN USE THROUGH TEMP VAR SQL-VAR-0006 DECIMAL(13,2)
@@ -1681,6 +2141,9 @@
       *  HV-TIENE-HIPOTECA        IN USE THROUGH TEMP VAR SQL-VAR-0005 DECIMAL(1,0)
       *  HV-TIENE-TARJETA         IN USE THROUGH TEMP VAR SQL-VAR-0004 DECIMAL(1,0)
       *  HV-TIPO-DOC              IN USE CHAR(3)
+      *  WS-HOST-ESTADOS      NOT IN USE
+      *  WS-HOST-ESTADOS.HV-ESTADO-ACTIVO NOT IN USE
+      *  WS-HOST-ESTADOS.HV-ESTADO-INACTIVO NOT IN USE
       *  WS-HOST-HIPOTECAS    NOT IN USE
       *  WS-HOST-HIPOTECAS.HV-HIPO-ESTADO NOT IN USE
       *  WS-HOST-HIPOTECAS.HV-HIPO-FECHA-VENC NOT IN USE
@@ -1714,8 +2177,6 @@
       *  WS-HOST-MORA.HV-MORA-ID-CLI NOT IN USE
       *  WS-HOST-MORA.HV-MORA-ID-HIPO NOT IN USE
       *  WS-HOST-MORA.HV-MORA-MESES-MORA NOT IN USE
-      *  WS-HOST-MORA.HV-MORA-MESES-TOT NOT IN USE
-      *  WS-HOST-MORA.HV-MORA-MESES-TRANS NOT IN USE
       *  WS-HOST-MORA.HV-MORA-MONTO-ORIG NOT IN USE
       *  WS-HOST-MORA.HV-MORA-NUEVO-ESTADO NOT IN USE
       *  WS-HOST-MORA.HV-MORA-PAGO-MENS NOT IN USE

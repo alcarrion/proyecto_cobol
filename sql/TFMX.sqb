@@ -1,101 +1,590 @@
        IDENTIFICATION DIVISION.
        PROGRAM-ID. TFMX.
-      *==========================================================
-      * FASE 10: CARGA DE ARCHIVO PLANO A TABLA DE REPLICA TF06
-      *==========================================================
+
+      *==========================================================*
+      * FASE 00: INGESTA DINÁMICA A RÉPLICAS                    *
+      * ARQUITECTURA: Canal Dual Simplificado (DEP / PAG)       *
+      * OPTIMIZACIÓN: Parseo directo sin truncamiento y control *
+      *               de decimales implícitos para Ledger       *
+      *==========================================================*
 
        ENVIRONMENT DIVISION.
        INPUT-OUTPUT SECTION.
+
        FILE-CONTROL.
-           SELECT ARCHIVO-ENTRADA ASSIGN TO WS-RUTA-COMPLETA
-           ORGANIZATION IS LINE SEQUENTIAL
-           FILE STATUS IS WS-FS.
+
+           SELECT ARCHIVO-ENTRADA
+               ASSIGN        TO WS-RUTA-COMPLETA
+               ORGANIZATION  IS LINE SEQUENTIAL
+               FILE STATUS   IS WS-FS.
 
        DATA DIVISION.
+
        FILE SECTION.
+
        FD  ARCHIVO-ENTRADA.
-       01  REG-LINEA-ENTRADA       PIC X(500).
+
+       01  REG-LINEA-ENTRADA          PIC X(500).
 
        WORKING-STORAGE SECTION.
-           EXEC SQL INCLUDE SQLCA END-EXEC.
 
-           EXEC SQL BEGIN DECLARE SECTION END-EXEC.
+           EXEC SQL
+               INCLUDE SQLCA
+           END-EXEC.
+
+      *==========================================================*
+      * HOST VARIABLES SQL                                      *
+      *==========================================================*
+
+           EXEC SQL
+               BEGIN DECLARE SECTION
+           END-EXEC.
+
        01  WS-HOST-VARS-TFMX.
-           05 WS-ID-LOTE-SQL       PIC 9(09).
-           05 WS-DATOS-TX-SQL      PIC X(500).
-           05 WS-ESTADO-SQL        PIC 9(01) VALUE 2.
-           EXEC SQL END DECLARE SECTION END-EXEC.
+           05 WS-ID-LOTE-SQL          PIC 9(09).
+           05 WS-DATOS-TX-SQL         PIC X(500).
+           05 WS-ESTADO-SQL           PIC 9(01) VALUE 2.
+           05 WS-REPLICA-SQL          PIC X(04).
+           05 WS-TIPO-TX-SQL          PIC X(03).
+           05 WS-TRACE-ID-SQL         PIC X(40).
+           05 WS-DIR-BASE-SQL         PIC X(120).
+
+      *----------------------------------------------------------*
+      * VARIABLES HOSTEADAS PARA EMPAREJAR CON LA BD            *
+      *----------------------------------------------------------*
+
+           05 DB-INS-CUENTA           PIC X(16).
+           05 DB-INS-NUM-CREDITO      PIC X(20).
+           05 DB-INS-MONTO            PIC S9(13)V99.
+           05 DB-INS-TYPE-UPDATE      PIC X(10).
+           05 DB-INS-TXID             PIC X(40).
+
+           EXEC SQL
+               END DECLARE SECTION
+           END-EXEC.
+
+      *==========================================================*
+      * CONTROL DE ARCHIVO                                      *
+      *==========================================================*
 
        01  WS-CONTROL-FILE.
-           05 WS-DIR-BASE          PIC X(200).
-           05 WS-RUTA-COMPLETA     PIC X(250).
-           05 WS-EOF               PIC X(01) VALUE 'N'.
-           05 WS-CONT-REGS         PIC 9(05) VALUE 0.
-           05 WS-FS                PIC X(02).
+           05 WS-RUTA-COMPLETA        PIC X(200).
+           05 WS-EOF                  PIC X(01) VALUE 'N'.
+           05 WS-CONT-REGS            PIC 9(09) VALUE 0.
+           05 WS-FS                   PIC X(02).
+           05 WS-TIPO-ARCHIVO         PIC X(03) VALUE SPACES.
+
+       01  WS-HASH-COMPLETO           PIC X(64).
 
        LINKAGE SECTION.
-       COPY LKCIF.
+
+           COPY LKTF.
+
        01  WS-TFFM-VARS.
-           05 WS-ID-LOTE           PIC 9(09).
-           05 WS-NOMBRE-ARCHIVO    PIC X(50).
-           05 WS-FASE              PIC X(02).
-           05 WS-ESTADO-REPLICA    PIC X(01).
-           05 WS-TIPO-PROG         PIC X(03).
-           05 WS-FECHA-SIST        PIC X(10).
+           05 WS-ID-LOTE              PIC 9(09).
+           05 WS-FILE-NAME            PIC X(120).
+           05 WS-FASE                 PIC X(02).
+           05 WS-TYPE-UPDATE          PIC X(10).
+           05 WS-REPLICA-ASIG         PIC X(04).
+           05 WS-RETRY-COUNT          PIC 9(02).
 
-       PROCEDURE DIVISION USING WS-TFFM-VARS, LK-DATOS-TRANSACCION.
+       PROCEDURE DIVISION
+           USING
+               WS-TFFM-VARS,
+               LK-TRICKLE-FEED-INTERFACE.
+
+      *==========================================================*
+      * 0000 - PRINCIPAL                                        *
+      *==========================================================*
+
        0000-PRINCIPAL.
-      * Construccion segura de la ruta para no exceder columna 72
-           INITIALIZE WS-DIR-BASE
-           STRING "C:\Users\dell\Desktop\proyecto_cobol\"
-                    "banco\spool\Interfaces\BATCH-UPLOAD-S\"
-                     
-                  
-                  DELIMITED BY SIZE INTO WS-DIR-BASE
 
-           INITIALIZE WS-RUTA-COMPLETA
-           STRING WS-DIR-BASE       DELIMITED BY "  "
-                  WS-NOMBRE-ARCHIVO DELIMITED BY SPACE
-                  INTO WS-RUTA-COMPLETA
+           INITIALIZE
+               WS-HOST-VARS-TFMX
+               WS-RUTA-COMPLETA
+
+           MOVE 'N'
+             TO WS-EOF
+
+           MOVE 0
+             TO WS-CONT-REGS
+
+           MOVE WS-FILE-NAME(1:3)
+             TO WS-TIPO-ARCHIVO
+
+           MOVE WS-FILE-NAME(1:3)
+             TO WS-TIPO-TX-SQL
+
+           MOVE WS-TYPE-UPDATE
+             TO DB-INS-TYPE-UPDATE
+
+           MOVE 2
+             TO WS-ESTADO-SQL
+
+      *----------------------------------------------------------*
+      * Obtiene directorio base desde parámetros                *
+      *----------------------------------------------------------*
+
+           EXEC SQL
+               SELECT VALOR
+                 INTO :WS-DIR-BASE-SQL
+                 FROM TF_PARAMETROS
+                WHERE PARAMETRO = 'RUTA_UPLOAD'
+           END-EXEC
+
+           IF SQLCODE NOT = 0
+
+               MOVE
+               "C:\banco\spool\Interfaces\BATCH-UPLOAD-S\"
+                 TO WS-DIR-BASE-SQL
+
+           END-IF
+
+      *----------------------------------------------------------*
+      * Limpieza de espacios finales                            *
+      *----------------------------------------------------------*
+
+           INSPECT WS-DIR-BASE-SQL
+               REPLACING TRAILING SPACES BY LOW-VALUES
+
+      *----------------------------------------------------------*
+      * Construcción de ruta completa                           *
+      *----------------------------------------------------------*
+
+           STRING
+               WS-DIR-BASE-SQL DELIMITED BY LOW-VALUES
+               WS-FILE-NAME    DELIMITED BY SPACE
+               INTO WS-RUTA-COMPLETA
+           END-STRING
+
+           DISPLAY
+               "TFMX - TIPO TRANSACCION: "
+               WS-TIPO-ARCHIVO
+
+           DISPLAY
+               "TFMX - REPLICA DESTINO: "
+               WS-REPLICA-ASIG
+
+           DISPLAY
+               "TFMX - CARGANDO DESDE : "
+               WS-RUTA-COMPLETA
+
+      *----------------------------------------------------------*
+      * Apertura del archivo                                    *
+      *----------------------------------------------------------*
 
            OPEN INPUT ARCHIVO-ENTRADA
 
            IF WS-FS NOT = "00"
-               MOVE 99 TO LK-COD-RETORNO
-               STRING "ERR: NO SE PUDO ABRIR ARCHIVO. STATUS: " WS-FS
-                      DELIMITED BY SIZE INTO LK-MENSAJE
+
+               DISPLAY
+                   "ERROR: NO SE ENCONTRO ARCHIVO "
+                   WS-RUTA-COMPLETA
+
+               MOVE 99
+                 TO LK-TF-COD-RETORNO
+
                GOBACK
+
            END-IF
 
-           MOVE WS-ID-LOTE TO WS-ID-LOTE-SQL
-           PERFORM 1000-LEER-Y-CARGAR UNTIL WS-EOF = 'Y'
+           MOVE WS-ID-LOTE
+             TO WS-ID-LOTE-SQL
 
-           CLOSE ARCHIVO-ENTRADA
-           EXEC SQL COMMIT END-EXEC
+           MOVE WS-REPLICA-ASIG
+             TO WS-REPLICA-SQL
 
-           MOVE 0 TO LK-COD-RETORNO
-           GOBACK.
+      *----------------------------------------------------------*
+      * Primera lectura                                          *
+      *----------------------------------------------------------*
 
-       1000-LEER-Y-CARGAR.
            READ ARCHIVO-ENTRADA
                AT END
                    MOVE 'Y' TO WS-EOF
-               NOT AT END
-                   MOVE REG-LINEA-ENTRADA TO WS-DATOS-TX-SQL
-                   PERFORM 2000-INSERTAR-TF06
+           END-READ
+
+           PERFORM 1000-PROCESAR-LINEA
+               UNTIL WS-EOF = 'Y'
+
+           CLOSE ARCHIVO-ENTRADA
+
+           EXEC SQL
+               COMMIT
+           END-EXEC
+
+           DISPLAY
+               "TFMX - TIPO: "
+               WS-TIPO-ARCHIVO
+               " - CARGA FINALIZADA. TOTAL: "
+               WS-CONT-REGS
+
+           MOVE 0
+             TO LK-TF-COD-RETORNO
+
+           GOBACK.
+
+      *==========================================================*
+      * 1000 - PROCESAR LINEA                                   *
+      *==========================================================*
+
+       1000-PROCESAR-LINEA.
+
+           MOVE REG-LINEA-ENTRADA
+             TO WS-DATOS-TX-SQL
+
+           INITIALIZE
+               DB-INS-CUENTA
+               DB-INS-NUM-CREDITO
+               DB-INS-MONTO
+               WS-TRACE-ID-SQL
+               WS-HASH-COMPLETO
+               DB-INS-TXID
+
+      *----------------------------------------------------------*
+      * Parseo según tipo de archivo                            *
+      *----------------------------------------------------------*
+
+           EVALUATE WS-TIPO-ARCHIVO
+
+               WHEN "DEP"
+                   PERFORM 2100-PARSEAR-CANAL-DEP
+
+               WHEN "PAG"
+                   PERFORM 2200-PARSEAR-CANAL-PAG
+
+           END-EVALUATE
+
+      *----------------------------------------------------------*
+      * Ajuste atómico: truncar hash a 40 bytes                 *
+      *----------------------------------------------------------*
+
+           MOVE WS-HASH-COMPLETO(1:40)
+             TO DB-INS-TXID
+
+           PERFORM 3000-INSERTAR-EN-REPLICA
+
+      *----------------------------------------------------------*
+      * Siguiente lectura                                       *
+      *----------------------------------------------------------*
+
+           READ ARCHIVO-ENTRADA
+               AT END
+                   MOVE 'Y' TO WS-EOF
            END-READ.
 
-       2000-INSERTAR-TF06.
+      *==========================================================*
+      * 2100 - PARSEAR CANAL DEP                                *
+      * Pasivos - 136 Bytes                                     *
+      *==========================================================*
+
+       2100-PARSEAR-CANAL-DEP.
+
+      * Cuenta afectada
+           MOVE REG-LINEA-ENTRADA(1:10)
+             TO DB-INS-CUENTA
+
+      * Código de movimiento (002 / 003)
+           MOVE REG-LINEA-ENTRADA(11:3)
+             TO DB-INS-NUM-CREDITO
+
+      * Conversión implícita a decimal
+           COMPUTE DB-INS-MONTO =
+               FUNCTION NUMVAL(
+                   REG-LINEA-ENTRADA(14:15)
+               ) / 100
+
+      * Trace ID
+           MOVE REG-LINEA-ENTRADA(29:40)
+             TO WS-TRACE-ID-SQL
+
+      * Hash SHA / Firma
+           MOVE REG-LINEA-ENTRADA(73:64)
+             TO WS-HASH-COMPLETO.
+
+      *==========================================================*
+      * 2200 - PARSEAR CANAL PAG                                *
+      * Activos - 148 Bytes                                     *
+      *==========================================================*
+
+       2200-PARSEAR-CANAL-PAG.
+
+      * Cuenta DDA origen
+           MOVE REG-LINEA-ENTRADA(4:10)
+             TO DB-INS-CUENTA
+
+      * Tipo de pago crédito (004 / 005)
+           MOVE REG-LINEA-ENTRADA(1:3)
+             TO DB-INS-NUM-CREDITO
+
+      * Conversión implícita a decimal
+           COMPUTE DB-INS-MONTO =
+               FUNCTION NUMVAL(
+                   REG-LINEA-ENTRADA(30:15)
+               ) / 100
+
+      * Trace ID
+           MOVE REG-LINEA-ENTRADA(45:40)
+             TO WS-TRACE-ID-SQL
+
+      * Hash SHA / Firma
+           MOVE REG-LINEA-ENTRADA(85:64)
+             TO WS-HASH-COMPLETO.
+
+      *==========================================================*
+      * 3000 - INSERTAR EN REPLICA                              *
+      *==========================================================*
+
+       3000-INSERTAR-EN-REPLICA.
+
+           EVALUATE WS-REPLICA-ASIG
+
+               WHEN "TF01"
+                   PERFORM 3100-INSERT-TF01
+
+               WHEN "TF02"
+                   PERFORM 3100-INSERT-TF02
+
+               WHEN "TF03"
+                   PERFORM 3100-INSERT-TF03
+
+               WHEN "TF04"
+                   PERFORM 3100-INSERT-TF04
+
+               WHEN "TF05"
+                   PERFORM 3100-INSERT-TF05
+
+               WHEN "TF06"
+                   PERFORM 3100-INSERT-TF06
+
+           END-EVALUATE.
+
+      *==========================================================*
+      * 3100 - INSERCIONES EN ESPEJOS MULTI-HILO                *
+      *==========================================================*
+
+       3100-INSERT-TF01.
+
            EXEC SQL
-               INSERT INTO TF06 (ID_LOTE, ESTADO, DATOS_TX)
-               VALUES (:WS-ID-LOTE-SQL, :WS-ESTADO-SQL,
-               :WS-DATOS-TX-SQL)
-           END-EXEC.
+               INSERT INTO TF01
+               (
+                   ID_LOTE,
+                   ESTADO,
+                   DATOS_TX,
+                   REPLICA_NO,
+                   CUENTA,
+                   NUM_CREDITO,
+                   MONTO,
+                   TRACE_ID,
+                   ID_TRANSACCION,
+                   TYPE_UPDATE
+               )
+               VALUES
+               (
+                   :WS-ID-LOTE-SQL,
+                   :WS-ESTADO-SQL,
+                   :WS-DATOS-TX-SQL,
+                   :WS-REPLICA-SQL,
+                   :DB-INS-CUENTA,
+                   :DB-INS-NUM-CREDITO,
+                   :DB-INS-MONTO,
+                   :WS-TRACE-ID-SQL,
+                   :DB-INS-TXID,
+                   :DB-INS-TYPE-UPDATE
+               )
+           END-EXEC
+
+           PERFORM 3200-VALIDAR-INSERT.
+
+       3100-INSERT-TF02.
+
+           EXEC SQL
+               INSERT INTO TF02
+               (
+                   ID_LOTE,
+                   ESTADO,
+                   DATOS_TX,
+                   REPLICA_NO,
+                   CUENTA,
+                   NUM_CREDITO,
+                   MONTO,
+                   TRACE_ID,
+                   ID_TRANSACCION,
+                   TYPE_UPDATE
+               )
+               VALUES
+               (
+                   :WS-ID-LOTE-SQL,
+                   :WS-ESTADO-SQL,
+                   :WS-DATOS-TX-SQL,
+                   :WS-REPLICA-SQL,
+                   :DB-INS-CUENTA,
+                   :DB-INS-NUM-CREDITO,
+                   :DB-INS-MONTO,
+                   :WS-TRACE-ID-SQL,
+                   :DB-INS-TXID,
+                   :DB-INS-TYPE-UPDATE
+               )
+           END-EXEC
+
+           PERFORM 3200-VALIDAR-INSERT.
+
+       3100-INSERT-TF03.
+
+           EXEC SQL
+               INSERT INTO TF03
+               (
+                   ID_LOTE,
+                   ESTADO,
+                   DATOS_TX,
+                   REPLICA_NO,
+                   CUENTA,
+                   NUM_CREDITO,
+                   MONTO,
+                   TRACE_ID,
+                   ID_TRANSACCION,
+                   TYPE_UPDATE
+               )
+               VALUES
+               (
+                   :WS-ID-LOTE-SQL,
+                   :WS-ESTADO-SQL,
+                   :WS-DATOS-TX-SQL,
+                   :WS-REPLICA-SQL,
+                   :DB-INS-CUENTA,
+                   :DB-INS-NUM-CREDITO,
+                   :DB-INS-MONTO,
+                   :WS-TRACE-ID-SQL,
+                   :DB-INS-TXID,
+                   :DB-INS-TYPE-UPDATE
+               )
+           END-EXEC
+
+           PERFORM 3200-VALIDAR-INSERT.
+
+       3100-INSERT-TF04.
+
+           EXEC SQL
+               INSERT INTO TF04
+               (
+                   ID_LOTE,
+                   ESTADO,
+                   DATOS_TX,
+                   REPLICA_NO,
+                   CUENTA,
+                   NUM_CREDITO,
+                   MONTO,
+                   TRACE_ID,
+                   ID_TRANSACCION,
+                   TYPE_UPDATE
+               )
+               VALUES
+               (
+                   :WS-ID-LOTE-SQL,
+                   :WS-ESTADO-SQL,
+                   :WS-DATOS-TX-SQL,
+                   :WS-REPLICA-SQL,
+                   :DB-INS-CUENTA,
+                   :DB-INS-NUM-CREDITO,
+                   :DB-INS-MONTO,
+                   :WS-TRACE-ID-SQL,
+                   :DB-INS-TXID,
+                   :DB-INS-TYPE-UPDATE
+               )
+           END-EXEC
+
+           PERFORM 3200-VALIDAR-INSERT.
+
+       3100-INSERT-TF05.
+
+           EXEC SQL
+               INSERT INTO TF05
+               (
+                   ID_LOTE,
+                   ESTADO,
+                   DATOS_TX,
+                   REPLICA_NO,
+                   CUENTA,
+                   NUM_CREDITO,
+                   MONTO,
+                   TRACE_ID,
+                   ID_TRANSACCION,
+                   TYPE_UPDATE
+               )
+               VALUES
+               (
+                   :WS-ID-LOTE-SQL,
+                   :WS-ESTADO-SQL,
+                   :WS-DATOS-TX-SQL,
+                   :WS-REPLICA-SQL,
+                   :DB-INS-CUENTA,
+                   :DB-INS-NUM-CREDITO,
+                   :DB-INS-MONTO,
+                   :WS-TRACE-ID-SQL,
+                   :DB-INS-TXID,
+                   :DB-INS-TYPE-UPDATE
+               )
+           END-EXEC
+
+           PERFORM 3200-VALIDAR-INSERT.
+
+       3100-INSERT-TF06.
+
+           EXEC SQL
+               INSERT INTO TF06
+               (
+                   ID_LOTE,
+                   ESTADO,
+                   DATOS_TX,
+                   REPLICA_NO,
+                   CUENTA,
+                   NUM_CREDITO,
+                   MONTO,
+                   TRACE_ID,
+                   ID_TRANSACCION,
+                   TYPE_UPDATE
+               )
+               VALUES
+               (
+                   :WS-ID-LOTE-SQL,
+                   :WS-ESTADO-SQL,
+                   :WS-DATOS-TX-SQL,
+                   :WS-REPLICA-SQL,
+                   :DB-INS-CUENTA,
+                   :DB-INS-NUM-CREDITO,
+                   :DB-INS-MONTO,
+                   :WS-TRACE-ID-SQL,
+                   :DB-INS-TXID,
+                   :DB-INS-TYPE-UPDATE
+               )
+           END-EXEC
+
+           PERFORM 3200-VALIDAR-INSERT.
+
+      *==========================================================*
+      * 3200 - VALIDAR INSERT                                   *
+      *==========================================================*
+
+       3200-VALIDAR-INSERT.
 
            IF SQLCODE NOT = 0
-               DISPLAY "ERROR AL INSERTAR REGISTRO EN TF06: " SQLCODE
-               MOVE 99 TO LK-COD-RETORNO
-               MOVE "Y" TO WS-EOF
+
+               DISPLAY
+                   "FALLO INSERT EN REPLICA "
+                   WS-REPLICA-ASIG
+
+               DISPLAY
+                   "SQLCODE: "
+                   SQLCODE
+
+               MOVE 99
+                 TO LK-TF-COD-RETORNO
+
+               MOVE "Y"
+                 TO WS-EOF
+
            ELSE
-               ADD 1 TO WS-CONT-REGS
+
+               ADD 1
+                 TO WS-CONT-REGS
+
            END-IF.

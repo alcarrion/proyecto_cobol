@@ -167,6 +167,7 @@
            ACCEPT WS-PAUSA.
 
        8000-CARGAR-CONFIG.
+      * Mantiene tu logica de conexion ODBC a MySQL...
            MOVE SPACES TO DB-CONN-STR.
            STRING
               "DRIVER={MySQL ODBC 8.0 ANSI Driver};"
