@@ -130,9 +130,10 @@
            END-IF.
 
        4000-CANCELAR-TARJETA.
+           MOVE 'I' TO TARJ-ESTADO
            EXEC SQL
                UPDATE TARJETAS
-               SET ESTADO = 'I'
+               SET ESTADO = :TARJ-ESTADO
                WHERE NRO_TARJETA = :TARJ-NRO-TARJETA
            END-EXEC
 

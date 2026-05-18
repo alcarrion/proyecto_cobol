@@ -1,7 +1,6 @@
-      ******************************************************************
+******************************************************************
       * Author: EQUIPO (LUIS. ALISON. FRANKLIN.)
-      * Date: 02-05-2025
-      * Tectonics: cobc
+      * INTEGRACIÓN: TRICKLE FEED (FASE 00-40)
       ******************************************************************
        IDENTIFICATION DIVISION.
        PROGRAM-ID. BANCSMENU.
@@ -23,7 +22,7 @@
            05 SQL-COUNT  PIC S9(9) COMP-5 VALUE ZERO.
            05 SQL-ADDR   POINTER OCCURS 2 TIMES VALUE NULL.
            05 SQL-LEN    PIC S9(9) COMP-5 OCCURS 2 TIMES VALUE ZERO.
-5           05 SQL-TYPE   PIC X OCCURS 2 TIMES.
+           05 SQL-TYPE   PIC X OCCURS 2 TIMES.
            05 SQL-PREC   PIC X OCCURS 2 TIMES.
       **********************************************************************
 
@@ -67,6 +66,8 @@
                05 PGM-BR0000     PIC X(8).
                05 PGM-BAT000     PIC X(8).
                05 PGM-RP0000     PIC X(8).
+      * NUEVO: Programa Orquestador del Trickle Feed
+               05 PGM-TFTRCT     PIC X(8).
 
            COPY LKCIF.
 
@@ -77,7 +78,9 @@
             MOVE 'TC0000' TO PGM-TC0000.
             MOVE 'BR0000' TO PGM-BR0000.
             MOVE 'BAT000' TO PGM-BAT000.
-             MOVE 'RP0000' TO PGM-RP0000.
+            MOVE 'RP0000' TO PGM-RP0000.
+      * NUEVO: Inicializar nombre del orquestador
+            MOVE 'TFTRCT' TO PGM-TFTRCT.
 
             PERFORM 8000-CARGAR-CONFIG.
             PERFORM 8100-CONECTAR-BD.
@@ -104,12 +107,12 @@
                DISPLAY "4. Hipotecas"
                DISPLAY "5. Cierre Mensual"
                DISPLAY "6. Reportes Gerenciales"
+               DISPLAY "7. PROCESAR TRICKLE FEED (LOTES)"
                DISPLAY "0. Salir"
                DISPLAY "========================================"
                ACCEPT WS-OPCION
 
            EVALUATE WS-OPCION
-      *    MAIN-LINE-CLIENTES
                WHEN 1
                    CALL PGM-CI0000 USING LK-DATOS-TRANSACCION
                WHEN 2
@@ -122,6 +125,9 @@
                    CALL PGM-BAT000 USING LK-DATOS-TRANSACCION
                WHEN 6
                    CALL PGM-RP0000 USING LK-DATOS-TRANSACCION
+      * NUEVO: Llamada al proceso de Trickle Feed
+               WHEN 7
+                   CALL PGM-TFTRCT USING LK-DATOS-TRANSACCION
                WHEN 0
                    MOVE 'N' TO WS-CONTINUAR
                WHEN OTHER
@@ -137,7 +143,9 @@
                    ACCEPT WS-OPCION
                END-IF
            END-PERFORM.
+
        8000-CARGAR-CONFIG.
+      * Mantiene tu logica de conexion ODBC a MySQL...
            MOVE SPACES TO DB-CONN-STR.
            STRING
                "DRIVER={MySQL ODBC 8.0 ANSI Driver};"
@@ -147,6 +155,7 @@
                DELIMITED BY SIZE INTO DB-CONN-STR
            END-STRING.
            INSPECT DB-CONN-STR REPLACING TRAILING SPACES BY LOW-VALUES.
+
        8100-CONECTAR-BD.
            DISPLAY "CONECTANDO A LA BASE..."
       *    EXEC SQL
@@ -160,10 +169,10 @@
                    .
            IF SQLCODE NOT = 0
                DISPLAY "FALLO DE CONEXION. SQLCODE: " SQLCODE
-               DISPLAY "VERIFIQUE EL DSN 'banco' EN EL PANEL DE CONTROL"
            ELSE
                DISPLAY "CONEXION EXITOSA AL SISTEMA."
            END-IF.
+
        END PROGRAM BANCSMENU.
       **********************************************************************
       *  : ESQL for GnuCOBOL/OpenCOBOL Version 3 (2024.04.30) Build May 10 2024

@@ -1,0 +1,40 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. BNCR004.
+      *==========================================================
+      * RETORNA LA FECHA CONTABLE DESDE LA BASE DE DATOS
+      *==========================================================
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+           EXEC SQL INCLUDE SQLCA END-EXEC.
+
+           EXEC SQL BEGIN DECLARE SECTION END-EXEC.
+       01  WS-FECHA-DB          PIC X(10).
+           EXEC SQL END DECLARE SECTION END-EXEC.
+
+       LINKAGE SECTION.
+       01  LK-FECHA-SALIDA      PIC X(10).
+
+       PROCEDURE DIVISION USING LK-FECHA-SALIDA.
+       0000-PRINCIPAL.
+      * 1. Consultar la fecha de proceso en la tabla de control
+      * Nota: Se asume una tabla de parámetros o control_secuencias 
+           EXEC SQL
+               SELECT FECHA_PROCESO 
+               INTO :WS-FECHA-DB
+               FROM CONTROL_SECUENCIAS
+               LIMIT 1
+           END-EXEC.
+
+      * 2. Manejo de error: si no hay fecha en BD, usar la del sistema
+           IF SQLCODE NOT = 0
+               MOVE FUNCTION CURRENT-DATE(1:4) TO WS-FECHA-DB(1:4)
+               MOVE "-" TO WS-FECHA-DB(5:1)
+               MOVE FUNCTION CURRENT-DATE(5:2) TO WS-FECHA-DB(6:2)
+               MOVE "-" TO WS-FECHA-DB(8:1)
+               MOVE FUNCTION CURRENT-DATE(7:2) TO WS-FECHA-DB(9:2)
+           END-IF.
+
+           MOVE WS-FECHA-DB TO LK-FECHA-SALIDA.
+           
+           GOBACK.

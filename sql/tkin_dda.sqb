@@ -1,0 +1,86 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. tkin_dda.
+      *================================================================*
+      * PROGRAMA PRECOMPILABLE: tkin_dda.sqb                           *
+      * PRODUCTO: Cuentas de Depósitos a la Vista (DDA - Corrientes)   *
+      * RESPONSABILIDAD: Persistencia e impacto contable en saldos.    *
+      *================================================================*
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SPECIAL-NAMES.
+           DECIMAL-POINT IS COMMA.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+      * Inclusión de la estructura de comunicación nativa de SQL
+           EXEC SQL INCLUDE SQLCA END-EXEC.
+
+           EXEC SQL BEGIN DECLARE SECTION END-EXEC.
+      * Seccion de Variables Host obligatorias para el precompilador .sqb
+       01  WS-HOST-DDA.
+           05 WS-CUENTA-SQL        PIC 9(09).
+           05 WS-MONTO-MOV-SQL     PIC S9(13)V99.
+           05 WS-NUEVO-SALDO-SQL   PIC S9(13)V99.
+           05 WS-COD-MOV-SQL       PIC 9(04).
+           EXEC SQL END DECLARE SECTION END-EXEC.
+
+       LINKAGE SECTION.
+      * Estructura de comunicación compartida heredada desde tkin01
+       01  REG-CTA.
+           05 CTA-NRO-CUENTA       PIC 9(09).
+           05 CTA-NUM-CREDITO      PIC X(20).
+           05 CTA-SALDO-ACTUAL     PIC S9(13)V99.
+           05 CTA-MONTO-MOV        PIC 9(13)V99.
+
+           COPY LKTF. 
+
+       PROCEDURE DIVISION USING REG-CTA, LK-TRICKLE-FEED-INTERFACE.
+       0000-PRINCIPAL.
+           MOVE 00 TO LK-TF-COD-RETORNO
+           MOVE "OK" TO LK-TF-MENSAJE
+           
+           MOVE CTA-NRO-CUENTA TO WS-CUENTA-SQL
+           MOVE CTA-MONTO-MOV  TO WS-MONTO-MOV-SQL.
+
+      *----------------------------------------------------------------*
+      * EVALUACIÓN DEL SIGNO CONTABLE FINANCIERO (DDA)
+      *----------------------------------------------------------------*
+           EVALUATE LK-TF-ACCION
+      * Caso: Crédito / Depósito (Aumenta el balance disponible)
+               WHEN "C"
+                   COMPUTE WS-NUEVO-SALDO-SQL = 
+                           CTA-SALDO-ACTUAL + CTA-MONTO-MOV
+                   MOVE 7 TO WS-COD-MOV-SQL 
+                   PERFORM 1000-PERSISTIR-BALANCE
+                   
+      * Caso: Débito / Retiro / Extracción (Disminuye el balance)
+               WHEN "D"
+                   COMPUTE WS-NUEVO-SALDO-SQL = 
+                           CTA-SALDO-ACTUAL - CTA-MONTO-MOV
+                   MOVE 6 TO WS-COD-MOV-SQL 
+                   PERFORM 1000-PERSISTIR-BALANCE
+                   
+               WHEN OTHER
+                   MOVE 99 TO LK-TF-COD-RETORNO
+                   MOVE "ERR: ACCION CONTABLE INVALIDA EN DDA" 
+                     TO LK-TF-MENSAJE
+           END-EVALUATE.
+
+           GOBACK.
+
+      *================================================================*
+      * ETAPA DE PERSISTENCIA: IMPACTO DIRECTO EN EL LIBRO MAYOR (DDA)
+      *================================================================*
+       1000-PERSISTIR-BALANCE.
+           EXEC SQL
+               UPDATE ctactes
+               SET SALDO_ACTUAL  = :WS-NUEVO-SALDO-SQL
+               WHERE ID_CUENTA  = :WS-CUENTA-SQL
+           END-EXEC.
+
+      * Validación de ejecución atómica del motor relacional de MySQL
+           IF SQLCODE NOT = 0
+               MOVE 99 TO LK-TF-COD-RETORNO
+               STRING "ERR DB CORESALDO SQLCODE: " SQLCODE
+                   DELIMITED BY SIZE INTO LK-TF-MENSAJE
+           END-IF.
