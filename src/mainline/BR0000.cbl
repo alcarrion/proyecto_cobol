@@ -84,6 +84,7 @@
            GOBACK.
 
        1000-MOSTRAR-MENU.
+           CALL 'SYSTEM' USING 'cls'
            DISPLAY " ".
            DISPLAY "====================================".
            DISPLAY "       MODULO DE HIPOTECAS          ".
@@ -99,16 +100,20 @@
            EVALUATE WS-OPTION
                WHEN 1
                    PERFORM 2100-REGISTRAR-ALTA
+                   PERFORM 9900-PAUSA
                WHEN 2
                    PERFORM 2200-CONSULTAR-HIPOTECA
+                   PERFORM 9900-PAUSA
                WHEN 3
                    PERFORM 2300-PROCESAR-PAGO
+                   PERFORM 9900-PAUSA
                WHEN 4
                    MOVE 'N' TO WS-CONTINUAR
                WHEN OTHER
                    DISPLAY "--------------------------------"
                    DISPLAY " OPCION INVALIDA. Use 1 al 4."
                    DISPLAY "--------------------------------"
+                   PERFORM 9900-PAUSA
            END-EVALUATE.
 
        2100-REGISTRAR-ALTA.
@@ -335,9 +340,6 @@
                    DISPLAY "================================"
                    DISPLAY " AVISO - HIPOTECA CASTIGADA"
                    DISPLAY "================================"
-                   DISPLAY "Puede abonar a la deuda."
-                   DISPLAY "La mora la actualiza el batch."
-                   DISPLAY "================================"
                END-IF
            END-IF.
 
@@ -405,7 +407,6 @@
                    DISPLAY " AVISO - ABONO PARCIAL"
                    DISPLAY "================================"
                    DISPLAY "El pago no cubre la cuota mensual."
-                   DISPLAY "Se registra como abono a la deuda."
                    DISPLAY "La mora sera evaluada por el batch."
                    DISPLAY "================================"
            END-EVALUATE.
@@ -606,3 +607,8 @@
            DISPLAY "MOTIVO : " LK-MENSAJE.
            DISPLAY "ACCION : Verifique el numero.".
            DISPLAY "================================".
+
+       9900-PAUSA.
+           DISPLAY " ".
+           DISPLAY "Presione ENTER para continuar...".
+           ACCEPT WS-ENTRADA-TXT.
