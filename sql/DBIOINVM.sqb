@@ -5,6 +5,9 @@
        DATA DIVISION.
        WORKING-STORAGE SECTION.
 
+      *> Variable de trabajo COBOL (debe ir ANTES de EXEC SQL)
+       01  WS-TX-IMPORTE          PIC S9(13)V99 COMP-3.
+
            EXEC SQL INCLUDE SQLCA END-EXEC.
 
            EXEC SQL BEGIN DECLARE SECTION END-EXEC.
@@ -31,8 +34,6 @@
                WHERE  ID_CLIENTE = :DB-INVM-ID-CLIENTE
                ORDER  BY TIPO_CUENTA, ID_CUENTA
            END-EXEC.
-
-       01  WS-TX-IMPORTE          PIC S9(13)V99 COMP-3.
 
        LINKAGE SECTION.
            COPY INVMREC.

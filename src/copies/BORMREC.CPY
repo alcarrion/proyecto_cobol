@@ -18,4 +18,3 @@
               88 HIPO-MOROSO           VALUE 'MOROSO'.
               88 HIPO-PAGADO           VALUE 'PAGADO'.
            05 BORM-FECHA-VENCIMIENTO   PIC X(10).
-           

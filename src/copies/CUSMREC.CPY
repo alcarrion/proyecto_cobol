@@ -3,7 +3,6 @@
       * DESCRIPCION: REGISTRO MAESTRO DE CLIENTES REFACTORIZADO v3.0   *
       * ADAPTACIÓN: ESPEJO EXACTO DE LA TABLA 'CLIENTES' DEL EQUIPO    *
       *================================================================*
-           COPY TIPOSCOM.
        01  REG-CUSM.
            05 CUSM-ID-CLIENTE          PIC 9(08).
            05 CUSM-TIPO-DOC            PIC X(03).

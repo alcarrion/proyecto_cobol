@@ -427,7 +427,11 @@
            STRING WS-ANIO "-" WS-MES "-" WS-DIA
               DELIMITED BY SIZE INTO CUSM-FECHA-ALTA.
 
-           MOVE WS-SCORE          TO CUSM-SCORE-CREDITICIO.
+           COMPUTE CUSM-SCORE-CREDITICIO =
+              (CUSM-INGRESOS-MENSUALES / 2) + (WS-EDAD-CALCULADA * 4).
+           IF CUSM-SCORE-CREDITICIO > 999
+              MOVE 999 TO CUSM-SCORE-CREDITICIO
+           END-IF.
            MOVE 0                 TO CUSM-TIENE-TARJETA.
            MOVE 0                 TO CUSM-TIENE-HIPOTECA.
            MOVE 0                 TO CUSM-SALDO-TOTAL-VISTA.

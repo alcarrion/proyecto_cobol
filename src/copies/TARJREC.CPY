@@ -1,8 +1,22 @@
       *================================================================*
       * COPYBOOK : TARJREC.CPY                                        *
       * FUNCION  : Registro de Tarjetas de Credito + Diferidos        *
+      * TABLAS   : tarjetas, tarjetas_diferidos                        *
+      * BANCO LAF v3.0 - TCS Ecuador Nivel 1000                       *
       *================================================================*
-           COPY TIPOSCOM.
+      * TABLA tarjetas:                                                *
+      *   NRO_TARJETA(PK VARCHAR16), ID_CLIENTE(FK INT),              *
+      *   CUENTA_PRINCIPAL(FK INT a ctactes),                         *
+      *   FECHA_EMISION(DATE), FECHA_VENCTO(DATE),                    *
+      *   CUPO_APROBADO(DEC12,2), SALDO_UTILIZADO(DEC12,2 DEF 0),     *
+      *   ESTADO_TARJETA(CHAR1: A=Activa B=Bloqueada V=Vencida)       *
+      *----------------------------------------------------------------*
+      * TABLA tarjetas_diferidos:                                      *
+      *   ID_DIFERIDO(INT AI PK), NRO_TARJETA(FK VARCHAR16),          *
+      *   MONTO_COMPRA(DEC12,2), CUOTAS_TOTALES(INT),                 *
+      *   CUOTAS_PENDIENTES(INT), VALOR_CUOTA(DEC12,2),               *
+      *   TASA_INTERES(DEC5,2)                                         *
+      *================================================================*
        01  REG-TARJ.
            05 TARJ-NRO-TARJETA        PIC X(16).
            05 TARJ-ID-CLIENTE         PIC 9(08).

@@ -23,6 +23,18 @@
        01 SQL-STMT-0.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
+           05 SQL-OPT    PIC X VALUE 'C'.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 135.
+           05 SQL-STMT   PIC X(135) VALUE 'SELECT ID_DIFERIDO,MONTO_COMP
+      -    'RA,CUOTAS_TOTALES,CUOTAS_PENDIENTES,VALOR_CUOTA,TASA_INTERES
+      -    ' FROM tarjetas_diferidos WHERE NRO_TARJETA = ?'.
+           05 SQL-CNAME  PIC X(8) VALUE 'CUR-DIFD'.
+           05 FILLER     PIC X VALUE LOW-VALUE.
+      **********************************************************************
+       01 SQL-STMT-1.
+           05 SQL-IPTR   POINTER VALUE NULL.
+           05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 142.
@@ -30,7 +42,7 @@
       -    'NCIPAL,FECHA_EMISION,FECHA_VENCTO,CUPO_APROBADO,SALDO_UTILIZ
       -    'ADO,ESTADO_TARJETA FROM tarjetas WHERE ID_CLIENTE = ?'.
       **********************************************************************
-       01 SQL-STMT-1.
+       01 SQL-STMT-2.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
@@ -41,7 +53,7 @@
       -    'CUPO_APROBADO,SALDO_UTILIZADO,ESTADO_TARJETA) VALUES (?,?,?,
       -    '?,?,?,?,?)'.
       **********************************************************************
-       01 SQL-STMT-2.
+       01 SQL-STMT-3.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
@@ -50,7 +62,7 @@
            05 SQL-STMT   PIC X(58) VALUE 'UPDATE clientes SET TIENE_TARJ
       -    'ETA = 1 WHERE ID_CLIENTE = ?'.
       **********************************************************************
-       01 SQL-STMT-3.
+       01 SQL-STMT-4.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
@@ -60,7 +72,7 @@
       -    's (NRO_TARJETA,MONTO_COMPRA,CUOTAS_TOTALES,CUOTAS_PENDIENTES
       -    ',VALOR_CUOTA,TASA_INTERES) VALUES (?,?,?,?,?,?)'.
       **********************************************************************
-       01 SQL-STMT-4.
+       01 SQL-STMT-5.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
@@ -69,7 +81,7 @@
            05 SQL-STMT   PIC X(79) VALUE 'UPDATE tarjetas SET SALDO_UTIL
       -    'IZADO = SALDO_UTILIZADO + ? WHERE NRO_TARJETA = ?'.
       **********************************************************************
-       01 SQL-STMT-5.
+       01 SQL-STMT-6.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
@@ -78,7 +90,7 @@
            05 SQL-STMT   PIC X(81) VALUE 'UPDATE tarjetas SET ESTADO_TAR
       -    'JETA = ''I'' WHERE NRO_TARJETA = ? AND ID_CLIENTE = ?'.
       **********************************************************************
-       01 SQL-STMT-6.
+       01 SQL-STMT-7.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
@@ -98,6 +110,7 @@
            05 SQL-VAR-0007  PIC S9(3) COMP-3.
            05 SQL-VAR-0008  PIC S9(3) COMP-3.
            05 SQL-VAR-0009  PIC S9(11)V9(2) COMP-3.
+           05 SQL-VAR-0010  PIC S9(9) COMP-3.
       *******       END OF PRECOMPILER-GENERATED VARIABLES           *******
       **********************************************************************
 
@@ -137,7 +150,17 @@
        01  DB-DIFD-CUOTAS-PEND     PIC 9(03).
        01  DB-DIFD-VALOR-CUOTA     PIC S9(10)V99 COMP-3.
        01  DB-DIFD-TASA-INTERES    PIC S9(03)V99 COMP-3.
+       01  DB-DIFD-ID-DIFERIDO     PIC 9(08).
       *    EXEC SQL END DECLARE SECTION END-EXEC.
+
+      *    EXEC SQL DECLARE CUR-DIFD CURSOR FOR
+      *        SELECT ID_DIFERIDO,
+      *               MONTO_COMPRA, CUOTAS_TOTALES,
+      *               CUOTAS_PENDIENTES, VALOR_CUOTA,
+      *               TASA_INTERES
+      *        FROM   tarjetas_diferidos
+      *        WHERE  NRO_TARJETA = :DB-TARJ-NRO-TARJETA
+      *    END-EXEC.
 
        LINKAGE SECTION.
            COPY TARJREC.
@@ -160,6 +183,12 @@
                    PERFORM 3000-INSERTAR-DIFERIDO
                WHEN 'B'
                    PERFORM 4000-CANCELAR-TARJETA
+               WHEN 'L'
+                   PERFORM 5000-ABRIR-CURSOR-DIFD
+               WHEN 'F'
+                   PERFORM 6000-FETCH-DIFERIDO
+               WHEN 'Z'
+                   PERFORM 7000-CERRAR-CURSOR-DIFD
                WHEN OTHER
                    MOVE 'E999' TO LK-COD-RETORNO
                    MOVE 'Accion no reconocida en DBIOTARJ'
@@ -185,7 +214,7 @@
       *        FROM   tarjetas
       *        WHERE  ID_CLIENTE = :DB-TARJ-ID-CLIENTE
       *    END-EXEC.
-           IF SQL-PREP OF SQL-STMT-0 = 'N'
+           IF SQL-PREP OF SQL-STMT-1 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  DB-TARJ-NRO-TARJETA
                MOVE 'X' TO SQL-TYPE(1)
@@ -224,12 +253,12 @@
                MOVE X'00' TO SQL-PREC(8)
                MOVE 8 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-0
+                                   SQL-STMT-1
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
            MOVE DB-TARJ-ID-CLIENTE TO SQL-VAR-0001
-           CALL 'OCSQLEXE' USING SQL-STMT-0
+           CALL 'OCSQLEXE' USING SQL-STMT-1
                                SQLCA
            MOVE SQL-VAR-0002 TO DB-TARJ-CTA-PRINCIPAL
            MOVE SQL-VAR-0003 TO DB-TARJ-CUPO-APROBADO
@@ -265,7 +294,7 @@
       *             :DB-TARJ-FECHA-VENCTO, :DB-TARJ-CUPO-APROBADO,
       *             :DB-TARJ-SALDO-UTILIZADO, :DB-TARJ-ESTADO)
       *    END-EXEC.
-           IF SQL-PREP OF SQL-STMT-1 = 'N'
+           IF SQL-PREP OF SQL-STMT-2 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  DB-TARJ-NRO-TARJETA
                MOVE 'X' TO SQL-TYPE(1)
@@ -304,7 +333,7 @@
                MOVE 1 TO SQL-LEN(8)
                MOVE 8 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-1
+                                   SQL-STMT-2
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
@@ -316,7 +345,7 @@
              TO SQL-VAR-0003
            MOVE DB-TARJ-SALDO-UTILIZADO
              TO SQL-VAR-0004
-           CALL 'OCSQLEXE' USING SQL-STMT-1
+           CALL 'OCSQLEXE' USING SQL-STMT-2
                                SQLCA
                    .
            PERFORM 9000-EVALUAR-SQLSTATE.
@@ -326,7 +355,7 @@
       *        UPDATE clientes SET TIENE_TARJETA = 1
       *        WHERE  ID_CLIENTE = :DB-TARJ-ID-CLIENTE
       *    END-EXEC.
-           IF SQL-PREP OF SQL-STMT-2 = 'N'
+           IF SQL-PREP OF SQL-STMT-3 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  SQL-VAR-0001
                MOVE '3' TO SQL-TYPE(1)
@@ -334,13 +363,13 @@
                MOVE X'00' TO SQL-PREC(1)
                MOVE 1 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-2
+                                   SQL-STMT-3
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
            MOVE DB-TARJ-ID-CLIENTE
              TO SQL-VAR-0001
-           CALL 'OCSQLEXE' USING SQL-STMT-2
+           CALL 'OCSQLEXE' USING SQL-STMT-3
                                SQLCA
                    .
            PERFORM 9000-EVALUAR-SQLSTATE.
@@ -356,7 +385,8 @@
            MOVE DIFD-NRO-TARJETA       TO DB-DIFD-NRO-TARJETA.
            MOVE TARJ-NRO-TARJETA       TO DB-TARJ-NRO-TARJETA.
            MOVE DIFD-MONTO-COMPRA      TO DB-DIFD-MONTO-COMPRA.
-           MOVE DIFD-MONTO-COMPRA      TO DB-TARJ-SALDO-INC.
+           COMPUTE DB-TARJ-SALDO-INC =
+               DIFD-VALOR-CUOTA * DIFD-CUOTAS-TOTALES.
            MOVE DIFD-CUOTAS-TOTALES    TO DB-DIFD-CUOTAS-TOT.
            MOVE DIFD-CUOTAS-PENDIENTES TO DB-DIFD-CUOTAS-PEND.
            MOVE DIFD-VALOR-CUOTA       TO DB-DIFD-VALOR-CUOTA.
@@ -371,7 +401,7 @@
       *             :DB-DIFD-CUOTAS-TOT, :DB-DIFD-CUOTAS-PEND,
       *             :DB-DIFD-VALOR-CUOTA, :DB-DIFD-TASA-INTERES)
       *    END-EXEC.
-           IF SQL-PREP OF SQL-STMT-3 = 'N'
+           IF SQL-PREP OF SQL-STMT-4 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  DB-DIFD-NRO-TARJETA
                MOVE 'X' TO SQL-TYPE(1)
@@ -403,7 +433,7 @@
                MOVE X'02' TO SQL-PREC(6)
                MOVE 6 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-3
+                                   SQL-STMT-4
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
@@ -415,7 +445,7 @@
              TO SQL-VAR-0008
            MOVE DB-DIFD-VALOR-CUOTA
              TO SQL-VAR-0009
-           CALL 'OCSQLEXE' USING SQL-STMT-3
+           CALL 'OCSQLEXE' USING SQL-STMT-4
                                SQLCA
                    .
            PERFORM 9000-EVALUAR-SQLSTATE.
@@ -427,7 +457,7 @@
       *                               + :DB-TARJ-SALDO-INC
       *        WHERE  NRO_TARJETA = :DB-DIFD-NRO-TARJETA
       *    END-EXEC.
-           IF SQL-PREP OF SQL-STMT-4 = 'N'
+           IF SQL-PREP OF SQL-STMT-5 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  SQL-VAR-0005
                MOVE '3' TO SQL-TYPE(1)
@@ -439,13 +469,13 @@
                MOVE 16 TO SQL-LEN(2)
                MOVE 2 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-4
+                                   SQL-STMT-5
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
            MOVE DB-TARJ-SALDO-INC
              TO SQL-VAR-0005
-           CALL 'OCSQLEXE' USING SQL-STMT-4
+           CALL 'OCSQLEXE' USING SQL-STMT-5
                                SQLCA
                    .
            PERFORM 9000-EVALUAR-SQLSTATE.
@@ -467,7 +497,7 @@
       *        WHERE  NRO_TARJETA = :DB-TARJ-NRO-TARJETA
       *        AND    ID_CLIENTE  = :DB-TARJ-ID-CLIENTE
       *    END-EXEC.
-           IF SQL-PREP OF SQL-STMT-5 = 'N'
+           IF SQL-PREP OF SQL-STMT-6 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  DB-TARJ-NRO-TARJETA
                MOVE 'X' TO SQL-TYPE(1)
@@ -479,13 +509,13 @@
                MOVE X'00' TO SQL-PREC(2)
                MOVE 2 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-5
+                                   SQL-STMT-6
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
            MOVE DB-TARJ-ID-CLIENTE
              TO SQL-VAR-0001
-           CALL 'OCSQLEXE' USING SQL-STMT-5
+           CALL 'OCSQLEXE' USING SQL-STMT-6
                                SQLCA
                    .
            PERFORM 9000-EVALUAR-SQLSTATE.
@@ -495,7 +525,7 @@
       *        UPDATE clientes SET TIENE_TARJETA = 0
       *        WHERE  ID_CLIENTE = :DB-TARJ-ID-CLIENTE
       *    END-EXEC.
-           IF SQL-PREP OF SQL-STMT-6 = 'N'
+           IF SQL-PREP OF SQL-STMT-7 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  SQL-VAR-0001
                MOVE '3' TO SQL-TYPE(1)
@@ -503,13 +533,13 @@
                MOVE X'00' TO SQL-PREC(1)
                MOVE 1 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-6
+                                   SQL-STMT-7
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
            MOVE DB-TARJ-ID-CLIENTE
              TO SQL-VAR-0001
-           CALL 'OCSQLEXE' USING SQL-STMT-6
+           CALL 'OCSQLEXE' USING SQL-STMT-7
                                SQLCA
                    .
            PERFORM 9000-EVALUAR-SQLSTATE.
@@ -550,13 +580,110 @@
                      TO LK-MENSAJE
            END-EVALUATE.
 
+      ************************************************************
+      * L - Abrir cursor de diferidos para NRO_TARJETA
+      ************************************************************
+       5000-ABRIR-CURSOR-DIFD.
+           MOVE TARJ-NRO-TARJETA TO DB-TARJ-NRO-TARJETA.
+      *    EXEC SQL OPEN CUR-DIFD END-EXEC.
+           IF SQL-PREP OF SQL-STMT-0 = 'N'
+               SET SQL-ADDR(1) TO ADDRESS OF
+                 DB-TARJ-NRO-TARJETA
+               MOVE 'X' TO SQL-TYPE(1)
+               MOVE 16 TO SQL-LEN(1)
+               MOVE 1 TO SQL-COUNT
+               CALL 'OCSQLPRE' USING SQLV
+                                   SQL-STMT-0
+                                   SQLCA
+           END-IF
+           CALL 'OCSQLOCU' USING SQL-STMT-0
+                               SQLCA
+           END-CALL
+                                          .
+           PERFORM 9000-EVALUAR-SQLSTATE.
+
+      ************************************************************
+      * F - Fetch siguiente diferido activo
+      ************************************************************
+       6000-FETCH-DIFERIDO.
+      *    EXEC SQL
+      *        FETCH CUR-DIFD
+      *        INTO  :DB-DIFD-ID-DIFERIDO,
+      *              :DB-DIFD-MONTO-COMPRA,
+      *              :DB-DIFD-CUOTAS-TOT,
+      *              :DB-DIFD-CUOTAS-PEND,
+      *              :DB-DIFD-VALOR-CUOTA,
+      *              :DB-DIFD-TASA-INTERES
+      *    END-EXEC.
+           SET SQL-ADDR(1) TO ADDRESS OF
+             SQL-VAR-0010
+           MOVE '3' TO SQL-TYPE(1)
+           MOVE 5 TO SQL-LEN(1)
+               MOVE X'00' TO SQL-PREC(1)
+           SET SQL-ADDR(2) TO ADDRESS OF
+             SQL-VAR-0006
+           MOVE '3' TO SQL-TYPE(2)
+           MOVE 7 TO SQL-LEN(2)
+               MOVE X'02' TO SQL-PREC(2)
+           SET SQL-ADDR(3) TO ADDRESS OF
+             SQL-VAR-0007
+           MOVE '3' TO SQL-TYPE(3)
+           MOVE 2 TO SQL-LEN(3)
+               MOVE X'00' TO SQL-PREC(3)
+           SET SQL-ADDR(4) TO ADDRESS OF
+             SQL-VAR-0008
+           MOVE '3' TO SQL-TYPE(4)
+           MOVE 2 TO SQL-LEN(4)
+               MOVE X'00' TO SQL-PREC(4)
+           SET SQL-ADDR(5) TO ADDRESS OF
+             SQL-VAR-0009
+           MOVE '3' TO SQL-TYPE(5)
+           MOVE 7 TO SQL-LEN(5)
+               MOVE X'02' TO SQL-PREC(5)
+           SET SQL-ADDR(6) TO ADDRESS OF
+             DB-DIFD-TASA-INTERES
+           MOVE '3' TO SQL-TYPE(6)
+           MOVE 3 TO SQL-LEN(6)
+               MOVE X'02' TO SQL-PREC(6)
+           MOVE 6 TO SQL-COUNT
+           CALL 'OCSQLFTC' USING SQLV
+                               SQL-STMT-0
+                               SQLCA
+           MOVE SQL-VAR-0010 TO DB-DIFD-ID-DIFERIDO
+           MOVE SQL-VAR-0006 TO DB-DIFD-MONTO-COMPRA
+           MOVE SQL-VAR-0007 TO DB-DIFD-CUOTAS-TOT
+           MOVE SQL-VAR-0008 TO DB-DIFD-CUOTAS-PEND
+           MOVE SQL-VAR-0009 TO DB-DIFD-VALOR-CUOTA
+                   .
+           PERFORM 9000-EVALUAR-SQLSTATE.
+           IF LK-EXITO
+               MOVE DB-DIFD-ID-DIFERIDO    TO DIFD-ID-DIFERIDO
+               MOVE DB-DIFD-MONTO-COMPRA   TO DIFD-MONTO-COMPRA
+               MOVE DB-DIFD-CUOTAS-TOT     TO DIFD-CUOTAS-TOTALES
+               MOVE DB-DIFD-CUOTAS-PEND    TO DIFD-CUOTAS-PENDIENTES
+               MOVE DB-DIFD-VALOR-CUOTA    TO DIFD-VALOR-CUOTA
+               MOVE DB-DIFD-TASA-INTERES   TO DIFD-TASA-INTERES
+           END-IF.
+
+      ************************************************************
+      * Z - Cerrar cursor de diferidos
+      ************************************************************
+       7000-CERRAR-CURSOR-DIFD.
+      *    EXEC SQL CLOSE CUR-DIFD END-EXEC.
+           CALL 'OCSQLCCU' USING SQL-STMT-0
+                               SQLCA
+                                           .
+           MOVE '00  ' TO LK-COD-RETORNO.
+
        END PROGRAM DBIOTARJ.
       **********************************************************************
       *  : ESQL for GnuCOBOL/OpenCOBOL Version 3 (2024.04.30) Build May 10 2024
 
       *******               EMBEDDED SQL VARIABLES USAGE             *******
+      *  CUR-DIFD                 IN USE CURSOR
       *  DB-DIFD-CUOTAS-PEND      IN USE THROUGH TEMP VAR SQL-VAR-0008 DECIMAL(3,0)
       *  DB-DIFD-CUOTAS-TOT       IN USE THROUGH TEMP VAR SQL-VAR-0007 DECIMAL(3,0)
+      *  DB-DIFD-ID-DIFERIDO      IN USE THROUGH TEMP VAR SQL-VAR-0010 DECIMAL(9,0)
       *  DB-DIFD-MONTO-COMPRA     IN USE THROUGH TEMP VAR SQL-VAR-0006 DECIMAL(13,2)
       *  DB-DIFD-NRO-TARJETA      IN USE CHAR(16)
       *  DB-DIFD-TASA-INTERES     IN USE DECIMAL(5,2)

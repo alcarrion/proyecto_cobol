@@ -7,7 +7,6 @@
       * Cargada UNA SOLA VEZ en BANCSMENU al autenticar al cajero.   *
       * Viaja por LINKAGE a CI0000, IN0000, TC0000 y BR0000.         *
       *----------------------------------------------------------------*
-           COPY TIPOSCOM.
        01  LK-DATOS-SESION.
            05 LKCIF-CLIENTE-ID         PIC 9(08).
            05 LKCIF-CEDULA             PIC X(12).

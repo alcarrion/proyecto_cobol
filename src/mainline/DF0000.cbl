@@ -19,7 +19,7 @@
        WORKING-STORAGE SECTION.
        01  WS-CALCULOS.
            05 WS-TASA-ANUAL          PIC S9(03)V99 COMP-3 VALUE 35.00.
-           05 WS-TASA-MENSUAL        PIC S9(03)V9(6) COMP-3.
+           05 WS-INTERES-UNIDAD      PIC S9(10)V99 COMP-3.
            05 WS-INTERES-TOTAL       PIC S9(10)V99 COMP-3.
            05 WS-MONTO-TOTAL         PIC S9(10)V99 COMP-3.
            05 WS-VALOR-CUOTA         PIC S9(10)V99 COMP-3.
@@ -79,12 +79,12 @@
                MOVE LK-MONTO-COMPRA TO DIFD-VALOR-CUOTA
                MOVE ZEROS           TO DIFD-TASA-INTERES
            ELSE
-      *>     Tasa mensual = (tasa anual / 12) / 100
-               COMPUTE WS-TASA-MENSUAL =
-                   (WS-TASA-ANUAL / 12) / 100
-      *>     Interes total = monto * tasa_mensual * num_cuotas
+      *>     Interes por unidad = monto * tasa_anual / 1200
+               COMPUTE WS-INTERES-UNIDAD =
+                   LK-MONTO-COMPRA * WS-TASA-ANUAL / 1200
+      *>     Interes total = interes_unidad * cuotas
                COMPUTE WS-INTERES-TOTAL =
-                   LK-MONTO-COMPRA * WS-TASA-MENSUAL * LK-CUOTAS
+                   WS-INTERES-UNIDAD * LK-CUOTAS
                COMPUTE WS-MONTO-TOTAL =
                    LK-MONTO-COMPRA + WS-INTERES-TOTAL
                COMPUTE DIFD-VALOR-CUOTA ROUNDED =
@@ -114,4 +114,3 @@
 
            GOBACK.
        END PROGRAM DF0000.
-       

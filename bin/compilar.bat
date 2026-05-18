@@ -46,7 +46,7 @@ echo ============================================
 if exist "%MAINLINE_DIR%\BANCSMENU.cob" del /f /q "%MAINLINE_DIR%\BANCSMENU.cob"
 if exist "%MAINLINE_DIR%\DBIOCUSM.cob" del /f /q "%MAINLINE_DIR%\DBIOCUSM.cob"
 if exist "%MAINLINE_DIR%\DBIOTRAN.cob" del /f /q "%MAINLINE_DIR%\DBIOTRAN.cob"
-if exist "%MAINLINE_DIR%\DBIOINVM.cob" del /f /q "%MAINLINE_DIR%\DBIOINVM.cob"
+rem DBIOINVM.cob se preserva (esqlOC tiene SIGSEGV en su SQB con cursor DECLARE)
 if exist "%MAINLINE_DIR%\DBIOTARJ.cob" del /f /q "%MAINLINE_DIR%\DBIOTARJ.cob"
 
 echo Archivos generados anteriores eliminados.
@@ -87,12 +87,9 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b 1
 )
 
-echo [4/4] DBIOINVM.sqb   -> DBIOINVM.cob
-"%PRECOMPILADOR%" -I "%COPIES_DIR%" -static -o "%MAINLINE_DIR%\DBIOINVM.cob" "%SQL_DIR%\DBIOINVM.sqb"
-
-if %ERRORLEVEL% NEQ 0 (
-    echo.
-    echo ERROR: Fallo al precompilar DBIOINVM.sqb
+echo [4/4] DBIOINVM.cob   -> se usa version preservada (sin re-precompilar)
+if not exist "%MAINLINE_DIR%\DBIOINVM.cob" (
+    echo ERROR: DBIOINVM.cob no existe. Ejecuta una vez el precompilador manualmente.
     pause
     exit /b 1
 )
@@ -112,17 +109,16 @@ echo Precompilacion SQL finalizada.
 
 echo.
 echo ============================================
-echo  2. Compilando Menu + Clientes
+echo  2. Compilando todos los modulos
 echo ============================================
 
-"%COBC%" -x -v -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql "%MAINLINE_DIR%\BANCSMENU.cob" "%MAINLINE_DIR%\DBIOCUSM.cob" "%MAINLINE_DIR%\DBIOTRAN.cob" "%MAINLINE_DIR%\DBIOINVM.cob" "%MAINLINE_DIR%\DBIOTARJ.cob" "%MAINLINE_DIR%\CI0000.cbl" "%MAINLINE_DIR%\IN0000.cbl" "%MAINLINE_DIR%\DF0000.cbl" "%MAINLINE_DIR%\TC0000.cbl" -o "%BIN_DIR%\BANCSMENU.exe"
+"%COBC%" -x -v -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql "%MAINLINE_DIR%\BANCSMENU.cob" "%MAINLINE_DIR%\DBIOCUSM.cob" "%MAINLINE_DIR%\DBIOTRAN.cob" "%MAINLINE_DIR%\DBIOINVM.cob" "%MAINLINE_DIR%\DBIOTARJ.cob" "%MAINLINE_DIR%\CI0000.cbl" "%MAINLINE_DIR%\IN0000.cbl" "%MAINLINE_DIR%\DF0000.cbl" "%MAINLINE_DIR%\TC0000.cbl" -o "%BIN_DIR%\BANCSMENU.exe"
 if %ERRORLEVEL% == 0 (
     echo.
     echo ============================================
-    echo  EXITO: COMPILACION FASE CLIENTES COMPLETA
+    echo  EXITO: COMPILACION COMPLETA
     echo ============================================
-    echo Ejecutable generado:
-    echo %BIN_DIR%\BANCSMENU.exe
+    echo Ejecutable: %BIN_DIR%\BANCSMENU.exe
     echo ============================================
 ) else (
     echo.
@@ -134,3 +130,4 @@ if %ERRORLEVEL% == 0 (
 )
 
 pause
+

@@ -29,7 +29,17 @@
        01  DB-DIFD-CUOTAS-PEND     PIC 9(03).
        01  DB-DIFD-VALOR-CUOTA     PIC S9(10)V99 COMP-3.
        01  DB-DIFD-TASA-INTERES    PIC S9(03)V99 COMP-3.
+       01  DB-DIFD-ID-DIFERIDO     PIC 9(08).
            EXEC SQL END DECLARE SECTION END-EXEC.
+
+           EXEC SQL DECLARE CUR-DIFD CURSOR FOR
+               SELECT ID_DIFERIDO,
+                      MONTO_COMPRA, CUOTAS_TOTALES,
+                      CUOTAS_PENDIENTES, VALOR_CUOTA,
+                      TASA_INTERES
+               FROM   tarjetas_diferidos
+               WHERE  NRO_TARJETA = :DB-TARJ-NRO-TARJETA
+           END-EXEC.
 
        LINKAGE SECTION.
            COPY TARJREC.
@@ -52,6 +62,12 @@
                    PERFORM 3000-INSERTAR-DIFERIDO
                WHEN 'B'
                    PERFORM 4000-CANCELAR-TARJETA
+               WHEN 'L'
+                   PERFORM 5000-ABRIR-CURSOR-DIFD
+               WHEN 'F'
+                   PERFORM 6000-FETCH-DIFERIDO
+               WHEN 'Z'
+                   PERFORM 7000-CERRAR-CURSOR-DIFD
                WHEN OTHER
                    MOVE 'E999' TO LK-COD-RETORNO
                    MOVE 'Accion no reconocida en DBIOTARJ'
@@ -127,7 +143,8 @@
            MOVE DIFD-NRO-TARJETA       TO DB-DIFD-NRO-TARJETA.
            MOVE TARJ-NRO-TARJETA       TO DB-TARJ-NRO-TARJETA.
            MOVE DIFD-MONTO-COMPRA      TO DB-DIFD-MONTO-COMPRA.
-           MOVE DIFD-MONTO-COMPRA      TO DB-TARJ-SALDO-INC.
+           COMPUTE DB-TARJ-SALDO-INC =
+               DIFD-VALOR-CUOTA * DIFD-CUOTAS-TOTALES.
            MOVE DIFD-CUOTAS-TOTALES    TO DB-DIFD-CUOTAS-TOT.
            MOVE DIFD-CUOTAS-PENDIENTES TO DB-DIFD-CUOTAS-PEND.
            MOVE DIFD-VALOR-CUOTA       TO DB-DIFD-VALOR-CUOTA.
@@ -214,5 +231,43 @@
                    MOVE 'Error tecnico en base de datos'
                      TO LK-MENSAJE
            END-EVALUATE.
+
+      ************************************************************
+      * L - Abrir cursor de diferidos para NRO_TARJETA
+      ************************************************************
+       5000-ABRIR-CURSOR-DIFD.
+           MOVE TARJ-NRO-TARJETA TO DB-TARJ-NRO-TARJETA.
+           EXEC SQL OPEN CUR-DIFD END-EXEC.
+           PERFORM 9000-EVALUAR-SQLSTATE.
+
+      ************************************************************
+      * F - Fetch siguiente diferido activo
+      ************************************************************
+       6000-FETCH-DIFERIDO.
+           EXEC SQL
+               FETCH CUR-DIFD
+               INTO  :DB-DIFD-ID-DIFERIDO,
+                     :DB-DIFD-MONTO-COMPRA,
+                     :DB-DIFD-CUOTAS-TOT,
+                     :DB-DIFD-CUOTAS-PEND,
+                     :DB-DIFD-VALOR-CUOTA,
+                     :DB-DIFD-TASA-INTERES
+           END-EXEC.
+           PERFORM 9000-EVALUAR-SQLSTATE.
+           IF LK-EXITO
+               MOVE DB-DIFD-ID-DIFERIDO    TO DIFD-ID-DIFERIDO
+               MOVE DB-DIFD-MONTO-COMPRA   TO DIFD-MONTO-COMPRA
+               MOVE DB-DIFD-CUOTAS-TOT     TO DIFD-CUOTAS-TOTALES
+               MOVE DB-DIFD-CUOTAS-PEND    TO DIFD-CUOTAS-PENDIENTES
+               MOVE DB-DIFD-VALOR-CUOTA    TO DIFD-VALOR-CUOTA
+               MOVE DB-DIFD-TASA-INTERES   TO DIFD-TASA-INTERES
+           END-IF.
+
+      ************************************************************
+      * Z - Cerrar cursor de diferidos
+      ************************************************************
+       7000-CERRAR-CURSOR-DIFD.
+           EXEC SQL CLOSE CUR-DIFD END-EXEC.
+           MOVE '00  ' TO LK-COD-RETORNO.
 
        END PROGRAM DBIOTARJ.

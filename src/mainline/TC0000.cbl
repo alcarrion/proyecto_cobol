@@ -32,6 +32,7 @@
        01  WS-I                   PIC 9(02).
        01  WS-DOC-OK              PIC X(01) VALUE 'N'.
        01  WS-TARJ-OK             PIC X(01) VALUE 'N'.
+       01  WS-CLS-CMD             PIC X(03) VALUE 'cls'.
 
        01  WS-ENTRADA-MONTO       PIC X(12).
        01  WS-ENTRADA-CUOTAS      PIC X(03).
@@ -43,6 +44,8 @@
            05 WS-CUPO-DISPONIBLE  PIC S9(10)V99 COMP-3.
            05 WS-RESULTADO-DIF    PIC X(01).
            05 WS-CUOTA-EDIT       PIC $ZZZ,ZZZ,ZZ9.99.
+           05 WS-TOTAL-PAGAR      PIC S9(10)V99 COMP-3.
+           05 WS-INTERES-DISP     PIC S9(10)V99 COMP-3.
 
        01  WS-FECHA-SISTEMA.
            05 WS-ANIO             PIC 9(04).
@@ -57,10 +60,10 @@
        01  WS-SALDO-EDIT          PIC $ZZZ,ZZZ,ZZ9.99.
 
        01  WS-MOD10.
-           05 WS-MOD10-OK         PIC X     VALUE 'N'.
+           05 WS-MOD10-OK         PIC X(01)  VALUE 'N'.
            05 WS-DIGITO           PIC 9(01).
            05 WS-RESULTADO        PIC 9(02).
-           05 WS-SUMA-MOD10       PIC 9(04) VALUE 0.
+           05 WS-SUMA-MOD10       PIC 9(04)  VALUE 0.
            05 WS-DIGITO-VERIF     PIC 9(01).
            05 WS-DIGITO-CALC      PIC 9(01).
            05 WS-K                PIC 9(02).
@@ -71,32 +74,6 @@
            COPY INVMREC.
            COPY TARJREC.
            COPY LKCIF.
-
-       SCREEN SECTION.
-       01  SCR-MARCO-TARJ.
-           05 BLANK SCREEN.
-           05 FILLER LINE 02 COL 02 VALUE
-              "---------------------------------------------------".
-           05 FILLER LINE 03 COL 02 VALUE
-              "     BANCO LAF - TARJETAS DE CREDITO v3.0".
-           05 FILLER LINE 04 COL 02 VALUE
-              "---------------------------------------------------".
-           05 FILLER LINE 05 COL 04 VALUE "Operador: ".
-           05 SCR-OP-USR LINE 05 COL 14 PIC X(08)
-              FROM LKCIF-USUARIO.
-           05 FILLER LINE 05 COL 26 VALUE "Terminal: ".
-           05 SCR-TERM LINE 05 COL 36 PIC X(04)
-              FROM LKCIF-TERMINAL.
-
-       01  SCR-MENU-TARJ.
-           05 FILLER LINE 08 COL 05 VALUE "1. Emitir Tarjeta Nueva".
-           05 FILLER LINE 09 COL 05 VALUE "2. Consultar Tarjeta".
-           05 FILLER LINE 10 COL 05 VALUE "3. Diferir Consumo".
-           05 FILLER LINE 11 COL 05 VALUE "4. Cancelar Tarjeta".
-           05 FILLER LINE 12 COL 05 VALUE "5. Volver al menu principal".
-           05 FILLER LINE 14 COL 05 VALUE "Opcion: [ ]".
-           05 SCR-TARJ-OPC LINE 14 COL 14 PIC 9
-              USING WS-OPCION-TARJ REQUIRED.
 
        PROCEDURE DIVISION USING REG-CUSM,
                                 REG-INVM,
@@ -112,9 +89,8 @@
            GOBACK.
 
        1000-MENU-TARJ.
-           DISPLAY SCR-MARCO-TARJ.
-           DISPLAY SCR-MENU-TARJ.
-           ACCEPT SCR-TARJ-OPC.
+           PERFORM 9050-MARCO-TARJ.
+           PERFORM 9051-MENU-TARJ.
 
            EVALUATE WS-OPCION-TARJ
                WHEN 1
@@ -128,65 +104,52 @@
                WHEN 5
                    MOVE 'N' TO WS-CONTINUAR-TARJ
                WHEN OTHER
-                   DISPLAY "Opcion no valida." LINE 16 COL 05
-                   ACCEPT WS-PAUSA LINE 16 COL 25
+                   DISPLAY "Opcion no valida."
+                   ACCEPT WS-PAUSA
            END-EVALUATE.
 
       ************************************************************
       * OPCION 1 - EMITIR TARJETA NUEVA
       ************************************************************
        2000-EMITIR-TARJETA.
-           DISPLAY SCR-MARCO-TARJ.
-           DISPLAY "EMISION DE TARJETA NUEVA" LINE 07 COL 14.
+           PERFORM 9050-MARCO-TARJ.
+           DISPLAY "=== EMISION DE TARJETA NUEVA ===".
 
            PERFORM 9100-BUSCAR-CLIENTE.
            IF WS-DOC-OK = 'N' EXIT PARAGRAPH END-IF.
 
            IF CLIENTE-INACTIVO
-               DISPLAY "Cliente inactivo. No se puede operar."
-                  LINE 22 COL 05
+               DISPLAY "ERROR: Cliente inactivo. No se puede operar."
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
-           IF CUSM-SCORE-CREDITICIO < 600
-               DISPLAY "Score crediticio insuficiente: "
-                  LINE 12 COL 05
+           IF CUSM-SCORE-CREDITICIO < 450
+               DISPLAY "RECHAZO: Score crediticio insuficiente."
+               DISPLAY "Score actual:"
                DISPLAY CUSM-SCORE-CREDITICIO
-                  LINE 12 COL 36
-               DISPLAY "Minimo requerido: 600 puntos."
-                  LINE 13 COL 05
-               DISPLAY "RECHAZO: Riesgo Crediticio Alto."
-                  LINE 14 COL 05
+               DISPLAY "Minimo requerido: 450 puntos."
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
            IF CUSM-TIENE-TARJETA = 1
-               DISPLAY "El cliente ya posee una tarjeta activa."
-                  LINE 12 COL 05
+               DISPLAY "ERROR: El cliente ya posee una tarjeta activa."
                DISPLAY "No se pueden emitir tarjetas duplicadas."
-                  LINE 13 COL 05
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
            DISPLAY "ID cuenta para debito de pagos: "
-              LINE 12 COL 05.
-           ACCEPT WS-ID-CUENTA-PRINC LINE 12 COL 38.
+           ACCEPT WS-ID-CUENTA-PRINC.
 
            IF WS-ID-CUENTA-PRINC = ZEROS
-               DISPLAY "ID de cuenta invalido."
-                  LINE 22 COL 05
+               DISPLAY "ERROR: ID de cuenta invalido."
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
@@ -199,60 +162,49 @@
                                       LK-DATOS-TRANSACCION.
 
            IF LK-ERROR-NODATA
-               DISPLAY "Cuenta no encontrada en el sistema."
-                  LINE 22 COL 05
+               DISPLAY "ERROR: Cuenta no encontrada en el sistema."
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
            IF NOT LK-EXITO
-               DISPLAY LK-MENSAJE LINE 22 COL 05
+               DISPLAY LK-MENSAJE
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
            IF INVM-ESTADO-CUENTA NOT = 'A'
-               DISPLAY "La cuenta seleccionada no esta activa."
-                  LINE 22 COL 05
+               DISPLAY "ERROR: La cuenta seleccionada no esta activa."
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
            IF INVM-TIPO-CUENTA = 'H'
-               DISPLAY "No se permite cuenta hipotecaria como debito."
-                  LINE 22 COL 05
+               DISPLAY "ERROR: No se permite cuenta hipotecaria."
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
            DISPLAY "Cupo a otorgar (ej: 2000.00): "
-              LINE 14 COL 05.
-           ACCEPT WS-ENTRADA-MONTO LINE 14 COL 36.
+           ACCEPT WS-ENTRADA-MONTO.
 
            IF WS-ENTRADA-MONTO = SPACES
-               DISPLAY "Operacion cancelada." LINE 22 COL 05
+               DISPLAY "Operacion cancelada."
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
            COMPUTE WS-MONTO-TX = FUNCTION NUMVAL(WS-ENTRADA-MONTO).
 
            IF WS-MONTO-TX <= ZEROS
-               DISPLAY "El cupo debe ser mayor a cero."
-                  LINE 22 COL 05
+               DISPLAY "ERROR: El cupo debe ser mayor a cero."
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
@@ -285,44 +237,32 @@
                MOVE 'C' TO WS-ACCION-TRANS
                CALL WS-PGM-DBIOTRAN USING WS-ACCION-TRANS
                MOVE WS-MONTO-TX TO WS-SALDO-EDIT
-
-               DISPLAY "Tarjeta emitida exitosamente."
-                  LINE 18 COL 05
-
-               DISPLAY "Numero:"
-                  LINE 19 COL 05
+               DISPLAY ">>> Tarjeta emitida exitosamente <<<"
+               DISPLAY "Numero : "
                DISPLAY TARJ-NRO-TARJETA
-                  LINE 19 COL 14
-
-               DISPLAY "Vencto:"
-                  LINE 20 COL 05
+               DISPLAY "Vencto : "
                DISPLAY TARJ-FECHA-VENCTO
-                  LINE 20 COL 14
-
-               DISPLAY "Cupo:"
-                  LINE 21 COL 05
+               DISPLAY "Cupo   : "
                DISPLAY WS-SALDO-EDIT
-                  LINE 21 COL 14
            ELSE
                MOVE 'R' TO WS-ACCION-TRANS
                CALL WS-PGM-DBIOTRAN USING WS-ACCION-TRANS
                IF LK-ERROR-DUPLICADO
-                   DISPLAY "El cliente ya tiene tarjeta registrada."
-                      LINE 22 COL 05
+                   DISPLAY "ERROR: El cliente ya tiene tarjeta registrada."
                ELSE
-                   DISPLAY LK-MENSAJE LINE 22 COL 05
+                   DISPLAY LK-MENSAJE
                END-IF
            END-IF.
 
-           DISPLAY "Presione ENTER para continuar." LINE 23 COL 05.
-           ACCEPT WS-PAUSA LINE 23 COL 36.
+           DISPLAY "Presione ENTER para continuar."
+           ACCEPT WS-PAUSA.
 
       ************************************************************
       * OPCION 2 - CONSULTAR TARJETA Y CUPO DISPONIBLE
       ************************************************************
        3000-CONSULTAR-TARJETA.
-           DISPLAY SCR-MARCO-TARJ.
-           DISPLAY "CONSULTA DE TARJETA" LINE 07 COL 16.
+           PERFORM 9050-MARCO-TARJ.
+           DISPLAY "=== CONSULTA DE TARJETA ===".
 
            PERFORM 9100-BUSCAR-CLIENTE.
            IF WS-DOC-OK = 'N' EXIT PARAGRAPH END-IF.
@@ -337,82 +277,59 @@
 
            IF LK-ERROR-NODATA
                DISPLAY "El cliente no tiene tarjeta registrada."
-                  LINE 12 COL 05
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
            IF NOT LK-EXITO
-               DISPLAY LK-MENSAJE LINE 12 COL 05
+               DISPLAY LK-MENSAJE
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
            COMPUTE WS-CUPO-DISPONIBLE =
                TARJ-CUPO-APROBADO - TARJ-SALDO-UTILIZADO.
 
-           DISPLAY "Numero:"
-              LINE 12 COL 05.
-           DISPLAY TARJ-NRO-TARJETA
-              LINE 12 COL 20.
-
-           DISPLAY "Estado:"
-              LINE 13 COL 05.
-           DISPLAY TARJ-ESTADO
-              LINE 13 COL 20.
-
-           DISPLAY "Emision:"
-              LINE 14 COL 05.
-           DISPLAY TARJ-FECHA-EMISION
-              LINE 14 COL 20.
-
-           DISPLAY "Vencto:"
-              LINE 15 COL 05.
-           DISPLAY TARJ-FECHA-VENCTO
-              LINE 15 COL 20.
-
+           DISPLAY "------------------------------------------".
+           DISPLAY "Numero  : "
+           DISPLAY TARJ-NRO-TARJETA.
+           DISPLAY "Estado  : "
+           DISPLAY TARJ-ESTADO.
+           DISPLAY "Emision : "
+           DISPLAY TARJ-FECHA-EMISION.
+           DISPLAY "Vencto  : "
+           DISPLAY TARJ-FECHA-VENCTO.
+           DISPLAY "------------------------------------------".
            MOVE TARJ-CUPO-APROBADO TO WS-SALDO-EDIT.
-           DISPLAY "Cupo Total:"
-              LINE 17 COL 05.
-           DISPLAY WS-SALDO-EDIT
-              LINE 17 COL 20.
-
+           DISPLAY "Cupo Total   : "
+           DISPLAY WS-SALDO-EDIT.
            MOVE TARJ-SALDO-UTILIZADO TO WS-SALDO-EDIT.
-           DISPLAY "Deuda Actual:"
-              LINE 18 COL 05.
-           DISPLAY WS-SALDO-EDIT
-              LINE 18 COL 20.
-
+           DISPLAY "Deuda Actual : "
+           DISPLAY WS-SALDO-EDIT.
            MOVE WS-CUPO-DISPONIBLE TO WS-SALDO-EDIT.
-           DISPLAY "Cupo Libre:"
-              LINE 19 COL 05.
-           DISPLAY WS-SALDO-EDIT
-              LINE 19 COL 20.
+           DISPLAY "Cupo Libre   : "
+           DISPLAY WS-SALDO-EDIT.
+           DISPLAY "------------------------------------------".
 
-           DISPLAY "Presione ENTER para continuar." LINE 23 COL 05.
-           ACCEPT WS-PAUSA LINE 23 COL 36.
+           DISPLAY "Presione ENTER para continuar."
+           ACCEPT WS-PAUSA.
 
       ************************************************************
       * OPCION 3 - DIFERIR CONSUMO (LLAMA A DF0000)
       ************************************************************
        4000-CONSUMO-DIFERIDO.
-           DISPLAY SCR-MARCO-TARJ.
-           DISPLAY "CONSUMO DIFERIDO (COMPRA A CUOTAS)"
-              LINE 07 COL 08.
+           PERFORM 9050-MARCO-TARJ.
+           DISPLAY "=== CONSUMO DIFERIDO (COMPRA A CUOTAS) ===".
 
            PERFORM 9100-BUSCAR-CLIENTE.
            IF WS-DOC-OK = 'N' EXIT PARAGRAPH END-IF.
 
            IF CLIENTE-INACTIVO
-               DISPLAY "Cliente inactivo. No se puede operar."
-                  LINE 22 COL 05
+               DISPLAY "ERROR: Cliente inactivo. No se puede operar."
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
@@ -426,30 +343,24 @@
 
            IF LK-ERROR-NODATA
                DISPLAY "El cliente no tiene tarjeta registrada."
-                  LINE 12 COL 05
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
            IF NOT LK-EXITO
-               DISPLAY LK-MENSAJE LINE 12 COL 05
+               DISPLAY LK-MENSAJE
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
            IF NOT TARJETA-ACTIVA
-               DISPLAY "Operacion rechazada. Estado de tarjeta: "
-                  LINE 12 COL 05
-               DISPLAY TARJ-ESTADO LINE 12 COL 46
-               DISPLAY "Solo tarjetas activas admiten consumos."
-                  LINE 13 COL 05
+               DISPLAY "ERROR: Solo tarjetas activas admiten consumos."
+               DISPLAY "Estado de tarjeta: "
+               DISPLAY TARJ-ESTADO
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
@@ -457,71 +368,55 @@
                TARJ-CUPO-APROBADO - TARJ-SALDO-UTILIZADO.
            MOVE WS-CUPO-DISPONIBLE TO WS-SALDO-EDIT.
 
-           DISPLAY "Tarjeta:"
-              LINE 12 COL 05.
-           DISPLAY TARJ-NRO-TARJETA
-              LINE 12 COL 20.
-
-           DISPLAY "Cupo Disponible:"
-              LINE 13 COL 05.
-           DISPLAY WS-SALDO-EDIT
-              LINE 13 COL 25.
+           DISPLAY "Tarjeta        : "
+           DISPLAY TARJ-NRO-TARJETA.
+           DISPLAY "Cupo Disponible: "
+           DISPLAY WS-SALDO-EDIT.
 
            DISPLAY "Monto de compra (ej: 500.00): "
-              LINE 15 COL 05.
-           ACCEPT WS-ENTRADA-MONTO LINE 15 COL 36.
+           ACCEPT WS-ENTRADA-MONTO.
 
            IF WS-ENTRADA-MONTO = SPACES
-               DISPLAY "Operacion cancelada." LINE 22 COL 05
+               DISPLAY "Operacion cancelada."
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
            COMPUTE WS-MONTO-TX = FUNCTION NUMVAL(WS-ENTRADA-MONTO).
 
            IF WS-MONTO-TX <= ZEROS
-               DISPLAY "El monto debe ser mayor a cero."
-                  LINE 22 COL 05
+               DISPLAY "ERROR: El monto debe ser mayor a cero."
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
            IF WS-MONTO-TX > WS-CUPO-DISPONIBLE
                MOVE WS-CUPO-DISPONIBLE TO WS-SALDO-EDIT
-               DISPLAY "Monto supera el cupo disponible."
-                  LINE 22 COL 05
-               DISPLAY "Cupo libre:"
-                  LINE 23 COL 05
+               DISPLAY "ERROR: Monto supera el cupo disponible."
+               DISPLAY "Cupo libre: "
                DISPLAY WS-SALDO-EDIT
-                  LINE 23 COL 20
                DISPLAY "Presione ENTER para continuar."
-                  LINE 24 COL 05
-               ACCEPT WS-PAUSA LINE 24 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
            DISPLAY "Num cuotas (1-36, 1=sin interes): "
-              LINE 17 COL 05.
-           ACCEPT WS-ENTRADA-CUOTAS LINE 17 COL 40.
+           ACCEPT WS-ENTRADA-CUOTAS.
 
            IF WS-ENTRADA-CUOTAS = SPACES
-               DISPLAY "Operacion cancelada." LINE 22 COL 05
+               DISPLAY "Operacion cancelada."
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
-           IF WS-ENTRADA-CUOTAS IS NOT NUMERIC
-               DISPLAY "Ingrese solo digitos para cuotas."
-                  LINE 22 COL 05
+           IF FUNCTION TRIM(WS-ENTRADA-CUOTAS, TRAILING)
+                   IS NOT NUMERIC
+               DISPLAY "ERROR: Ingrese solo digitos para cuotas."
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
@@ -529,22 +424,19 @@
                FUNCTION NUMVAL(WS-ENTRADA-CUOTAS).
 
            IF WS-CUOTAS-TX < 1 OR WS-CUOTAS-TX > 36
-               DISPLAY "Cuotas invalidas. Rango permitido: 1 a 36."
-                  LINE 22 COL 05
+               DISPLAY "ERROR: Cuotas invalidas. Rango: 1 a 36."
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
-           DISPLAY "Confirmar consumo (S/N): " LINE 19 COL 05.
-           ACCEPT WS-CONFIRMAR LINE 19 COL 31.
+           DISPLAY "Confirmar consumo (S/N): "
+           ACCEPT WS-CONFIRMAR.
 
            IF WS-CONFIRMAR NOT = 'S' AND WS-CONFIRMAR NOT = 's'
-               DISPLAY "Operacion cancelada." LINE 22 COL 05
+               DISPLAY "Operacion cancelada."
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
@@ -558,28 +450,39 @@
                                     WS-RESULTADO-DIF.
 
            IF WS-RESULTADO-DIF = 'S'
+               COMPUTE WS-TOTAL-PAGAR =
+                   DIFD-VALOR-CUOTA * WS-CUOTAS-TX
+               COMPUTE WS-INTERES-DISP =
+                   WS-TOTAL-PAGAR - WS-MONTO-TX
                MOVE DIFD-VALOR-CUOTA TO WS-CUOTA-EDIT
-               DISPLAY "Consumo diferido registrado con exito."
-                  LINE 21 COL 05
-               DISPLAY "Valor cuota: " LINE 22 COL 05
-               DISPLAY WS-CUOTA-EDIT LINE 22 COL 20
+               DISPLAY ">>> Consumo diferido registrado <<<"
+               DISPLAY "Cuotas       : "
+               DISPLAY WS-CUOTAS-TX
+               DISPLAY "Valor cuota  : "
+               DISPLAY WS-CUOTA-EDIT
                MOVE WS-MONTO-TX TO WS-SALDO-EDIT
-               DISPLAY "Monto compra: " LINE 23 COL 05
-               DISPLAY WS-SALDO-EDIT LINE 23 COL 20
+               DISPLAY "Monto compra : "
+               DISPLAY WS-SALDO-EDIT
+               MOVE WS-INTERES-DISP TO WS-SALDO-EDIT
+               DISPLAY "Interes total: "
+               DISPLAY WS-SALDO-EDIT
+               MOVE WS-TOTAL-PAGAR TO WS-SALDO-EDIT
+               DISPLAY "TOTAL A PAGAR: "
+               DISPLAY WS-SALDO-EDIT
            ELSE
-               DISPLAY "Error: " LINE 21 COL 05
-               DISPLAY LK-MENSAJE LINE 21 COL 14
+               DISPLAY "ERROR en diferido: "
+               DISPLAY LK-MENSAJE
            END-IF.
 
-           DISPLAY "Presione ENTER para continuar." LINE 24 COL 05.
-           ACCEPT WS-PAUSA LINE 24 COL 36.
+           DISPLAY "Presione ENTER para continuar."
+           ACCEPT WS-PAUSA.
 
       ************************************************************
       * OPCION 4 - CANCELAR TARJETA (SALDO DEBE SER CERO)
       ************************************************************
        5000-CANCELAR-TARJETA.
-           DISPLAY SCR-MARCO-TARJ.
-           DISPLAY "CANCELACION DE TARJETA" LINE 07 COL 15.
+           PERFORM 9050-MARCO-TARJ.
+           DISPLAY "=== CANCELACION DE TARJETA ===".
 
            PERFORM 9100-BUSCAR-CLIENTE.
            IF WS-DOC-OK = 'N' EXIT PARAGRAPH END-IF.
@@ -594,57 +497,43 @@
 
            IF LK-ERROR-NODATA
                DISPLAY "El cliente no tiene tarjeta registrada."
-                  LINE 12 COL 05
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
            IF NOT LK-EXITO
-               DISPLAY LK-MENSAJE LINE 12 COL 05
+               DISPLAY LK-MENSAJE
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
            MOVE TARJ-SALDO-UTILIZADO TO WS-SALDO-EDIT.
-
-           DISPLAY "Tarjeta:"
-              LINE 12 COL 05.
-           DISPLAY TARJ-NRO-TARJETA
-              LINE 12 COL 20.
-
-           DISPLAY "Estado:"
-              LINE 13 COL 05.
-           DISPLAY TARJ-ESTADO
-              LINE 13 COL 20.
-
-           DISPLAY "Saldo:"
-              LINE 14 COL 05.
-           DISPLAY WS-SALDO-EDIT
-              LINE 14 COL 20.
+           DISPLAY "------------------------------------------".
+           DISPLAY "Tarjeta: "
+           DISPLAY TARJ-NRO-TARJETA.
+           DISPLAY "Estado : "
+           DISPLAY TARJ-ESTADO.
+           DISPLAY "Saldo  : "
+           DISPLAY WS-SALDO-EDIT.
+           DISPLAY "------------------------------------------".
 
            IF TARJ-SALDO-UTILIZADO > ZEROS
-               DISPLAY "Prohibido cerrar tarjetas con saldos"
-                  LINE 16 COL 05
-               DISPLAY "pendientes de pago." LINE 17 COL 05
+               DISPLAY "ERROR: Prohibido cerrar tarjetas con"
+               DISPLAY "saldos pendientes de pago."
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
            DISPLAY "Confirmar cancelacion definitiva (S/N): "
-              LINE 16 COL 05.
-           ACCEPT WS-CONFIRMAR LINE 16 COL 47.
+           ACCEPT WS-CONFIRMAR.
 
            IF WS-CONFIRMAR NOT = 'S' AND WS-CONFIRMAR NOT = 's'
-               DISPLAY "Operacion cancelada." LINE 22 COL 05
+               DISPLAY "Operacion cancelada."
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
@@ -657,24 +546,23 @@
            IF LK-EXITO
                MOVE 'C' TO WS-ACCION-TRANS
                CALL WS-PGM-DBIOTRAN USING WS-ACCION-TRANS
-               DISPLAY "Tarjeta cancelada correctamente."
-                  LINE 22 COL 05
+               DISPLAY ">>> Tarjeta cancelada correctamente <<<"
            ELSE
                MOVE 'R' TO WS-ACCION-TRANS
                CALL WS-PGM-DBIOTRAN USING WS-ACCION-TRANS
-               DISPLAY LK-MENSAJE LINE 22 COL 05
+               DISPLAY LK-MENSAJE
            END-IF.
 
-           DISPLAY "Presione ENTER para continuar." LINE 23 COL 05.
-           ACCEPT WS-PAUSA LINE 23 COL 36.
+           DISPLAY "Presione ENTER para continuar."
+           ACCEPT WS-PAUSA.
 
       ************************************************************
-      * 9100 - Buscar cliente por documento (cedula o pasaporte)
+      * 9100 - Buscar cliente por documento
       ************************************************************
        9100-BUSCAR-CLIENTE.
            MOVE 'N' TO WS-DOC-OK.
-           DISPLAY "Documento del cliente: " LINE 08 COL 05.
-           ACCEPT WS-DOC-ENTRADA LINE 08 COL 29.
+           DISPLAY "Documento del cliente (cedula/pasaporte): "
+           ACCEPT WS-DOC-ENTRADA.
 
            MOVE 12 TO WS-I.
            PERFORM UNTIL WS-I = 0
@@ -684,11 +572,9 @@
            MOVE WS-I TO WS-DOC-LEN.
 
            IF WS-DOC-LEN < 6 OR WS-DOC-LEN > 12
-               DISPLAY "Documento invalido (6-12 caracteres)."
-                  LINE 10 COL 05
+               DISPLAY "ERROR: Documento invalido (6-12 caracteres)."
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
@@ -696,11 +582,9 @@
                IF WS-DOC-ENTRADA(1:10) IS NUMERIC
                    PERFORM 9800-VALIDAR-MODULO-10
                    IF WS-MOD10-OK = 'N'
-                       DISPLAY "Cedula invalida (Modulo 10)."
-                          LINE 10 COL 05
+                       DISPLAY "ERROR: Cedula invalida (Modulo 10)."
                        DISPLAY "Presione ENTER para continuar."
-                          LINE 23 COL 05
-                       ACCEPT WS-PAUSA LINE 23 COL 36
+                       ACCEPT WS-PAUSA
                        EXIT PARAGRAPH
                    END-IF
                    MOVE 'CED' TO CUSM-TIPO-DOC
@@ -719,24 +603,22 @@
                                       LK-DATOS-TRANSACCION.
 
            IF LK-ERROR-NODATA
-               DISPLAY "Cliente no encontrado." LINE 10 COL 05
+               DISPLAY "ERROR: Cliente no encontrado."
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
            IF NOT LK-EXITO
-               DISPLAY "Error tecnico al buscar cliente."
-                  LINE 10 COL 05
+               DISPLAY "ERROR tecnico al buscar cliente."
                DISPLAY "Presione ENTER para continuar."
-                  LINE 23 COL 05
-               ACCEPT WS-PAUSA LINE 23 COL 36
+               ACCEPT WS-PAUSA
                EXIT PARAGRAPH
            END-IF.
 
-           DISPLAY CUSM-NOMBRE-CLIENTE LINE 10 COL 05.
-           DISPLAY CUSM-APELLIDOS-CLIENTE LINE 10 COL 32.
+           DISPLAY "Cliente: "
+           DISPLAY CUSM-NOMBRE-CLIENTE
+           DISPLAY CUSM-APELLIDOS-CLIENTE.
            MOVE 'S' TO WS-DOC-OK.
 
       ************************************************************
@@ -744,8 +626,7 @@
       ************************************************************
        9200-GENERAR-NRO-TARJETA.
            ACCEPT WS-SEMILLA FROM TIME.
-           COMPUTE WS-RANDOM =
-               FUNCTION RANDOM(WS-SEMILLA) * 10000.
+           COMPUTE WS-RANDOM = FUNCTION MOD(WS-SEMILLA, 10000).
            STRING "4555" CUSM-ID-CLIENTE WS-RANDOM
                DELIMITED BY SIZE
                INTO TARJ-NRO-TARJETA.
@@ -783,13 +664,38 @@
                FUNCTION MOD(WS-SUMA-MOD10, 10).
 
            IF WS-DIGITO-CALC NOT = 0
-               COMPUTE WS-DIGITO-CALC =
-                   10 - WS-DIGITO-CALC
+               COMPUTE WS-DIGITO-CALC = 10 - WS-DIGITO-CALC
            END-IF.
 
            IF WS-DIGITO-CALC = WS-DIGITO-VERIF
                MOVE 'S' TO WS-MOD10-OK
            END-IF.
 
+      ************************************************************
+      * 9050 - Cabecera del modulo (limpia pantalla)
+      ************************************************************
+       9050-MARCO-TARJ.
+           CALL 'SYSTEM' USING WS-CLS-CMD.
+           DISPLAY "===================================================".
+           DISPLAY "     BANCO LAF - TARJETAS DE CREDITO v3.0".
+           DISPLAY "===================================================".
+           DISPLAY "Operador: "
+           DISPLAY LKCIF-USUARIO.
+           DISPLAY "Terminal: "
+           DISPLAY LKCIF-TERMINAL.
+           DISPLAY "===================================================".
+
+      ************************************************************
+      * 9051 - Menu de opciones
+      ************************************************************
+       9051-MENU-TARJ.
+           DISPLAY "1. Emitir Tarjeta Nueva".
+           DISPLAY "2. Consultar Tarjeta".
+           DISPLAY "3. Diferir Consumo".
+           DISPLAY "4. Cancelar Tarjeta".
+           DISPLAY "5. Volver al menu principal".
+           DISPLAY "---------------------------------------------------".
+           DISPLAY "Opcion: "
+           ACCEPT WS-OPCION-TARJ.
+
        END PROGRAM TC0000.
-       
