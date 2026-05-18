@@ -3,7 +3,7 @@
       * FUNCION  : Capa de Acceso a Datos - Hipotecas v3.0            *
       * TABLA    : hipotecas, control_secuencias, clientes             *
       * ACCIONES : S=Secuencia  A=Alta  C=Consulta  M=Modificar       *
-      * NOTA     : El batch (BAT000) usa CUENTA_DEBITO para debitar    *
+      * NOTA     : El Batch (BAT000) use CUENTA_DEBITO para debitar    *
       *            automaticamente la cuota cada cierre mensual.       *
       *================================================================*
        IDENTIFICATION DIVISION.
@@ -613,6 +613,7 @@
                    MOVE 'E999' TO LK-COD-RETORNO
                    MOVE "ERROR TECNICO EN BD HIPOTECAS" TO LK-MENSAJE
            END-EVALUATE.
+
       **********************************************************************
       *  : ESQL for GnuCOBOL/OpenCOBOL Version 3 (2024.04.30) Build May 10 2024
 

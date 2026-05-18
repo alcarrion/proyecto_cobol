@@ -65,7 +65,7 @@ echo Enlazando TFDRMAIN.exe (Stage 2: Orchestrator Engine)...
     TFFILE.o BNCR004.o TFMX.o RRD000.o XXXREP.o ^
     TFTRCT.o TFBATFIN.o tkin01.o tkin_dda.o tkin_hip.o tkin_tarj.o ^
     DBIOCUSM.o DBIOINVM.o DBIOTARJ.o ^
-    IN0000.o BR0000.o DBIOBORM.o DBIOTRAN.o ^
+    IN0000.o BR0000.o DBIOBORM.o DBIOTRAN.o DF0000.o ^
     -L "%COBOL_LIBS_ESQL%" -locsql
 if errorlevel 1 set "COMPILATION_FAILED=1"
 
@@ -81,7 +81,7 @@ echo.
 echo Enlazando Menu de Interfaz Online BANCSMENU.exe...
 "%COBC%" -x -v -o "%BIN_DIR%\BANCSMENU.exe" ^
     BANCSMENU.cob ^
-    CI0000.o IN0000.o TC0000.o BR0000.o ^
+    CI0000.o IN0000.o TC0000.o BR0000.o DF0000.o^
     DBIOCUSM.o DBIOINVM.o DBIOTARJ.o DBIOBORM.o DBIOTRAN.o ^
     -L "%COBOL_LIBS_ESQL%" -locsql
 if errorlevel 1 set "COMPILATION_FAILED=1"

@@ -1,3 +1,7 @@
+******************************************************************
+      * Author: EQUIPO (LUIS. ALISON. FRANKLIN.)
+      * INTEGRACIÓN: TRICKLE FEED (FASE 00-40)
+      ******************************************************************
        IDENTIFICATION DIVISION.
        PROGRAM-ID. BANCSMENU.
 
@@ -173,7 +177,7 @@
               "DRIVER={MySQL ODBC 8.0 ANSI Driver};"
               "SERVER=localhost;"
               "DATABASE=proyecto_cobol;"
-              "UID=root;PWD=12345;"
+              "UID=root;PWD=tata;"
               DELIMITED BY SIZE
               INTO DB-CONN-STR
            END-STRING.
