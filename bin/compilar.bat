@@ -48,6 +48,7 @@ if exist "%MAINLINE_DIR%\DBIOCUSM.cob" del /f /q "%MAINLINE_DIR%\DBIOCUSM.cob"
 if exist "%MAINLINE_DIR%\DBIOTRAN.cob" del /f /q "%MAINLINE_DIR%\DBIOTRAN.cob"
 rem DBIOINVM.cob se preserva (esqlOC tiene SIGSEGV en su SQB con cursor DECLARE)
 if exist "%MAINLINE_DIR%\DBIOTARJ.cob" del /f /q "%MAINLINE_DIR%\DBIOTARJ.cob"
+if exist "%MAINLINE_DIR%\DBIOBORM.cob" del /f /q "%MAINLINE_DIR%\DBIOBORM.cob"
 
 echo Archivos generados anteriores eliminados.
 echo Tus .SQB y .CBL editables estan a salvo.
@@ -104,6 +105,16 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b 1
 )
 
+echo [6/6] DBIOBORM.sqb  -> DBIOBORM.cob
+"%PRECOMPILADOR%" -I "%COPIES_DIR%" -static -o "%MAINLINE_DIR%\DBIOBORM.cob" "%SQL_DIR%\DBIOBORM.sqb"
+
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo ERROR: Fallo al precompilar DBIOBORM.sqb
+    pause
+    exit /b 1
+)
+
 echo.
 echo Precompilacion SQL finalizada.
 
@@ -145,6 +156,14 @@ if %ERRORLEVEL% NEQ 0 goto :ERROR_COBOL
 
 echo [DLL 8/8] TC0000
 "%COBC%" -m -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql -o "%BIN_DIR%\TC0000.dll" "%MAINLINE_DIR%\TC0000.cbl"
+if %ERRORLEVEL% NEQ 0 goto :ERROR_COBOL
+
+echo [DLL 9/10] DBIOBORM
+"%COBC%" -m -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql -o "%BIN_DIR%\DBIOBORM.dll" "%MAINLINE_DIR%\DBIOBORM.cob"
+if %ERRORLEVEL% NEQ 0 goto :ERROR_COBOL
+
+echo [DLL 10/10] BR0000
+"%COBC%" -m -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql -o "%BIN_DIR%\BR0000.dll" "%MAINLINE_DIR%\BR0000.cbl"
 if %ERRORLEVEL% NEQ 0 goto :ERROR_COBOL
 
 echo [EXE] BANCSMENU

@@ -75,7 +75,7 @@
            05 LINE 12 COL 04 VALUE
               "3. Tarjetas de Credito".
            05 LINE 13 COL 04 VALUE
-              "4. Hipotecas - pendiente".
+              "4. Hipotecas             ".
            05 LINE 14 COL 04 VALUE
               "5. Cierre Mensual - pendiente".
            05 LINE 15 COL 04 VALUE
@@ -144,7 +144,9 @@
                                      LK-DATOS-SESION,
                                      LK-DATOS-TRANSACCION
               WHEN 4
-                 PERFORM 2000-PENDIENTE
+                 DISPLAY SCR-CLEAR
+                 CALL 'BR0000' USING LK-DATOS-SESION,
+                                     LK-DATOS-TRANSACCION
               WHEN 5
                  PERFORM 2000-PENDIENTE
               WHEN 6

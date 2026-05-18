@@ -3,8 +3,8 @@
       *================================================================*
       * PROGRAMA : BR0000.cbl                                          *
       * MODULO   : HIPOTECAS                                           *
-      * FUNCION  : Reglas de negocio. Alta, consulta y pago.           *
-      * NOTA     : La mora la evalua el batch de cierre mensual.       *
+      * FUNCION  : Alta, consulta y pago manual de cuota.              *
+      * NOTA     : El debito automatico mensual lo ejecuta BAT000.     *
       *================================================================*
 
        ENVIRONMENT DIVISION.
@@ -35,6 +35,7 @@
            05 WS-ENTRADA-TXT      PIC X(15).
            05 WS-MONTO-PAGO       PIC S9(13)V99 VALUE ZERO.
            05 WS-PLAZO-MESES      PIC 9(03)     VALUE ZERO.
+           05 WS-CUENTA-DEBITO    PIC 9(08)     VALUE ZERO.
 
        01  WS-CALCULOS.
            05 WS-TASA-MENSUAL     PIC S9(03)V9(9) VALUE ZERO.
@@ -75,7 +76,8 @@
        LINKAGE SECTION.
            COPY LKCIF.
 
-       PROCEDURE DIVISION USING LK-DATOS-TRANSACCION.
+       PROCEDURE DIVISION USING LK-DATOS-SESION
+                                LK-DATOS-TRANSACCION.
 
        0000-MAIN.
            MOVE 'S' TO WS-CONTINUAR.
@@ -90,7 +92,7 @@
            DISPLAY "====================================".
            DISPLAY "  1. Registrar nuevo prestamo".
            DISPLAY "  2. Consultar estado de hipoteca".
-           DISPLAY "  3. Procesar pago de cuota".
+           DISPLAY "  3. Procesar pago manual de cuota".
            DISPLAY "  4. Volver al menu principal".
            DISPLAY "====================================".
            DISPLAY "Seleccione opcion: ".
@@ -114,24 +116,24 @@
        2100-REGISTRAR-ALTA.
            MOVE 'S' TO WS-PUEDE-CONTINUAR.
            DISPLAY "--- ALTA PRESTAMO HIPOTECARIO ---".
-           INITIALIZE BORM-REGISTRO.
+           INITIALIZE REG-BORM.
            MOVE SPACES TO WS-NOMBRE-CLIENTE.
            MOVE SPACES TO WS-APELLIDO-CLIENTE.
 
            PERFORM 9000-BUSCAR-CLIENTE.
 
-           IF LK-COD-RETORNO NOT = 0
+           IF NOT LK-EXITO
                PERFORM 9400-MSG-ERROR-CLIENTE
                MOVE 'N' TO WS-PUEDE-CONTINUAR
            END-IF.
 
            IF WS-PUEDE-CONTINUAR = 'S'
-               MOVE CUSM-NOMBRE    TO WS-NOMBRE-CLIENTE
-               MOVE CUSM-APELLIDOS TO WS-APELLIDO-CLIENTE
+               MOVE CUSM-NOMBRE-CLIENTE    TO WS-NOMBRE-CLIENTE
+               MOVE CUSM-APELLIDOS-CLIENTE TO WS-APELLIDO-CLIENTE
            END-IF.
 
            IF WS-PUEDE-CONTINUAR = 'S'
-               IF CUSM-CTA-ACTIVA = 0
+               IF CLIENTE-INACTIVO
                    DISPLAY "================================"
                    DISPLAY " OPERACION RECHAZADA"
                    DISPLAY "================================"
@@ -142,11 +144,11 @@
            END-IF.
 
            IF WS-PUEDE-CONTINUAR = 'S'
-               IF CUSM-HIPOTECA = 1
+               IF CUSM-TIENE-HIPOTECA = 1
                    DISPLAY "================================"
                    DISPLAY " OPERACION RECHAZADA"
                    DISPLAY "================================"
-                   DISPLAY "MOTIVO: YA TIENE HIPOTECA."
+                   DISPLAY "MOTIVO: YA TIENE HIPOTECA ACTIVA."
                    DISPLAY "================================"
                    MOVE 'N' TO WS-PUEDE-CONTINUAR
                END-IF
@@ -154,19 +156,19 @@
 
            IF WS-PUEDE-CONTINUAR = 'S'
                MOVE CUSM-ID-CLIENTE TO BORM-ID-CLIENTE
-               MOVE 'S' TO LK-ACCION-DB
+               SET ACCION-SECUENCIA TO TRUE
                CALL WS-PGM-DBIOBORM
-                   USING LK-DATOS-TRANSACCION,
-                         BORM-REGISTRO
-               IF LK-COD-RETORNO NOT = 0
-                   DISPLAY "ERROR GENERANDO NUMERO: "
-                   DISPLAY LK-MENSAJE
+                   USING REG-BORM,
+                         LK-DATOS-SESION,
+                         LK-DATOS-TRANSACCION
+               IF NOT LK-EXITO
+                   DISPLAY "ERROR GENERANDO NUMERO: " LK-MENSAJE
                    MOVE 'N' TO WS-PUEDE-CONTINUAR
                END-IF
            END-IF.
 
            IF WS-PUEDE-CONTINUAR = 'S'
-               PERFORM 9100-ARMAR-FECHA-INICIO
+               ACCEPT WS-FECHA-HOY FROM DATE YYYYMMDD
                PERFORM 2110-CAPTURAR-DATOS-ALTA
            END-IF.
 
@@ -178,25 +180,34 @@
            DISPLAY "NRO HIP.: " BORM-ID-HIPOTECA.
            DISPLAY "--------------------------------".
 
-           DISPLAY "Monto del prestamo: ".
-           ACCEPT WS-ENTRADA-TXT.
-           PERFORM 9300-VALIDAR-NUMERO.
-           IF VAL-ERROR
-               DISPLAY "ERROR: MONTO INVALIDO."
+           DISPLAY "Nro cuenta para debito mensual: ".
+           ACCEPT WS-CUENTA-DEBITO.
+           IF WS-CUENTA-DEBITO = ZERO
+               DISPLAY "ERROR: NUMERO DE CUENTA INVALIDO."
                MOVE 'N' TO WS-PUEDE-CONTINUAR
            END-IF.
 
            IF WS-PUEDE-CONTINUAR = 'S'
+               DISPLAY "Monto del prestamo: "
+               ACCEPT WS-ENTRADA-TXT
+               PERFORM 9300-VALIDAR-NUMERO
+               IF VAL-ERROR
+                   DISPLAY "ERROR: MONTO INVALIDO."
+                   MOVE 'N' TO WS-PUEDE-CONTINUAR
+               END-IF
+           END-IF.
+
+           IF WS-PUEDE-CONTINUAR = 'S'
                MOVE FUNCTION NUMVAL(WS-ENTRADA-TXT)
-                   TO BORM-MONTO-ORIGINAL
-               IF BORM-MONTO-ORIGINAL <= 0
+                   TO BORM-MONTO-PRESTAMO
+               IF BORM-MONTO-PRESTAMO <= 0
                    DISPLAY "ERROR: MONTO MAYOR A CERO."
                    MOVE 'N' TO WS-PUEDE-CONTINUAR
                END-IF
            END-IF.
 
            IF WS-PUEDE-CONTINUAR = 'S'
-               DISPLAY "Tasa interes mensual% (ej:4.50): "
+               DISPLAY "Tasa interes ANUAL% (ej: 12.00): "
                ACCEPT WS-ENTRADA-TXT
                PERFORM 9300-VALIDAR-NUMERO
                IF VAL-ERROR
@@ -207,56 +218,47 @@
 
            IF WS-PUEDE-CONTINUAR = 'S'
                MOVE FUNCTION NUMVAL(WS-ENTRADA-TXT)
-                   TO BORM-TASA-INTERES
-               IF BORM-TASA-INTERES <= 0
+                   TO BORM-TASA-ANUAL
+               IF BORM-TASA-ANUAL <= 0
                    DISPLAY "ERROR: TASA MAYOR A CERO."
                    MOVE 'N' TO WS-PUEDE-CONTINUAR
                END-IF
            END-IF.
 
            IF WS-PUEDE-CONTINUAR = 'S'
-               DISPLAY "Plazo en meses: "
+               DISPLAY "Plazo en meses (max 360): "
                ACCEPT WS-PLAZO-MESES
-               IF WS-PLAZO-MESES <= 0
-                   DISPLAY "ERROR: PLAZO MAYOR A CERO."
+               IF WS-PLAZO-MESES <= 0 OR WS-PLAZO-MESES > 360
+                   DISPLAY "ERROR: PLAZO ENTRE 1 Y 360 MESES."
                    MOVE 'N' TO WS-PUEDE-CONTINUAR
                END-IF
            END-IF.
 
            IF WS-PUEDE-CONTINUAR = 'S'
-               DISPLAY "Dia de pago (1-28): "
-               ACCEPT BORM-DIA-PAGO
-               IF BORM-DIA-PAGO < 1 OR BORM-DIA-PAGO > 28
-                   DISPLAY "ERROR: DIA ENTRE 1 Y 28."
-                   MOVE 'N' TO WS-PUEDE-CONTINUAR
-               END-IF
-           END-IF.
-
-           IF WS-PUEDE-CONTINUAR = 'S'
-               PERFORM 9120-CALCULAR-VENCIMIENTO
-               PERFORM 9130-CALCULAR-CUOTA
+               PERFORM 9110-CALCULAR-VENCIMIENTO
+               PERFORM 9120-CALCULAR-CUOTA
                PERFORM 2140-GUARDAR-HIPOTECA
            END-IF.
 
        2140-GUARDAR-HIPOTECA.
-           MOVE BORM-MONTO-ORIGINAL TO BORM-SALDO-ACTUAL.
-           MOVE "ACTIVO"     TO BORM-ESTADO.
-           MOVE ZERO         TO BORM-MESES-MORA.
-           MOVE "0000-00-00" TO BORM-FECHA-ULT-PAGO.
+           MOVE WS-CUENTA-DEBITO    TO BORM-CUENTA-DEBITO.
+           MOVE BORM-MONTO-PRESTAMO TO BORM-SALDO-DEUDA.
+           MOVE "ACTIVO"            TO BORM-ESTADO-PRESTAMO.
+           MOVE ZERO                TO BORM-MESES-MORA.
 
-           MOVE 'A' TO LK-ACCION-DB.
+           SET ACCION-INSERT TO TRUE.
            CALL WS-PGM-DBIOBORM
-               USING LK-DATOS-TRANSACCION,
-                     BORM-REGISTRO.
+               USING REG-BORM,
+                     LK-DATOS-SESION,
+                     LK-DATOS-TRANSACCION.
 
-           IF LK-COD-RETORNO = 0
+           IF LK-EXITO
                CALL WS-PGM-TRAN USING 'C'
 
                COMPUTE WS-TOTAL-FINANCIADO =
                    BORM-CUOTA-MENSUAL * WS-PLAZO-MESES
-
                COMPUTE WS-INTERES-TOTAL =
-                   WS-TOTAL-FINANCIADO - BORM-MONTO-ORIGINAL
+                   WS-TOTAL-FINANCIADO - BORM-MONTO-PRESTAMO
 
                DISPLAY "================================"
                DISPLAY " HIPOTECA REGISTRADA OK"
@@ -264,14 +266,18 @@
                DISPLAY "NRO HIP. : " BORM-ID-HIPOTECA
                DISPLAY "CLIENTE  : " WS-NOMBRE-CLIENTE
                DISPLAY "APELLIDO : " WS-APELLIDO-CLIENTE
-               DISPLAY "MONTO    : " BORM-MONTO-ORIGINAL
-               DISPLAY "TASA M.  : " BORM-TASA-INTERES
-               DISPLAY "PLAZO    : " WS-PLAZO-MESES
+               DISPLAY "PRESTAMO : " BORM-MONTO-PRESTAMO
+               DISPLAY "TASA A.  : " BORM-TASA-ANUAL " %"
+               DISPLAY "PLAZO    : " WS-PLAZO-MESES " meses"
                DISPLAY "CUOTA M. : " BORM-CUOTA-MENSUAL
                DISPLAY "INTERES  : " WS-INTERES-TOTAL
                DISPLAY "TOTAL    : " WS-TOTAL-FINANCIADO
-               DISPLAY "VENCE    : " BORM-FECHA-VENCTO
-               DISPLAY "ESTADO   : " BORM-ESTADO
+               DISPLAY "VENCE    : " BORM-FECHA-VENCIMIENTO
+               DISPLAY "CTA DEB. : " BORM-CUENTA-DEBITO
+               DISPLAY "ESTADO   : " BORM-ESTADO-PRESTAMO
+               DISPLAY "================================"
+               DISPLAY "El batch descontara la cuota"
+               DISPLAY "mensualmente de la cuenta."
                DISPLAY "================================"
            ELSE
                CALL WS-PGM-TRAN USING 'R'
@@ -286,7 +292,7 @@
            DISPLAY "--- CONSULTA DE HIPOTECA ---".
            PERFORM 9010-BUSCAR-HIPOTECA.
 
-           IF LK-COD-RETORNO NOT = 0
+           IF NOT LK-EXITO
                PERFORM 9500-MSG-ERROR-HIPOTECA
            ELSE
                DISPLAY "================================"
@@ -295,59 +301,54 @@
                DISPLAY "NRO HIP. : " BORM-ID-HIPOTECA
                DISPLAY "CLIENTE  : " WS-NOMBRE-CLIENTE
                DISPLAY "APELLIDO : " WS-APELLIDO-CLIENTE
-               DISPLAY "ID CLI.  : " BORM-ID-CLIENTE
-               DISPLAY "INICIO   : " BORM-FECHA-INICIO
-               DISPLAY "VENCE    : " BORM-FECHA-VENCTO
-               DISPLAY "MONTO    : " BORM-MONTO-ORIGINAL
-               DISPLAY "SALDO    : " BORM-SALDO-ACTUAL
-               DISPLAY "TASA M.  : " BORM-TASA-INTERES
+               DISPLAY "CTA DEB. : " BORM-CUENTA-DEBITO
+               DISPLAY "PRESTAMO : " BORM-MONTO-PRESTAMO
+               DISPLAY "SALDO    : " BORM-SALDO-DEUDA
+               DISPLAY "TASA A.  : " BORM-TASA-ANUAL " %"
                DISPLAY "CUOTA M. : " BORM-CUOTA-MENSUAL
-               DISPLAY "DIA PAGO : " BORM-DIA-PAGO
-               DISPLAY "MORA     : " BORM-MESES-MORA
-               DISPLAY "ULT PAGO : " BORM-FECHA-ULT-PAGO
-               DISPLAY "ESTADO   : " BORM-ESTADO
+               DISPLAY "MORA     : " BORM-MESES-MORA " meses"
+               DISPLAY "VENCE    : " BORM-FECHA-VENCIMIENTO
+               DISPLAY "ESTADO   : " BORM-ESTADO-PRESTAMO
                DISPLAY "================================"
            END-IF.
 
        2300-PROCESAR-PAGO.
            MOVE 'S' TO WS-PUEDE-CONTINUAR.
-           DISPLAY "--- PROCESAR PAGO DE CUOTA ---".
+           DISPLAY "--- PAGO MANUAL DE CUOTA ---".
            PERFORM 9010-BUSCAR-HIPOTECA.
 
-           IF LK-COD-RETORNO NOT = 0
+           IF NOT LK-EXITO
                PERFORM 9500-MSG-ERROR-HIPOTECA
                MOVE 'N' TO WS-PUEDE-CONTINUAR
            END-IF.
 
            IF WS-PUEDE-CONTINUAR = 'S'
-               IF BORM-ESTADO = "CANCELADO"
+               IF HIPO-PAGADO
                    DISPLAY "================================"
                    DISPLAY " OPERACION RECHAZADA"
                    DISPLAY "================================"
-                   DISPLAY "MOTIVO: HIPOTECA CANCELADA."
+                   DISPLAY "MOTIVO: HIPOTECA YA PAGADA."
                    DISPLAY "================================"
                    MOVE 'N' TO WS-PUEDE-CONTINUAR
                END-IF
            END-IF.
 
            IF WS-PUEDE-CONTINUAR = 'S'
-               IF BORM-ESTADO = "CASTIGADO"
+               IF HIPO-MOROSO
                    DISPLAY "================================"
-                   DISPLAY " AVISO - HIPOTECA CASTIGADA"
+                   DISPLAY " AVISO - HIPOTECA EN MORA"
                    DISPLAY "================================"
-                   DISPLAY "Puede abonar a la deuda."
-                   DISPLAY "La mora la actualiza el batch."
+                   DISPLAY " Meses de mora: " BORM-MESES-MORA
+                   DISPLAY " Puede abonar a la deuda."
                    DISPLAY "================================"
                END-IF
            END-IF.
 
            IF WS-PUEDE-CONTINUAR = 'S'
                DISPLAY "Cliente       : " WS-NOMBRE-CLIENTE
-               DISPLAY "Apellido      : " WS-APELLIDO-CLIENTE
                DISPLAY "Nro hipoteca  : " BORM-ID-HIPOTECA
-               DISPLAY "Saldo actual  : " BORM-SALDO-ACTUAL
+               DISPLAY "Saldo deuda   : " BORM-SALDO-DEUDA
                DISPLAY "Cuota mensual : " BORM-CUOTA-MENSUAL
-               DISPLAY "Meses en mora : " BORM-MESES-MORA
                DISPLAY "Monto a pagar : "
                ACCEPT WS-ENTRADA-TXT
                PERFORM 9300-VALIDAR-NUMERO
@@ -367,12 +368,12 @@
            END-IF.
 
            IF WS-PUEDE-CONTINUAR = 'S'
-               IF WS-MONTO-PAGO > BORM-SALDO-ACTUAL
+               IF WS-MONTO-PAGO > BORM-SALDO-DEUDA
                    DISPLAY "================================"
                    DISPLAY " OPERACION RECHAZADA"
                    DISPLAY "================================"
                    DISPLAY "MOTIVO: PAGO EXCEDE EL SALDO."
-                   DISPLAY "SALDO : " BORM-SALDO-ACTUAL
+                   DISPLAY "SALDO : " BORM-SALDO-DEUDA
                    DISPLAY "================================"
                    MOVE 'N' TO WS-PUEDE-CONTINUAR
                END-IF
@@ -383,47 +384,40 @@
            END-IF.
 
        2310-APLICAR-PAGO.
-           SUBTRACT WS-MONTO-PAGO FROM BORM-SALDO-ACTUAL.
-
-           ACCEPT WS-FECHA-HOY FROM DATE YYYYMMDD.
-           MOVE WS-ANIO TO WS-ED-ANIO.
-           MOVE WS-MES  TO WS-ED-MES.
-           MOVE WS-DIA  TO WS-ED-DIA.
-           MOVE WS-FECHA-EDITADA TO BORM-FECHA-ULT-PAGO.
+           SUBTRACT WS-MONTO-PAGO FROM BORM-SALDO-DEUDA.
 
            EVALUATE TRUE
-               WHEN BORM-SALDO-ACTUAL = 0
-                   MOVE "CANCELADO" TO BORM-ESTADO
-                   MOVE ZERO        TO BORM-MESES-MORA
+               WHEN BORM-SALDO-DEUDA = 0
+                   MOVE "PAGADO" TO BORM-ESTADO-PRESTAMO
+                   MOVE ZERO     TO BORM-MESES-MORA
 
                WHEN WS-MONTO-PAGO >= BORM-CUOTA-MENSUAL
-                   MOVE "ACTIVO"    TO BORM-ESTADO
-                   MOVE ZERO        TO BORM-MESES-MORA
+                   MOVE "ACTIVO" TO BORM-ESTADO-PRESTAMO
+                   MOVE ZERO     TO BORM-MESES-MORA
 
                WHEN OTHER
                    DISPLAY "================================"
                    DISPLAY " AVISO - ABONO PARCIAL"
                    DISPLAY "================================"
-                   DISPLAY "El pago no cubre la cuota mensual."
-                   DISPLAY "Se registra como abono a la deuda."
-                   DISPLAY "La mora sera evaluada por el batch."
+                   DISPLAY "El pago no cubre la cuota."
+                   DISPLAY "La mora la evalua el batch."
                    DISPLAY "================================"
            END-EVALUATE.
 
-           MOVE 'M' TO LK-ACCION-DB.
+           SET ACCION-UPDATE TO TRUE.
            CALL WS-PGM-DBIOBORM
-               USING LK-DATOS-TRANSACCION,
-                     BORM-REGISTRO.
+               USING REG-BORM,
+                     LK-DATOS-SESION,
+                     LK-DATOS-TRANSACCION.
 
-           IF LK-COD-RETORNO = 0
+           IF LK-EXITO
                CALL WS-PGM-TRAN USING 'C'
                DISPLAY "================================"
                DISPLAY " PAGO PROCESADO OK"
                DISPLAY "================================"
                DISPLAY "PAGADO  : " WS-MONTO-PAGO
-               DISPLAY "SALDO   : " BORM-SALDO-ACTUAL
-               DISPLAY "PAGO    : " BORM-FECHA-ULT-PAGO
-               DISPLAY "ESTADO  : " BORM-ESTADO
+               DISPLAY "SALDO   : " BORM-SALDO-DEUDA
+               DISPLAY "ESTADO  : " BORM-ESTADO-PRESTAMO
                DISPLAY "MORA    : " BORM-MESES-MORA
                DISPLAY "================================"
            ELSE
@@ -444,31 +438,29 @@
                TO CUSM-DOC-CLIENTE.
 
            IF CUSM-DOC-CLIENTE = SPACES
-               MOVE 01 TO LK-COD-RETORNO
+               MOVE 'E404' TO LK-COD-RETORNO
                MOVE "CEDULA INVALIDA" TO LK-MENSAJE
            ELSE
-               MOVE 'C' TO LK-ACCION-DB
+               SET ACCION-SELECT TO TRUE
                CALL WS-PGM-DBIOCUSM
                    USING REG-CUSM,
+                         LK-DATOS-SESION,
                          LK-DATOS-TRANSACCION
-               IF LK-COD-RETORNO NOT = 0
-                   MOVE "CLIENTE NO ENCONTRADO"
-                       TO LK-MENSAJE
-               ELSE
-                   MOVE CUSM-NOMBRE    TO WS-NOMBRE-CLIENTE
-                   MOVE CUSM-APELLIDOS TO WS-APELLIDO-CLIENTE
+               IF LK-EXITO
+                   MOVE CUSM-NOMBRE-CLIENTE    TO WS-NOMBRE-CLIENTE
+                   MOVE CUSM-APELLIDOS-CLIENTE TO WS-APELLIDO-CLIENTE
                END-IF
            END-IF.
 
        9010-BUSCAR-HIPOTECA.
            MOVE 'S' TO WS-PUEDE-CONTINUAR.
-           INITIALIZE BORM-REGISTRO.
+           INITIALIZE REG-BORM.
            MOVE SPACES TO WS-NOMBRE-CLIENTE.
            MOVE SPACES TO WS-APELLIDO-CLIENTE.
 
            PERFORM 9000-BUSCAR-CLIENTE.
 
-           IF LK-COD-RETORNO NOT = 0
+           IF NOT LK-EXITO
                MOVE 'N' TO WS-PUEDE-CONTINUAR
            END-IF.
 
@@ -477,7 +469,7 @@
                ACCEPT BORM-ID-HIPOTECA
 
                IF BORM-ID-HIPOTECA = ZERO
-                   MOVE 01 TO LK-COD-RETORNO
+                   MOVE 'E404' TO LK-COD-RETORNO
                    MOVE "NUMERO DE HIPOTECA INVALIDO"
                        TO LK-MENSAJE
                    MOVE 'N' TO WS-PUEDE-CONTINUAR
@@ -485,28 +477,22 @@
            END-IF.
 
            IF WS-PUEDE-CONTINUAR = 'S'
-               MOVE 'C' TO LK-ACCION-DB
+               SET ACCION-SELECT TO TRUE
                CALL WS-PGM-DBIOBORM
-                   USING LK-DATOS-TRANSACCION,
-                         BORM-REGISTRO
+                   USING REG-BORM,
+                         LK-DATOS-SESION,
+                         LK-DATOS-TRANSACCION
 
-               IF LK-COD-RETORNO = 0
+               IF LK-EXITO
                    IF BORM-ID-CLIENTE NOT = CUSM-ID-CLIENTE
-                       MOVE 01 TO LK-COD-RETORNO
+                       MOVE 'E404' TO LK-COD-RETORNO
                        MOVE "HIPOTECA NO PERTENECE AL CLIENTE"
                            TO LK-MENSAJE
                    END-IF
                END-IF
            END-IF.
 
-       9100-ARMAR-FECHA-INICIO.
-           ACCEPT WS-FECHA-HOY FROM DATE YYYYMMDD.
-           MOVE WS-ANIO TO WS-ED-ANIO.
-           MOVE WS-MES  TO WS-ED-MES.
-           MOVE WS-DIA  TO WS-ED-DIA.
-           MOVE WS-FECHA-EDITADA TO BORM-FECHA-INICIO.
-
-       9120-CALCULAR-VENCIMIENTO.
+       9110-CALCULAR-VENCIMIENTO.
            MOVE WS-ANIO TO WS-CALC-ANIO.
            MOVE WS-MES  TO WS-CALC-MES.
 
@@ -525,14 +511,14 @@
 
            ADD WS-ANIO-ADIC TO WS-CALC-ANIO.
 
-           MOVE WS-CALC-ANIO  TO WS-ED-ANIO.
-           MOVE WS-CALC-MES   TO WS-ED-MES.
-           MOVE BORM-DIA-PAGO TO WS-ED-DIA.
-           MOVE WS-FECHA-EDITADA TO BORM-FECHA-VENCTO.
+           MOVE WS-CALC-ANIO TO WS-ED-ANIO.
+           MOVE WS-CALC-MES  TO WS-ED-MES.
+           MOVE 28            TO WS-ED-DIA.
+           MOVE WS-FECHA-EDITADA TO BORM-FECHA-VENCIMIENTO.
 
-       9130-CALCULAR-CUOTA.
+       9120-CALCULAR-CUOTA.
            COMPUTE WS-TASA-MENSUAL =
-               BORM-TASA-INTERES / 100.
+               BORM-TASA-ANUAL / 1200.
 
            COMPUTE WS-FACTOR-BASE = 1 + WS-TASA-MENSUAL.
            MOVE 1 TO WS-FACTOR-POT.
@@ -544,7 +530,7 @@
            END-PERFORM.
 
            COMPUTE WS-NUMERADOR =
-               BORM-MONTO-ORIGINAL *
+               BORM-MONTO-PRESTAMO *
                WS-TASA-MENSUAL *
                WS-FACTOR-POT.
 
@@ -552,7 +538,7 @@
 
            IF WS-DENOMINADOR = 0
                COMPUTE BORM-CUOTA-MENSUAL =
-                   BORM-MONTO-ORIGINAL / WS-PLAZO-MESES
+                   BORM-MONTO-PRESTAMO / WS-PLAZO-MESES
            ELSE
                COMPUTE BORM-CUOTA-MENSUAL =
                    WS-NUMERADOR / WS-DENOMINADOR

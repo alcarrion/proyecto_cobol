@@ -1,208 +1,275 @@
-IDENTIFICATION DIVISION.
+      *================================================================*
+      * PROGRAMA : DBIOBORM.sqb                                       *
+      * FUNCION  : Capa de Acceso a Datos - Hipotecas v3.0            *
+      * TABLA    : hipotecas, control_secuencias, clientes             *
+      * ACCIONES : S=Secuencia  A=Alta  C=Consulta  M=Modificar       *
+      * NOTA     : El batch (BAT000) usa CUENTA_DEBITO para debitar    *
+      *            automaticamente la cuota cada cierre mensual.       *
+      *================================================================*
+       IDENTIFICATION DIVISION.
        PROGRAM-ID. DBIOBORM.
-      *================================================================*
-      * COMPONENTE: DBIOBORM.sqb (PERSISTENCIA - HIPOTECAS Y PRESTAMOS)*
-      * ACCESO    : SQL Embebido (ESQL) para MariaDB / MySQL           *
-      * ADAPTACIÓN: TCS Ecuador Nivel 1000 - Amortización e Intereses  *
-      *================================================================*
 
        ENVIRONMENT DIVISION.
        DATA DIVISION.
        WORKING-STORAGE SECTION.
-           
+
            EXEC SQL INCLUDE SQLCA END-EXEC.
 
            EXEC SQL BEGIN DECLARE SECTION END-EXEC.
-           *> Variables de Host para la tabla 'hipotecas'
-           01  DB-BORM-ID-HIPOTECA    PIC 9(08).
-           01  DB-BORM-ID-CLIENTE     PIC 9(08).
-           01  DB-BORM-CTA-DEBITO     PIC 9(08).
-           01  DB-BORM-MONTO-PREST    PIC S9(13)V99 COMP-3.
-           01  DB-BORM-SALDO-DEUDA    PIC S9(13)V99 COMP-3.
-           01  DB-BORM-TASA-ANUAL     PIC S9(03)V9999 COMP-3.
-           01  DB-BORM-CUOTA-MENS     PIC S9(13)V99 COMP-3.
-           01  DB-BORM-MESES-MORA     PIC 9(03).
-           01  DB-BORM-ESTADO         PIC X(15).
-           01  DB-BORM-FECHA-VENC     PIC X(10).
+
+       01  WS-ID-HIPOTECA         PIC 9(08).
+       01  WS-ID-CLIENTE          PIC 9(08).
+       01  WS-CUENTA-DEBITO       PIC 9(08).
+       01  WS-MONTO-PRESTAMO      PIC S9(13)V99.
+       01  WS-SALDO-DEUDA         PIC S9(13)V99.
+       01  WS-TASA-ANUAL          PIC S9(03)V9999.
+       01  WS-CUOTA-MENSUAL       PIC S9(13)V99.
+       01  WS-MESES-MORA          PIC 9(03).
+       01  WS-ESTADO-PRESTAMO     PIC X(15).
+       01  WS-FECHA-VENCIMIENTO   PIC X(10).
+
            EXEC SQL END DECLARE SECTION END-EXEC.
 
-           *> Variables auxiliares matemáticas para cálculo de dividendos
-           01  WS-AUX-TASA-MENSUAL    PIC S9(03)V999999 COMP-3.
-           01  WS-INTERES-DEL-MES     PIC S9(13)V99     COMP-3.
-           01  WS-ABONO-A-CAPITAL     PIC S9(13)V99     COMP-3.
-           01  WS-NUEVO-SALDO-DEUDA   PIC S9(13)V99     COMP-3.
-
        LINKAGE SECTION.
-           COPY BORMREC.
-           COPY LKCIF.
 
-       PROCEDURE DIVISION USING REG-BORM, LK-DATOS-SESION, 
-                                  LK-DATOS-TRANSACCION.
+      *--- Espejo de REG-BORM (BORMREC.CPY) ---
+       01  LK-REG-BORM.
+           05 LK-BORM-ID-HIPOTECA       PIC 9(08).
+           05 LK-BORM-ID-CLIENTE        PIC 9(08).
+           05 LK-BORM-CUENTA-DEBITO     PIC 9(08).
+           05 LK-BORM-MONTO-PRESTAMO    PIC S9(13)V99 COMP-3.
+           05 LK-BORM-SALDO-DEUDA       PIC S9(13)V99 COMP-3.
+           05 LK-BORM-TASA-ANUAL        PIC S9(03)V9999 COMP-3.
+           05 LK-BORM-CUOTA-MENSUAL     PIC S9(13)V99 COMP-3.
+           05 LK-BORM-MESES-MORA        PIC 9(03).
+           05 LK-BORM-ESTADO-PRESTAMO   PIC X(15).
+           05 LK-BORM-FECHA-VENCIMIENTO PIC X(10).
+
+      *--- Espejo de LK-DATOS-SESION (LKCIF.CPY) ---
+       01  LK-SESION.
+           05 LK-SES-CLIENTE-ID         PIC 9(08).
+           05 LK-SES-CEDULA             PIC X(12).
+           05 LK-SES-NOMBRE             PIC X(50).
+           05 LK-SES-USUARIO            PIC X(08).
+           05 LK-SES-TERMINAL           PIC X(04).
+           05 LK-SES-SCORE              PIC 9(03).
+           05 LK-SES-ESTADO-MORA        PIC X(01).
+
+      *--- Espejo de LK-DATOS-TRANSACCION (LKCIF.CPY) ---
+       01  LK-TRANSACCION.
+           05 LK-ACCION-DB              PIC X(01).
+           05 LK-TX-CLIENTE-ID          PIC 9(08).
+           05 LK-COD-RETORNO            PIC X(04).
+           05 LK-MENSAJE                PIC X(50).
+
+       PROCEDURE DIVISION USING LK-REG-BORM,
+                                LK-SESION,
+                                LK-TRANSACCION.
 
        0000-PRINCIPAL.
            MOVE '00  ' TO LK-COD-RETORNO.
-           MOVE SPACES TO LK-MENSAJE.
+           MOVE SPACES  TO LK-MENSAJE.
 
            EVALUATE LK-ACCION-DB
+               WHEN 'S'
+                   PERFORM 0500-GENERAR-SECUENCIA
+               WHEN 'A'
+                   PERFORM 1000-INSERTAR-HIPOTECA
                WHEN 'C'
-                   PERFORM 1000-CONSULTAR-HIPOTECA
+                   PERFORM 2000-CONSULTAR-HIPOTECA
                WHEN 'M'
-                   PERFORM 2000-PROCESAR-PAGO-MENSUAL
-               WHEN 'K'  *> Letra K para ejecutar el Castigo de Mora
-                   PERFORM 3000-REGISTRAR-CASTIGO-MORA
+                   PERFORM 3000-ACTUALIZAR-HIPOTECA
                WHEN OTHER
                    MOVE 'E999' TO LK-COD-RETORNO
-                   MOVE "ERROR: ACCION OPERATIVA NO SOPORTADA" 
-                     TO LK-MENSAJE
+                   MOVE "ACCION DB NO SOPORTADA" TO LK-MENSAJE
            END-EVALUATE.
-           GOBACK.
 
-       1000-CONSULTAR-HIPOTECA.
-           MOVE BORM-ID-CLIENTE TO DB-BORM-ID-CLIENTE.
+           EXIT PROGRAM.
 
+      *----------------------------------------------------------------*
+      * 0500 - GENERAR NUMERO DE HIPOTECA DESDE SECUENCIA              *
+      *----------------------------------------------------------------*
+       0500-GENERAR-SECUENCIA.
            EXEC SQL
-               SELECT ID_HIPOTECA, CUENTA_DEBITO, MONTO_PRESTAMO, 
-                      SALDO_DEUDA, TASA_ANUAL, CUOTA_MENSUAL, 
-                      MESES_MORA, ESTADO_PRESTAMO, FECHA_VENCIMIENTO
-               INTO  :DB-BORM-ID-HIPOTECA, :DB-BORM-CTA-DEBITO, 
-                     :DB-BORM-MONTO-PREST, :DB-BORM-SALDO-DEUDA, 
-                     :DB-BORM-TASA-ANUAL, :DB-BORM-CUOTA-MENS, 
-                     :DB-BORM-MESES-MORA, :DB-BORM-ESTADO, 
-                     :DB-BORM-FECHA-VENC
-               FROM  hipotecas
-               WHERE ID_CLIENTE = :DB-BORM-ID-CLIENTE
+               UPDATE control_secuencias
+               SET    ULTIMO_VALOR = ULTIMO_VALOR + 1
+               WHERE  PRODUCTO = 'HIPOTECA'
            END-EXEC.
 
-           PERFORM 9000-EVALUAR-SQLSTATE.
+           PERFORM 9000-EVALUAR-SQL.
 
-           IF LK-EXITO
-               MOVE DB-BORM-ID-HIPOTECA  TO BORM-ID-HIPOTECA
-               MOVE DB-BORM-ID-CLIENTE   TO BORM-ID-CLIENTE
-               MOVE DB-BORM-CTA-DEBITO   TO BORM-CUENTA-DEBITO
-               MOVE DB-BORM-MONTO-PREST  TO BORM-MONTO-PRESTAMO
-               MOVE DB-BORM-SALDO-DEUDA  TO BORM-SALDO-DEUDA
-               MOVE DB-BORM-TASA-ANUAL   TO BORM-TASA-ANUAL
-               MOVE DB-BORM-CUOTA-MENS   TO BORM-CUOTA-MENSUAL
-               MOVE DB-BORM-MESES-MORA   TO BORM-MESES-MORA
-               MOVE DB-BORM-ESTADO       TO BORM-ESTADO-PRESTAMO
-               MOVE DB-BORM-FECHA-VENC   TO BORM-FECHA-VENCIMIENTO
-               MOVE "REGISTRO DE HIPOTECA CARGADO AL LINKAGE" TO LK-MENSAJE
-           END-IF.
+           IF LK-COD-RETORNO = '00  '
+               EXEC SQL
+                   SELECT ULTIMO_VALOR
+                   INTO   :WS-ID-HIPOTECA
+                   FROM   control_secuencias
+                   WHERE  PRODUCTO = 'HIPOTECA'
+               END-EXEC
 
-       2000-PROCESAR-PAGO-MENSUAL.
-           MOVE BORM-ID-HIPOTECA TO DB-BORM-ID-HIPOTECA.
+               PERFORM 9000-EVALUAR-SQL
 
-           *> REVISAMOS PRIMERO EL SALDO VIGENTE DIRECTO EN LA BASE
-           EXEC SQL
-               SELECT SALDO_DEUDA, TASA_ANUAL, CUOTA_MENSUAL, MESES_MORA,
-                      ESTADO_PRESTAMO
-               INTO  :DB-BORM-SALDO-DEUDA, :DB-BORM-TASA-ANUAL, 
-                     :DB-BORM-CUOTA-MENS, :DB-BORM-MESES-MORA, 
-                     :DB-BORM-ESTADO
-               FROM  hipotecas
-               WHERE ID_HIPOTECA = :DB-BORM-ID-HIPOTECA
-           END-EXEC.
-
-           PERFORM 9000-EVALUAR-SQLSTATE.
-           IF NOT LK-EXITO EXIT PARAGRAPH.
-
-           *> VALIDACIÓN 1: VERIFICAR QUE EL PRESTAMO NO ESTÉ YA CANCELADO
-           IF DB-BORM-ESTADO = 'PAGADO'
-               MOVE 'E001' TO LK-COD-RETORNO
-               MOVE "COMPLEMENTO: LA OPERACION YA SE ENCUENTRA PAGADA" 
-                 TO LK-MENSAJE
-               EXIT PARAGRAPH
-           END-IF.
-
-           *> 2. CÓMPUTO CIENTÍFICO DE INTERESES SOBRE SALDO
-           *> Dividimos la tasa anual para los 12 meses del año
-           COMPUTE WS-AUX-TASA-MENSUAL = DB-BORM-TASA-ANUAL / 12 / 100.
-           
-           *> Multiplicamos la tasa mensual por el saldo de la deuda actual
-           COMPUTE WS-INTERES-DEL-MES ROUNDED = 
-                   DB-BORM-SALDO-DEUDA * WS-AUX-TASA-MENSUAL.
-
-           *> VALIDACIÓN 2: ASEGURAR QUE LA CUOTA CUBRA AL MENOS EL INTERÉS
-           IF DB-BORM-CUOTA-MENS <= WS-INTERES-DEL-MES
-               MOVE 'E001' TO LK-COD-RETORNO
-               MOVE "ERROR CORE: CUOTA INSUFICIENTE PARA AMORTIZAR" 
-                 TO LK-MENSAJE
-               EXIT PARAGRAPH
-           END-IF.
-
-           *> 3. DETERMINACIÓN DEL ABONO REAL A CAPITAL
-           COMPUTE WS-ABONO-A-CAPITAL = 
-                   DB-BORM-CUOTA-MENS - WS-INTERES-DEL-MES.
-
-           COMPUTE WS-NUEVO-SALDO-DEUDA = 
-                   DB-BORM-SALDO-DEUDA - WS-ABONO-A-CAPITAL.
-
-           *> VALIDACIÓN 3: CONTROL DE CIERRE DE CRÉDITO
-           IF WS-NUEVO-SALDO-DEUDA <= 0
-               MOVE 0 TO WS-NUEVO-SALDO-DEUDA
-               MOVE 'PAGADO' TO DB-BORM-ESTADO
-               MOVE 0 TO DB-BORM-MESES-MORA
-           ELSE
-               *> Si venía arrastrando mora y pagó la cuota entera, se reduce
-               IF DB-BORM-MESES-MORA > 0
-                   SUBTRACT 1 FROM DB-BORM-MESES-MORA
-               END-IF
-               
-               IF DB-BORM-MESES-MORA = 0
-                   MOVE 'ACTIVO' TO DB-BORM-ESTADO
-               ELSE
-                   MOVE 'MOROSO' TO DB-BORM-ESTADO
+               IF LK-COD-RETORNO = '00  '
+                   MOVE WS-ID-HIPOTECA TO LK-BORM-ID-HIPOTECA
+                   MOVE "SECUENCIA GENERADA" TO LK-MENSAJE
                END-IF
            END-IF.
 
-           *> TRASPASAMOS LOS RESULTADOS CALCULADOS A LAS VARIABLES HOST
-           MOVE WS-NUEVO-SALDO-DEUDA TO DB-BORM-SALDO-DEUDA.
+      *----------------------------------------------------------------*
+      * 1000 - INSERTAR HIPOTECA NUEVA                                 *
+      * CUENTA_DEBITO: cuenta de donde el batch cobra cada mes         *
+      *----------------------------------------------------------------*
+       1000-INSERTAR-HIPOTECA.
+           MOVE LK-BORM-ID-HIPOTECA       TO WS-ID-HIPOTECA.
+           MOVE LK-BORM-ID-CLIENTE        TO WS-ID-CLIENTE.
+           MOVE LK-BORM-CUENTA-DEBITO     TO WS-CUENTA-DEBITO.
+           MOVE LK-BORM-MONTO-PRESTAMO    TO WS-MONTO-PRESTAMO.
+           MOVE LK-BORM-SALDO-DEUDA       TO WS-SALDO-DEUDA.
+           MOVE LK-BORM-TASA-ANUAL        TO WS-TASA-ANUAL.
+           MOVE LK-BORM-CUOTA-MENSUAL     TO WS-CUOTA-MENSUAL.
+           MOVE LK-BORM-MESES-MORA        TO WS-MESES-MORA.
+           MOVE LK-BORM-ESTADO-PRESTAMO   TO WS-ESTADO-PRESTAMO.
+           MOVE LK-BORM-FECHA-VENCIMIENTO TO WS-FECHA-VENCIMIENTO.
+
+           EXEC SQL
+               INSERT INTO hipotecas (
+                   ID_HIPOTECA,
+                   ID_CLIENTE,
+                   CUENTA_DEBITO,
+                   MONTO_PRESTAMO,
+                   SALDO_DEUDA,
+                   TASA_ANUAL,
+                   CUOTA_MENSUAL,
+                   MESES_MORA,
+                   ESTADO_PRESTAMO,
+                   FECHA_VENCIMIENTO
+               ) VALUES (
+                   :WS-ID-HIPOTECA,
+                   :WS-ID-CLIENTE,
+                   :WS-CUENTA-DEBITO,
+                   :WS-MONTO-PRESTAMO,
+                   :WS-SALDO-DEUDA,
+                   :WS-TASA-ANUAL,
+                   :WS-CUOTA-MENSUAL,
+                   :WS-MESES-MORA,
+                   :WS-ESTADO-PRESTAMO,
+                   :WS-FECHA-VENCIMIENTO
+               )
+           END-EXEC.
+
+           PERFORM 9000-EVALUAR-SQL.
+
+           IF LK-COD-RETORNO = '00  '
+               EXEC SQL
+                   UPDATE clientes
+                   SET    TIENE_HIPOTECA = 1
+                   WHERE  ID_CLIENTE = :WS-ID-CLIENTE
+               END-EXEC
+
+               PERFORM 9000-EVALUAR-SQL
+
+               IF LK-COD-RETORNO = '00  '
+                   MOVE "HIPOTECA REGISTRADA" TO LK-MENSAJE
+               END-IF
+           END-IF.
+
+      *----------------------------------------------------------------*
+      * 2000 - CONSULTAR HIPOTECA POR ID                               *
+      *----------------------------------------------------------------*
+       2000-CONSULTAR-HIPOTECA.
+           MOVE LK-BORM-ID-HIPOTECA TO WS-ID-HIPOTECA.
+
+           EXEC SQL
+               SELECT ID_CLIENTE,
+                      CUENTA_DEBITO,
+                      MONTO_PRESTAMO,
+                      SALDO_DEUDA,
+                      TASA_ANUAL,
+                      CUOTA_MENSUAL,
+                      MESES_MORA,
+                      ESTADO_PRESTAMO,
+                      FECHA_VENCIMIENTO
+               INTO   :WS-ID-CLIENTE,
+                      :WS-CUENTA-DEBITO,
+                      :WS-MONTO-PRESTAMO,
+                      :WS-SALDO-DEUDA,
+                      :WS-TASA-ANUAL,
+                      :WS-CUOTA-MENSUAL,
+                      :WS-MESES-MORA,
+                      :WS-ESTADO-PRESTAMO,
+                      :WS-FECHA-VENCIMIENTO
+               FROM   hipotecas
+               WHERE  ID_HIPOTECA = :WS-ID-HIPOTECA
+           END-EXEC.
+
+           PERFORM 9000-EVALUAR-SQL.
+
+           IF LK-COD-RETORNO = '00  '
+               MOVE WS-ID-CLIENTE        TO LK-BORM-ID-CLIENTE
+               MOVE WS-CUENTA-DEBITO     TO LK-BORM-CUENTA-DEBITO
+               MOVE WS-MONTO-PRESTAMO    TO LK-BORM-MONTO-PRESTAMO
+               MOVE WS-SALDO-DEUDA       TO LK-BORM-SALDO-DEUDA
+               MOVE WS-TASA-ANUAL        TO LK-BORM-TASA-ANUAL
+               MOVE WS-CUOTA-MENSUAL     TO LK-BORM-CUOTA-MENSUAL
+               MOVE WS-MESES-MORA        TO LK-BORM-MESES-MORA
+               MOVE WS-ESTADO-PRESTAMO   TO LK-BORM-ESTADO-PRESTAMO
+               MOVE WS-FECHA-VENCIMIENTO TO LK-BORM-FECHA-VENCIMIENTO
+               MOVE "CONSULTA EXITOSA"   TO LK-MENSAJE
+           END-IF.
+
+      *----------------------------------------------------------------*
+      * 3000 - ACTUALIZAR HIPOTECA                                     *
+      * Usado por BR0000 (pago manual) y por BAT000 (debito batch)     *
+      *----------------------------------------------------------------*
+       3000-ACTUALIZAR-HIPOTECA.
+           MOVE LK-BORM-ID-HIPOTECA     TO WS-ID-HIPOTECA.
+           MOVE LK-BORM-ID-CLIENTE      TO WS-ID-CLIENTE.
+           MOVE LK-BORM-SALDO-DEUDA     TO WS-SALDO-DEUDA.
+           MOVE LK-BORM-ESTADO-PRESTAMO TO WS-ESTADO-PRESTAMO.
+           MOVE LK-BORM-MESES-MORA      TO WS-MESES-MORA.
 
            EXEC SQL
                UPDATE hipotecas
-               SET    SALDO_DEUDA     = :DB-BORM-SALDO-DEUDA,
-                      MESES_MORA      = :DB-BORM-MESES-MORA,
-                      ESTADO_PRESTAMO = :DB-BORM-ESTADO
-               WHERE  ID_HIPOTECA     = :DB-BORM-ID-HIPOTECA
+               SET    SALDO_DEUDA     = :WS-SALDO-DEUDA,
+                      ESTADO_PRESTAMO = :WS-ESTADO-PRESTAMO,
+                      MESES_MORA      = :WS-MESES-MORA
+               WHERE  ID_HIPOTECA     = :WS-ID-HIPOTECA
            END-EXEC.
 
-           PERFORM 9000-EVALUAR-SQLSTATE.
-           IF LK-EXITO
-               MOVE DB-BORM-SALDO-DEUDA TO BORM-SALDO-DEUDA
-               MOVE DB-BORM-MESES-MORA  TO BORM-MESES-MORA
-               MOVE DB-BORM-ESTADO      TO BORM-ESTADO-PRESTAMO
-               MOVE "AMORTIZACION DE CREDITO APLICADA CORRECTAMENTE" 
-                 TO LK-MENSAJE
+           PERFORM 9000-EVALUAR-SQL.
+
+           IF LK-COD-RETORNO = '00  '
+               IF WS-ESTADO-PRESTAMO = "PAGADO"
+                   EXEC SQL
+                       UPDATE clientes
+                       SET    TIENE_HIPOTECA = 0
+                       WHERE  ID_CLIENTE = :WS-ID-CLIENTE
+                   END-EXEC
+                   PERFORM 9000-EVALUAR-SQL
+               END-IF
+
+               IF LK-COD-RETORNO = '00  '
+                   MOVE "HIPOTECA ACTUALIZADA" TO LK-MENSAJE
+               END-IF
            END-IF.
 
-       3000-REGISTRAR-CASTIGO-MORA.
-           MOVE BORM-ID-HIPOTECA TO DB-BORM-ID-HIPOTECA.
-
-           EXEC SQL
-               UPDATE hipotecas
-               SET    ESTADO_PRESTAMO = 'CASTIGADO',
-                      MESES_MORA      = MESES_MORA + 1
-               WHERE  ID_HIPOTECA     = :DB-BORM-ID-HIPOTECA
-           END-EXEC.
-
-           PERFORM 9000-EVALUAR-SQLSTATE.
-           IF LK-EXITO
-               MOVE 'CASTIGADO' TO BORM-ESTADO-PRESTAMO
-               MOVE 'S'         TO LK-ESTADO-MORA
-               MOVE "OPERACION MARCADA EN COACTIVA POR MOROSIDAD CRITICA" 
-                 TO LK-MENSAJE
-           END-IF.
-
-       9000-EVALUAR-SQLSTATE.
-           EVALUATE SQLSTATE
-               WHEN '00000'
+      *----------------------------------------------------------------*
+      * 9000 - EVALUAR RESULTADO SQL                                   *
+      *----------------------------------------------------------------*
+       9000-EVALUAR-SQL.
+           EVALUATE SQLCODE
+               WHEN 0
                    MOVE '00  ' TO LK-COD-RETORNO
-               WHEN '02000'
+                   IF LK-MENSAJE = SPACES
+                       MOVE "OPERACION EXITOSA" TO LK-MENSAJE
+                   END-IF
+               WHEN 100
                    MOVE 'E404' TO LK-COD-RETORNO
-                   MOVE "ID DE OPERACION HIPOTECARIA NO LOCALIZADA" 
-                     TO LK-MENSAJE
+                   MOVE "HIPOTECA NO ENCONTRADA" TO LK-MENSAJE
+               WHEN -803
+                   MOVE 'E409' TO LK-COD-RETORNO
+                   MOVE "HIPOTECA DUPLICADA" TO LK-MENSAJE
                WHEN OTHER
                    MOVE 'E999' TO LK-COD-RETORNO
-                   MOVE "ERROR CRITICO DE PERSISTENCIA EN OPERACION BORM" 
-                     TO LK-MENSAJE
+                   MOVE "ERROR TECNICO EN BD HIPOTECAS" TO LK-MENSAJE
            END-EVALUATE.
+
