@@ -3,7 +3,7 @@
       * FUNCION  : Capa de Acceso a Datos - Hipotecas v3.0            *
       * TABLA    : hipotecas, control_secuencias, clientes             *
       * ACCIONES : S=Secuencia  A=Alta  C=Consulta  M=Modificar       *
-      * NOTA     : El batch (BAT000) usa CUENTA_DEBITO para debitar    *
+      * NOTA     : El Batch (BAT000) usa CUENTA_DEBITO para debitar    *
       *            automaticamente la cuota cada cierre mensual.       *
       *================================================================*
        IDENTIFICATION DIVISION.
