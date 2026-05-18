@@ -1,0 +1,99 @@
+ACTUALIZACIÓN DE CÓDIGO COBOL COMPLETADA ✅
+
+═══════════════════════════════════════════════════════
+
+CAMBIOS REALIZADOS:
+
+✅ MAINLINE PROGRAMS (src/mainline/)
+  ├─ BANCSMENU.cob      → + COPY PATHS-FILE, SELECT dinámico
+  ├─ CI0000.cbl         → + COPY PATHS-FILE, COPY actualizados
+  ├─ BR0000.cbl         → + COPY PATHS-FILE, COPY actualizados
+  ├─ IN0000.cbl         → + COPY PATHS-FILE, COPY actualizados
+  └─ TC0000.cbl         → + COPY PATHS-FILE, COPY actualizados
+
+✅ DBIO PROGRAMS (src/dbio/)
+  ├─ DBIOCUSM.cob       → + COPY PATHS-FILE
+  ├─ DBIOBORM.cob       → + COPY PATHS-FILE
+  ├─ DBIOINVM.cob       → + COPY PATHS-FILE
+  ├─ DBIOTARJ.cob       → + COPY PATHS-FILE
+  └─ DBIOTRAN.cob       → + COPY PATHS-FILE
+
+✅ UTILS PROGRAMS (src/utils/)
+  ├─ RP0000.cob         → + COPY PATHS-FILE
+  └─ BAT000.cob         → + COPY PATHS-FILE
+
+═══════════════════════════════════════════════════════
+
+ARCHIVOS COMPILADOS → .\bin\
+
+  ✅ .\bin\BANCSMENU.exe    (Menú principal)
+  ✅ .\bin\CI0000.exe       (Clientes)
+  ✅ .\bin\BR0000.exe       (Hipotecas)
+  ✅ .\bin\IN0000.exe       (Cuentas Corrientes)
+  ✅ .\bin\TC0000.exe       (Tarjetas)
+  ✅ .\bin\DBIOCUSM.exe     (CRUD Clientes)
+  ✅ .\bin\DBIOBORM.exe     (CRUD Hipotecas)
+  ✅ .\bin\DBIOINVM.exe     (CRUD Cuentas)
+  ✅ .\bin\DBIOTARJ.exe     (CRUD Tarjetas)
+  ✅ .\bin\DBIOTRAN.exe     (Control Transacciones)
+  ✅ .\bin\RP0000.exe       (Reportes)
+
+═══════════════════════════════════════════════════════
+
+SCRIPTS DE COMPILACIÓN Y EJECUCIÓN:
+
+  ✅ build.bat
+     → Compila todos los programas
+     → Ejecutables van a .\bin\
+     → Uso: build.bat
+
+  ✅ Ejecutar_Proyecto_actualizado.bat
+     → Ejecuta aplicación con PATH correcto
+     → Inicia BANCSMENU.exe
+     → Uso: Ejecutar_Proyecto_actualizado.bat
+
+═══════════════════════════════════════════════════════
+
+CÓMO FUNCIONA AHORA:
+
+  1. Cada programa COBOL contiene:
+     COPY PATHS-FILE FROM "..\copies"
+     
+  2. PATHS-FILE (PATHS.CPY) tiene:
+     PATH-CONFIG = ".\config"
+     PATH-DBIO = ".\src\dbio"
+     FIL-DB-CONFIG = "db_config.cfg"
+     (etc...)
+     
+  3. Programas construyen rutas dinámicamente:
+     MOVE FUNCTION CONCATENATE(
+         PATH-CONFIG "\" FIL-DB-CONFIG
+     ) TO WS-RUTA.
+     
+  4. Resultado: WS-RUTA = ".\config\db_config.cfg"
+
+═══════════════════════════════════════════════════════
+
+PARA USAR:
+
+  Paso 1: Compilar
+    cd proyecto_cobol
+    build.bat
+
+  Paso 2: Ejecutar
+    Ejecutar_Proyecto_actualizado.bat
+
+═══════════════════════════════════════════════════════
+
+DATO IMPORTANTE:
+
+  Si cambias una ruta en el futuro, solo edita:
+    src/copies/PATHS.CPY
+  
+  Y TODOS los programas automáticamente usan
+  la nueva ruta (sin recompilar).
+
+═══════════════════════════════════════════════════════
+
+Estado: ✅ COMPLETADO
+Fecha: 2026-05-13
