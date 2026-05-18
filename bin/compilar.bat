@@ -1,109 +1,34 @@
 @echo off
-setlocal
 color 0B
 title Compilador - Sistema Bancario COBOL
 
-:: 1. Configurar las rutas del compilador GnuCOBOL
-set "COBOL_MAIN=C:\Program Files (x86)\OpenCobolIDE\GnuCOBOL"
-set "COBOL_BIN=%COBOL_MAIN%\bin"
-set "COBOL_LIBS_ESQL=C:\Program Files (x86)\OpenCobolIDE\GnuCOBOL\binaries\win32\release"
-
-:: Variables de entorno del sistema operativo
-set "COB_MAIN_DIR=%COBOL_MAIN%"
-set "COB_CONFIG_DIR=%COBOL_MAIN%\config"
-set "PATH=%COBOL_BIN%;%COBOL_LIBS_ESQL%;%PATH%"
-
-:: 2. Definir rutas del proyecto (Estructura EPN Core)
-set "ROOT=%~dp0.."
-set "SQL_DIR=%ROOT%\sql"
-set "MAINLINE_DIR=%ROOT%\src\mainline"
-set "BIN_DIR=%ROOT%\bin"
-set "COPIES_DIR=%ROOT%\src\copies"
-set "COBCPY=%COPIES_DIR%"
-
-set "COBC=%COBOL_BIN%\cobc.exe"
-set "PRECOMPILADOR=%COBOL_LIBS_ESQL%\esqlOC.exe"
-
-:: Variable de control para detectar fallos intermedios
-set "COMPILATION_FAILED=0"
+set ROOT=%~dp0..
+set COBC=cobc
 
 echo ============================================
-echo  1. Pre-compilando archivos SQL (.sqb)
+echo  Compilando Sistema Bancario COBOL
 echo ============================================
-
-for %%f in ("%SQL_DIR%\*.sqb") do (
-    echo Procesando precompilacion: %%~nxf ...
-    "%PRECOMPILADOR%" -I "%COPIES_DIR%" -static -o "%MAINLINE_DIR%\%%~nf.cob" "%%f"
-    if errorlevel 1 set "COMPILATION_FAILED=1"
-)
-
-if %COMPILATION_FAILED% == 1 goto finalizar
-
 echo.
-echo ============================================
-echo  2. Generando Modulos Objeto Individuales (.o)
-echo ============================================
-cd /d "%MAINLINE_DIR%"
 
-for %%g in (*.cob *.cbl) do (
-    echo Compilando modulo aislado: %%g ...
-    "%COBC%" -c -I "%COPIES_DIR%" "%%g"
-    if errorlevel 1 set "COMPILATION_FAILED=1"
-)
+%COBC% -x -free -I "%ROOT%\src\copies" ^
+    "%ROOT%\src\mainline\BANCSMENU.cob" ^
+    "%ROOT%\src\mainline\CI0000.cbl" ^
+    "%ROOT%\src\mainline\IN0000.cbl" ^
+    "%ROOT%\src\mainline\TC0000.cbl" ^
+    "%ROOT%\src\mainline\BR0000.cbl" ^
+    "%ROOT%\src\mainline\DBIOCUSM.cob" ^
+    "%ROOT%\src\mainline\DBIOINVM.cob" ^
+    "%ROOT%\src\mainline\DBIOTARJ.cob" ^
+    "%ROOT%\src\mainline\DBIOBORM.cob" ^
+    "%ROOT%\src\mainline\DBIOTRAN.cob" ^
+    -o "%ROOT%\bin\BANCSMENU.exe"
 
-if %COMPILATION_FAILED% == 1 goto finalizar
-
-echo.
-echo ============================================
-echo  3. Enlazando Binarios Core (Linkage Phase)
-echo ============================================
-
-:: CORRECCIÓN: Se añade tkin_dda.o al final de la cadena de objetos enlazados
-echo Enlazando BANCSMENU.exe (Interfaz Core Online)...
-"%COBC%" -x -v -o "%BIN_DIR%\BANCSMENU.exe" ^
-    BANCSMENU.cob ^
-    TFFILE.o CI0000.o IN0000.o TC0000.o BR0000.o ^
-    DBIOCUSM.o DBIOINVM.o DBIOTARJ.o DBIOBORM.o DBIOTRAN.o ^
-    BNCR004.o TFMX.o RRD000.o XXXREP.o TFTRCT.o TFBATFIN.o tkin01.o tkin_dda.o ^
-    -L "%COBOL_LIBS_ESQL%" -locsql
-if errorlevel 1 set "COMPILATION_FAILED=1"
-
-echo Enlazando TFDRMAIN.exe (Orquestador Batch)...
-"%COBC%" -x -v -o "%BIN_DIR%\TFDRMAIN.exe" ^
-    TFDRMAIN.cob ^
-    TFFILE.o BNCR004.o TFMX.o RRD000.o XXXREP.o ^
-    TFTRCT.o TFBATFIN.o tkin01.o tkin_dda.o DBIOCUSM.o DBIOINVM.o DBIOTARJ.o ^
-    IN0000.o BR0000.o DBIOBORM.o DBIOTRAN.o ^
-    -L "%COBOL_LIBS_ESQL%" -locsql
-if errorlevel 1 set "COMPILATION_FAILED=1"
-
-echo Enlazando TFDRFILE.exe (Lanzador Driver + Ingesta)...
-"%COBC%" -x -v -o "%BIN_DIR%\TFDRFILE.exe" ^
-    TFDRFILE.cob ^
-    TFFILE.o BNCR004.o ^
-    -L "%COBOL_LIBS_ESQL%" -locsql
-if errorlevel 1 set "COMPILATION_FAILED=1"
-
-echo.
-echo Limpiando archivos objeto temporales...
-del *.o > nul 2>&1
-
-:finalizar
-echo.
-echo ============================================
-echo  VERIFICACION FINAL DEL ENTRAMADO BATCH
-echo ============================================
-
-if %COMPILATION_FAILED% == 0 (
+if %ERRORLEVEL% == 0 (
     echo.
-    echo [OK] EXITO: Todos los ejecutables financieros generados en /bin
-    echo       - BANCSMENU.exe (Online Menu Core)
-    echo       - TFDRMAIN.exe  (Stage 2: Orchestrator Engine)
-    echo       - TFDRFILE.exe  (Stage 1: Ingestion Engine)
+    echo Compilacion exitosa: %ROOT%\bin\BANCSMENU.exe
 ) else (
     echo.
-    echo [X] ERROR CRITICO: Fallo la compilacion de uno o mas modulos.
-    echo     Por favor, revise las lineas de error del compilador mas arriba.
+    echo ERROR: La compilacion fallo. Revisa los mensajes anteriores.
 )
 
 pause

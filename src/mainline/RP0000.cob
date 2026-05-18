@@ -1,8 +1,7 @@
       *================================================================*
-      * PROGRAMA : RP0000.sqb                                         *
+      * PROGRAMA : RP0000.sqb (precompilado a RP0000.cob)             *
       * FUNCION  : MODULO DE REPORTES GERENCIALES                     *
       * LLAMADO  : BANCSMENU (OPCION 6)                               *
-      * PRECOMP  : esqlOC RP0000.sqb  ->  RP0000.cob                  *
       *================================================================*
        IDENTIFICATION DIVISION.
        PROGRAM-ID. RP0000.
@@ -11,31 +10,32 @@
        INPUT-OUTPUT SECTION.
        FILE-CONTROL.
            SELECT FS-CLIENTES  ASSIGN TO WS-NOM-CLIENTES
-               ORGANIZATION IS LINE SEQUENTIAL.
+               ORGANIZATION IS LINE SEQUENTIAL
+               FILE STATUS IS WS-FS-STATUS.
            SELECT FS-HIPOTECAS ASSIGN TO WS-NOM-HIPOTECAS
-               ORGANIZATION IS LINE SEQUENTIAL.
+               ORGANIZATION IS LINE SEQUENTIAL
+               FILE STATUS IS WS-FS-STATUS.
            SELECT FS-TARJETAS  ASSIGN TO WS-NOM-TARJETAS
-               ORGANIZATION IS LINE SEQUENTIAL.
+               ORGANIZATION IS LINE SEQUENTIAL
+               FILE STATUS IS WS-FS-STATUS.
            SELECT FS-CUENTAS   ASSIGN TO WS-NOM-CUENTAS
-               ORGANIZATION IS LINE SEQUENTIAL.
+               ORGANIZATION IS LINE SEQUENTIAL
+               FILE STATUS IS WS-FS-STATUS.
            SELECT FS-GENERAL   ASSIGN TO WS-NOM-GENERAL
-               ORGANIZATION IS LINE SEQUENTIAL.
+               ORGANIZATION IS LINE SEQUENTIAL
+               FILE STATUS IS WS-FS-STATUS.
 
        DATA DIVISION.
        FILE SECTION.
 
        FD  FS-CLIENTES.
        01  FS-REG-CLIENTES         PIC X(132).
-
        FD  FS-HIPOTECAS.
        01  FS-REG-HIPOTECAS        PIC X(132).
-
        FD  FS-TARJETAS.
        01  FS-REG-TARJETAS         PIC X(132).
-
        FD  FS-CUENTAS.
        01  FS-REG-CUENTAS          PIC X(132).
-
        FD  FS-GENERAL.
        01  FS-REG-GENERAL          PIC X(132).
 
@@ -184,7 +184,7 @@
            05 SQL-HCONN USAGE POINTER VALUE NULL.
 
       *================================================================*
-      *   DECLARE SECTION - VARIABLES HOST SQL                        *
+      *   VARIABLES HOST SQL                                           *
       *================================================================*
       *    EXEC SQL BEGIN DECLARE SECTION END-EXEC.
 
@@ -192,7 +192,6 @@
        01  WS-PERIODO-DEF          PIC X(6).
        01  WS-ANIO-MES-LIKE        PIC X(9).
 
-      *    Variables host - AUDIT_MAESTRA
        01  WS-HOST-MAESTRA.
            05 HV-ID-CLIENTE        PIC 9(8).
            05 HV-NOMBRE            PIC X(25).
@@ -204,7 +203,6 @@
            05 HV-IMPORTE-MOV       PIC S9(10)V99.
            05 HV-CTA-ACTIVA        PIC 9(1).
 
-      *    Variables host - AUDIT_TARJETAS
        01  WS-HOST-TARJETAS.
            05 HV-TARJ-ID-CLI       PIC 9(8).
            05 HV-TARJ-NOMBRE       PIC X(25).
@@ -214,7 +212,6 @@
            05 HV-TARJ-LIQUID       PIC S9(10)V99.
            05 HV-TARJ-ESTADO       PIC X(1).
 
-      *    Variables host - AUDIT_HIPOTECAS
        01  WS-HOST-HIPOTECAS.
            05 HV-HIPO-ID-HIPO      PIC 9(9).
            05 HV-HIPO-ID-CLI       PIC 9(8).
@@ -224,7 +221,6 @@
            05 HV-HIPO-TASA         PIC S9(3)V9999.
            05 HV-HIPO-ESTADO       PIC X(20).
 
-      *    Variables host - REPORTE GENERAL
        01  WS-HOST-GENERAL.
            05 HV-GEN-ID-CLI        PIC 9(8).
            05 HV-GEN-NOMBRE        PIC X(25).
@@ -242,7 +238,7 @@
       *    EXEC SQL END DECLARE SECTION END-EXEC.
 
       *================================================================*
-      *   DECLARACION DE CURSORES                                      *
+      *   CURSORES                                                     *
       *================================================================*
 
       *    EXEC SQL DECLARE CUR-CLIENTES CURSOR FOR
@@ -322,7 +318,7 @@
       *    END-EXEC.
 
       *================================================================*
-      *   WORKING STORAGE - CONTROL INTERNO                            *
+      *   CONTROL INTERNO                                              *
       *================================================================*
        01  WS-FECHA-SISTEMA.
            05 WS-ANIO              PIC X(4).
@@ -338,8 +334,15 @@
 
        01  WS-ULTIMO-ID-CLI        PIC 9(8) VALUE 0.
 
+       01  WS-NOM-CLIENTES         PIC X(80).
+       01  WS-NOM-HIPOTECAS        PIC X(80).
+       01  WS-NOM-TARJETAS         PIC X(80).
+       01  WS-NOM-CUENTAS          PIC X(80).
+       01  WS-NOM-GENERAL          PIC X(80).
+       01  WS-PAUSA                PIC X(1).
+
       *================================================================*
-      *   CONTADORES POR REPORTE                                       *
+      *   CONTADORES                                                   *
       *================================================================*
        01  WS-CONTADORES.
            05 WS-CTR-CLIENTES-NVO  PIC 9(6) VALUE 0.
@@ -353,11 +356,15 @@
            05 WS-CTR-GEN-TARJETAS  PIC 9(6) VALUE 0.
            05 WS-CTR-GEN-HIPOTECAS PIC 9(6) VALUE 0.
 
-       01  WS-NOM-CLIENTES         PIC X(30).
-       01  WS-NOM-HIPOTECAS        PIC X(30).
-       01  WS-NOM-TARJETAS         PIC X(30).
-       01  WS-NOM-CUENTAS          PIC X(30).
-       01  WS-NOM-GENERAL          PIC X(30).
+      *================================================================*
+      *   WORKING STORAGE - LOG A ARCHIVO                              *
+      *================================================================*
+       01  WS-LOG-LINE             PIC X(200).
+       01  WS-MODULO-LOG           PIC X(03) VALUE 'RPT'.
+       01  WS-CLS-CMD              PIC X(04) VALUE 'cls'.
+       01  WS-AUX-LOG-CTR          PIC 9(6).
+       01  WS-FS-STATUS            PIC X(02) VALUE '00'.
+       01  WS-FS-OK                PIC X    VALUE 'S'.
 
       *================================================================*
       *   FORMATO DE REPORTE                                           *
@@ -457,26 +464,24 @@
       *================================================================*
        PROCEDURE DIVISION USING LK-DATOS-TRANSACCION.
 
-               0000-PRINCIPAL.
-       MOVE 0      TO LK-COD-RETORNO
-        MOVE SPACES TO LK-MENSAJE
-
-        PERFORM 1000-INICIALIZAR
-        IF WS-ABORT = 'N'
-        PERFORM 2000-VALIDAR-PERIODO
-       END-IF
-        IF WS-ABORT = 'N'
-        PERFORM 3000-MENU-REPORTES
-       END-IF
-
-       EXIT PROGRAM.
+       0000-PRINCIPAL.
+           MOVE 0      TO LK-COD-RETORNO
+           MOVE SPACES TO LK-MENSAJE
+           PERFORM 1000-INICIALIZAR
+           IF WS-ABORT = 'N'
+               PERFORM 2000-VALIDAR-PERIODO
+           END-IF
+           IF WS-ABORT = 'N'
+               PERFORM 3000-MENU-REPORTES
+           END-IF
+           EXIT PROGRAM.
 
       *================================================================*
       *   1000 - INICIALIZAR                                           *
       *================================================================*
        1000-INICIALIZAR.
+           PERFORM 9900-LIMPIAR-PANTALLA
            MOVE FUNCTION CURRENT-DATE TO WS-FECHA-SISTEMA
-
       *    EXEC SQL
       *        SELECT MAX(PERIODO)
       *        INTO   :WS-PERIODO-DEF
@@ -495,26 +500,16 @@
            END-IF
            CALL 'OCSQLEXE' USING SQL-STMT-5
                                SQLCA
-
            IF SQLCODE NOT = 0 OR WS-PERIODO-DEF = SPACES
                MOVE '000000' TO WS-PERIODO-DEF
            END-IF
-
            DISPLAY ' ULTIMO PERIODO: ' WS-PERIODO-DEF
-           DISPLAY ' INGRESE PERIODO (YYYYMM)'
-           DISPLAY ' O ENTER PARA DEFAULT: '
+           DISPLAY ' INGRESE PERIODO (YYYYMM) O ENTER PARA DEFAULT:'
            ACCEPT WS-PERIODO
-
            IF WS-PERIODO = SPACES
                MOVE WS-PERIODO-DEF TO WS-PERIODO
            END-IF
-
            DISPLAY ' PERIODO: ' WS-PERIODO
-
-           PERFORM 1100-ARMAR-FILTRO-LIKE.
-
-      *    Armar filtro LIKE para clientes nuevos (YYYY-MM-%)
-
            PERFORM 1100-ARMAR-FILTRO-LIKE.
 
        1100-ARMAR-FILTRO-LIKE.
@@ -532,7 +527,6 @@
       *================================================================*
        2000-VALIDAR-PERIODO.
            MOVE 0 TO HV-IND-COUNT
-
       *    EXEC SQL
       *        SELECT COUNT(*)
       *        INTO   :HV-IND-COUNT
@@ -558,12 +552,13 @@
            CALL 'OCSQLEXE' USING SQL-STMT-6
                                SQLCA
            MOVE SQL-VAR-0020 TO HV-IND-COUNT
-
            PERFORM 9000-EVALUAR-SQL
-
            IF LK-COD-RETORNO = 99
-               DISPLAY 'ERROR AL VERIFICAR PERIODO: ' SQLCODE
+               MOVE 'ERROR AL VERIFICAR PERIODO' TO LK-MENSAJE
                MOVE 'S' TO WS-ABORT
+               MOVE 'ERROR SQL AL VERIFICAR PERIODO'
+                   TO WS-LOG-LINE
+               PERFORM 9200-LOG-WRITE
            ELSE
                IF HV-IND-COUNT = 0
                    DISPLAY 'PERIODO ' WS-PERIODO
@@ -573,6 +568,21 @@
                    MOVE 'PERIODO NO ENCONTRADO EN AUDITORIA'
                        TO LK-MENSAJE
                    MOVE 'S' TO WS-ABORT
+                   MOVE SPACES TO WS-LOG-LINE
+                   STRING 'PERIODO NO ENCONTRADO: '
+                              DELIMITED BY SIZE
+                          WS-PERIODO
+                              DELIMITED BY SIZE
+                       INTO WS-LOG-LINE
+                   PERFORM 9200-LOG-WRITE
+               ELSE
+                   MOVE SPACES TO WS-LOG-LINE
+                   STRING '>>> INGRESO A REPORTES - PERIODO: '
+                              DELIMITED BY SIZE
+                          WS-PERIODO
+                              DELIMITED BY SIZE
+                       INTO WS-LOG-LINE
+                   PERFORM 9200-LOG-WRITE
                END-IF
            END-IF.
 
@@ -581,11 +591,10 @@
       *================================================================*
        3000-MENU-REPORTES.
            PERFORM UNTIL WS-CONTINUAR = 'N'
+               PERFORM 9900-LIMPIAR-PANTALLA
                DISPLAY '================================'
                DISPLAY ' RP0000 - REPORTES GERENCIALES'
-               DISPLAY '================================'
-               DISPLAY '================================'
-               DISPLAY ' REPORTES - PERIODO: ' WS-PERIODO
+               DISPLAY ' PERIODO: ' WS-PERIODO
                DISPLAY '================================'
                DISPLAY '1. Reporte Clientes Nuevos'
                DISPLAY '2. Reporte Hipotecas'
@@ -595,54 +604,57 @@
                DISPLAY '0. Volver al Menu Principal'
                DISPLAY '================================'
                ACCEPT WS-OPCION
-
                EVALUATE WS-OPCION
-                   WHEN 1
-                       PERFORM 4000-RPT-CLIENTES
-                   WHEN 2
-                       PERFORM 5000-RPT-HIPOTECAS
-                   WHEN 3
-                       PERFORM 6000-RPT-TARJETAS
-                   WHEN 4
-                       PERFORM 7000-RPT-CUENTAS
-                   WHEN 5
-                       PERFORM 8000-RPT-GENERAL
-                   WHEN 0
-                       MOVE 'N' TO WS-CONTINUAR
-                   WHEN OTHER
-                       DISPLAY 'OPCION INVALIDA.'
+                   WHEN 1  PERFORM 4000-RPT-CLIENTES
+                   WHEN 2  PERFORM 5000-RPT-HIPOTECAS
+                   WHEN 3  PERFORM 6000-RPT-TARJETAS
+                   WHEN 4  PERFORM 7000-RPT-CUENTAS
+                   WHEN 5  PERFORM 8000-RPT-GENERAL
+                   WHEN 0  MOVE 'N' TO WS-CONTINUAR
+                   WHEN OTHER DISPLAY 'OPCION INVALIDA.'
                END-EVALUATE
-
            END-PERFORM.
+
+      *================================================================*
+      *   9100 - ABRIR CURSOR GENERICO (verifica SQLCODE)             *
+      *================================================================*
+       9100-VERIFICAR-OPEN.
+           IF SQLCODE NOT = 0
+               MOVE 'S' TO WS-FIN-CURSOR
+           ELSE
+               MOVE 'N' TO WS-FIN-CURSOR
+           END-IF.
 
       *================================================================*
       *   4000 - REPORTE CLIENTES NUEVOS                              *
       *================================================================*
        4000-RPT-CLIENTES.
            MOVE ZERO TO WS-CTR-CLIENTES-NVO
-
-
+           MOVE '>>> INICIO REPORTE CLIENTES NUEVOS'
+               TO WS-LOG-LINE
+           PERFORM 9200-LOG-WRITE
            PERFORM 1100-ARMAR-FILTRO-LIKE
-
-           STRING 'RPT_CLIENTES_' DELIMITED SIZE
-                  WS-PERIODO      DELIMITED SIZE
-                  '.DAT'          DELIMITED SIZE
+           STRING '../docs/reporteria/RPT_CLIENTES_' DELIMITED SIZE
+                  WS-PERIODO                       DELIMITED SIZE
+                  '.DAT'                           DELIMITED SIZE
                   INTO WS-NOM-CLIENTES
            END-STRING
-
            OPEN OUTPUT FS-CLIENTES
-
+           PERFORM 9300-VERIFICAR-FS
+           IF WS-FS-OK = 'N'
+               MOVE 'ERROR ABRIENDO ARCHIVO CLIENTES'
+                   TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF
            MOVE 'REPORTE CLIENTES NUEVOS - PERIODO: '
                TO RP-TIT-TEXT
            WRITE FS-REG-CLIENTES FROM RP-TITULO
            WRITE FS-REG-CLIENTES FROM RP-BLANK
-
            MOVE 'ID       NOMBRE                   '
              & 'APELLIDO                  FECHA-ALTA SALDO'
                TO RP-HEADER
            WRITE FS-REG-CLIENTES FROM RP-HEADER
            WRITE FS-REG-CLIENTES FROM RP-SEPAR
-
       *    EXEC SQL OPEN CUR-CLIENTES END-EXEC
            IF SQL-PREP OF SQL-STMT-0 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -661,15 +673,12 @@
            CALL 'OCSQLOCU' USING SQL-STMT-0
                                SQLCA
            END-CALL
-
-           IF SQLCODE NOT = 0
-               DISPLAY 'ERROR ABRIENDO CUR-CLIENTES: ' SQLCODE
+           PERFORM 9100-VERIFICAR-OPEN
+           IF WS-FIN-CURSOR = 'S'
+               MOVE 'ERROR ABRIENDO CUR-CLIENTES' TO LK-MENSAJE
                CLOSE FS-CLIENTES
                EXIT PARAGRAPH
            END-IF
-
-           MOVE 'N' TO WS-FIN-CURSOR
-
            PERFORM UNTIL WS-FIN-CURSOR = 'S'
       *        EXEC SQL
       *            FETCH CUR-CLIENTES INTO
@@ -707,7 +716,6 @@
                                SQLCA
            MOVE SQL-VAR-0001 TO HV-ID-CLIENTE
            MOVE SQL-VAR-0002 TO HV-SALDO-CLI
-
                EVALUATE SQLCODE
                    WHEN 0
                        MOVE HV-ID-CLIENTE   TO WS-DC-ID
@@ -715,62 +723,69 @@
                        MOVE HV-APELLIDOS    TO WS-DC-APELLIDO
                        MOVE HV-FECHA-ALTA   TO WS-DC-FECHA-ALTA
                        MOVE HV-SALDO-CLI    TO WS-DC-SALDO
-                       MOVE WS-DET-CLIENTES TO FS-REG-CLIENTES
-                       WRITE FS-REG-CLIENTES
+                       WRITE FS-REG-CLIENTES FROM WS-DET-CLIENTES
                        ADD 1 TO WS-CTR-CLIENTES-NVO
                    WHEN 100
                        MOVE 'S' TO WS-FIN-CURSOR
                    WHEN OTHER
-                       DISPLAY 'ERROR FETCH CUR-CLIENTES: ' SQLCODE
+                       MOVE 'ERROR FETCH CUR-CLIENTES' TO LK-MENSAJE
                        MOVE 'S' TO WS-FIN-CURSOR
                END-EVALUATE
            END-PERFORM
-
       *    EXEC SQL CLOSE CUR-CLIENTES END-EXEC
            CALL 'OCSQLCCU' USING SQL-STMT-0
                                SQLCA
-
            WRITE FS-REG-CLIENTES FROM RP-SEPAR
            MOVE SPACES TO RP-INDIC
-           STRING '  CLIENTES NUEVOS DEL PERIODO: '
-                  DELIMITED SIZE
-                  WS-CTR-CLIENTES-NVO DELIMITED SIZE
+           STRING '  CLIENTES NUEVOS DEL PERIODO: ' DELIMITED SIZE
+                  WS-CTR-CLIENTES-NVO               DELIMITED SIZE
                   INTO RP-INDIC
            END-STRING
            WRITE FS-REG-CLIENTES FROM RP-INDIC
-
            CLOSE FS-CLIENTES
-           DISPLAY ' REPORTE GENERADO: ' WS-NOM-CLIENTES
+           MOVE WS-CTR-CLIENTES-NVO TO WS-AUX-LOG-CTR
+           MOVE SPACES TO WS-LOG-LINE
+           STRING ' RPT CLIENTES - REGISTROS: '
+                      DELIMITED BY SIZE
+                  WS-AUX-LOG-CTR
+                      DELIMITED BY SIZE
+               INTO WS-LOG-LINE
+           PERFORM 9200-LOG-WRITE
+           DISPLAY 'REPORTE CLIENTES GENERADO. PRESIONE ENTER.'
+           ACCEPT WS-PAUSA
+           PERFORM 9900-LIMPIAR-PANTALLA
            MOVE 0 TO LK-COD-RETORNO
-           MOVE 'REPORTE CLIENTES GENERADO EXITOSAMENTE'
-               TO LK-MENSAJE.
+           MOVE 'REPORTE CLIENTES GENERADO EXITOSAMENTE' TO LK-MENSAJE.
 
       *================================================================*
       *   5000 - REPORTE HIPOTECAS                                     *
       *================================================================*
        5000-RPT-HIPOTECAS.
            MOVE ZERO TO WS-CTR-HIPOTECAS
+           MOVE '>>> INICIO REPORTE HIPOTECAS'
+               TO WS-LOG-LINE
+           PERFORM 9200-LOG-WRITE
            MOVE ZERO TO WS-SUM-SALDO-HIPO
-
-           STRING 'RPT_HIPOTECAS_' DELIMITED SIZE
-                  WS-PERIODO       DELIMITED SIZE
-                  '.DAT'           DELIMITED SIZE
+           STRING '../docs/reporteria/RPT_HIPOTECAS_' DELIMITED SIZE
+                  WS-PERIODO                        DELIMITED SIZE
+                  '.DAT'                            DELIMITED SIZE
                   INTO WS-NOM-HIPOTECAS
            END-STRING
-
            OPEN OUTPUT FS-HIPOTECAS
-
-           MOVE 'REPORTE HIPOTECAS - PERIODO: '
-               TO RP-TIT-TEXT
+           PERFORM 9300-VERIFICAR-FS
+           IF WS-FS-OK = 'N'
+               MOVE 'ERROR ABRIENDO ARCHIVO HIPOTECAS'
+                   TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF
+           MOVE 'REPORTE HIPOTECAS - PERIODO: ' TO RP-TIT-TEXT
            WRITE FS-REG-HIPOTECAS FROM RP-TITULO
            WRITE FS-REG-HIPOTECAS FROM RP-BLANK
-
            MOVE 'ID-HIPOT  ID-CLI   NOMBRE                   '
              & 'MONTO-ORIG       SALDO-ACT        TASA    ESTADO'
                TO RP-HEADER
            WRITE FS-REG-HIPOTECAS FROM RP-HEADER
            WRITE FS-REG-HIPOTECAS FROM RP-SEPAR
-
       *    EXEC SQL OPEN CUR-HIPOTECAS END-EXEC
            IF SQL-PREP OF SQL-STMT-1 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -785,15 +800,12 @@
            CALL 'OCSQLOCU' USING SQL-STMT-1
                                SQLCA
            END-CALL
-
-           IF SQLCODE NOT = 0
-               DISPLAY 'ERROR ABRIENDO CUR-HIPOTECAS: ' SQLCODE
+           PERFORM 9100-VERIFICAR-OPEN
+           IF WS-FIN-CURSOR = 'S'
+               MOVE 'ERROR ABRIENDO CUR-HIPOTECAS' TO LK-MENSAJE
                CLOSE FS-HIPOTECAS
                EXIT PARAGRAPH
            END-IF
-
-           MOVE 'N' TO WS-FIN-CURSOR
-
            PERFORM UNTIL WS-FIN-CURSOR = 'S'
       *        EXEC SQL
       *            FETCH CUR-HIPOTECAS INTO
@@ -847,7 +859,6 @@
            MOVE SQL-VAR-0013 TO HV-HIPO-MONTO-ORIG
            MOVE SQL-VAR-0014 TO HV-HIPO-SALDO
            MOVE SQL-VAR-0015 TO HV-HIPO-TASA
-
                EVALUATE SQLCODE
                    WHEN 0
                        MOVE HV-HIPO-ID-HIPO    TO WS-DH-ID-HIPO
@@ -857,22 +868,19 @@
                        MOVE HV-HIPO-SALDO      TO WS-DH-SALDO
                        MOVE HV-HIPO-TASA       TO WS-DH-TASA
                        MOVE HV-HIPO-ESTADO     TO WS-DH-ESTADO
-                       MOVE WS-DET-HIPOTECAS   TO FS-REG-HIPOTECAS
-                       WRITE FS-REG-HIPOTECAS
+                       WRITE FS-REG-HIPOTECAS FROM WS-DET-HIPOTECAS
                        ADD 1             TO WS-CTR-HIPOTECAS
                        ADD HV-HIPO-SALDO TO WS-SUM-SALDO-HIPO
                    WHEN 100
                        MOVE 'S' TO WS-FIN-CURSOR
                    WHEN OTHER
-                       DISPLAY 'ERROR FETCH CUR-HIPOTECAS: ' SQLCODE
+                       MOVE 'ERROR FETCH CUR-HIPOTECAS' TO LK-MENSAJE
                        MOVE 'S' TO WS-FIN-CURSOR
                END-EVALUATE
            END-PERFORM
-
       *    EXEC SQL CLOSE CUR-HIPOTECAS END-EXEC
            CALL 'OCSQLCCU' USING SQL-STMT-1
                                SQLCA
-
            WRITE FS-REG-HIPOTECAS FROM RP-SEPAR
            MOVE SPACES TO RP-INDIC
            STRING '  TOTAL HIPOTECAS: '  DELIMITED SIZE
@@ -882,9 +890,18 @@
                   INTO RP-INDIC
            END-STRING
            WRITE FS-REG-HIPOTECAS FROM RP-INDIC
-
            CLOSE FS-HIPOTECAS
-           DISPLAY ' REPORTE GENERADO: ' WS-NOM-HIPOTECAS
+           MOVE WS-CTR-HIPOTECAS TO WS-AUX-LOG-CTR
+           MOVE SPACES TO WS-LOG-LINE
+           STRING ' RPT HIPOTECAS - REGISTROS: '
+                      DELIMITED BY SIZE
+                  WS-AUX-LOG-CTR
+                      DELIMITED BY SIZE
+               INTO WS-LOG-LINE
+           PERFORM 9200-LOG-WRITE
+           DISPLAY 'REPORTE HIPOTECAS GENERADO. PRESIONE ENTER.'
+           ACCEPT WS-PAUSA
+           PERFORM 9900-LIMPIAR-PANTALLA
            MOVE 0 TO LK-COD-RETORNO
            MOVE 'REPORTE HIPOTECAS GENERADO EXITOSAMENTE'
                TO LK-MENSAJE.
@@ -895,26 +912,29 @@
        6000-RPT-TARJETAS.
            MOVE ZERO TO WS-CTR-TARJETAS
            MOVE ZERO TO WS-SUM-ACUM-TARJ
-
-           STRING 'RPT_TARJETAS_' DELIMITED SIZE
-                  WS-PERIODO      DELIMITED SIZE
-                  '.DAT'          DELIMITED SIZE
+           MOVE '>>> INICIO REPORTE TARJETAS'
+               TO WS-LOG-LINE
+           PERFORM 9200-LOG-WRITE
+           STRING '../docs/reporteria/RPT_TARJETAS_' DELIMITED SIZE
+                  WS-PERIODO                       DELIMITED SIZE
+                  '.DAT'                           DELIMITED SIZE
                   INTO WS-NOM-TARJETAS
            END-STRING
-
            OPEN OUTPUT FS-TARJETAS
-
-           MOVE 'REPORTE TARJETAS - PERIODO: '
-               TO RP-TIT-TEXT
+           PERFORM 9300-VERIFICAR-FS
+           IF WS-FS-OK = 'N'
+               MOVE 'ERROR ABRIENDO ARCHIVO TARJETAS'
+                   TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF
+           MOVE 'REPORTE TARJETAS - PERIODO: ' TO RP-TIT-TEXT
            WRITE FS-REG-TARJETAS FROM RP-TITULO
            WRITE FS-REG-TARJETAS FROM RP-BLANK
-
            MOVE 'ID-CLI   NOMBRE                   NRO-TARJETA'
              & '     LIMITE       ACUM-MES     LIQUIDACION  E'
                TO RP-HEADER
            WRITE FS-REG-TARJETAS FROM RP-HEADER
            WRITE FS-REG-TARJETAS FROM RP-SEPAR
-
       *    EXEC SQL OPEN CUR-TARJETAS END-EXEC
            IF SQL-PREP OF SQL-STMT-2 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -929,15 +949,12 @@
            CALL 'OCSQLOCU' USING SQL-STMT-2
                                SQLCA
            END-CALL
-
-           IF SQLCODE NOT = 0
-               DISPLAY 'ERROR ABRIENDO CUR-TARJETAS: ' SQLCODE
+           PERFORM 9100-VERIFICAR-OPEN
+           IF WS-FIN-CURSOR = 'S'
+               MOVE 'ERROR ABRIENDO CUR-TARJETAS' TO LK-MENSAJE
                CLOSE FS-TARJETAS
                EXIT PARAGRAPH
            END-IF
-
-           MOVE 'N' TO WS-FIN-CURSOR
-
            PERFORM UNTIL WS-FIN-CURSOR = 'S'
       *        EXEC SQL
       *            FETCH CUR-TARJETAS INTO
@@ -989,7 +1006,6 @@
            MOVE SQL-VAR-0008 TO HV-TARJ-LIMITE
            MOVE SQL-VAR-0009 TO HV-TARJ-ACUM
            MOVE SQL-VAR-0010 TO HV-TARJ-LIQUID
-
                EVALUATE SQLCODE
                    WHEN 0
                        MOVE HV-TARJ-ID-CLI  TO WS-DT-ID-CLI
@@ -999,22 +1015,19 @@
                        MOVE HV-TARJ-ACUM    TO WS-DT-ACUM
                        MOVE HV-TARJ-LIQUID  TO WS-DT-LIQUID
                        MOVE HV-TARJ-ESTADO  TO WS-DT-ESTADO
-                       MOVE WS-DET-TARJETAS TO FS-REG-TARJETAS
-                       WRITE FS-REG-TARJETAS
+                       WRITE FS-REG-TARJETAS FROM WS-DET-TARJETAS
                        ADD 1            TO WS-CTR-TARJETAS
                        ADD HV-TARJ-ACUM TO WS-SUM-ACUM-TARJ
                    WHEN 100
                        MOVE 'S' TO WS-FIN-CURSOR
                    WHEN OTHER
-                       DISPLAY 'ERROR FETCH CUR-TARJETAS: ' SQLCODE
+                       MOVE 'ERROR FETCH CUR-TARJETAS' TO LK-MENSAJE
                        MOVE 'S' TO WS-FIN-CURSOR
                END-EVALUATE
            END-PERFORM
-
       *    EXEC SQL CLOSE CUR-TARJETAS END-EXEC
            CALL 'OCSQLCCU' USING SQL-STMT-2
                                SQLCA
-
            WRITE FS-REG-TARJETAS FROM RP-SEPAR
            MOVE SPACES TO RP-INDIC
            STRING '  TOTAL TARJETAS: '   DELIMITED SIZE
@@ -1024,9 +1037,18 @@
                   INTO RP-INDIC
            END-STRING
            WRITE FS-REG-TARJETAS FROM RP-INDIC
-
            CLOSE FS-TARJETAS
-           DISPLAY ' REPORTE GENERADO: ' WS-NOM-TARJETAS
+           MOVE WS-CTR-TARJETAS TO WS-AUX-LOG-CTR
+           MOVE SPACES TO WS-LOG-LINE
+           STRING ' RPT TARJETAS - REGISTROS: '
+                      DELIMITED BY SIZE
+                  WS-AUX-LOG-CTR
+                      DELIMITED BY SIZE
+               INTO WS-LOG-LINE
+           PERFORM 9200-LOG-WRITE
+           DISPLAY 'REPORTE TARJETAS GENERADO. PRESIONE ENTER.'
+           ACCEPT WS-PAUSA
+           PERFORM 9900-LIMPIAR-PANTALLA
            MOVE 0 TO LK-COD-RETORNO
            MOVE 'REPORTE TARJETAS GENERADO EXITOSAMENTE'
                TO LK-MENSAJE.
@@ -1037,26 +1059,30 @@
        7000-RPT-CUENTAS.
            MOVE ZERO TO WS-CTR-CUENTAS
            MOVE ZERO TO WS-SUM-SALDO-CTA
-
-           STRING 'RPT_CUENTAS_' DELIMITED SIZE
-                  WS-PERIODO     DELIMITED SIZE
-                  '.DAT'         DELIMITED SIZE
+           MOVE '>>> INICIO REPORTE CUENTAS CORRIENTES'
+               TO WS-LOG-LINE
+           PERFORM 9200-LOG-WRITE
+           STRING '../docs/reporteria/RPT_CUENTAS_' DELIMITED SIZE
+                  WS-PERIODO                      DELIMITED SIZE
+                  '.DAT'                          DELIMITED SIZE
                   INTO WS-NOM-CUENTAS
            END-STRING
-
            OPEN OUTPUT FS-CUENTAS
-
+           PERFORM 9300-VERIFICAR-FS
+           IF WS-FS-OK = 'N'
+               MOVE 'ERROR ABRIENDO ARCHIVO CUENTAS'
+                   TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF
            MOVE 'REPORTE CUENTAS CORRIENTES - PERIODO: '
                TO RP-TIT-TEXT
            WRITE FS-REG-CUENTAS FROM RP-TITULO
            WRITE FS-REG-CUENTAS FROM RP-BLANK
-
            MOVE 'ID-CLI   NOMBRE                   APELLIDO'
              & '                 SALDO-CTA    COD IMPORTE-MOV'
                TO RP-HEADER
            WRITE FS-REG-CUENTAS FROM RP-HEADER
            WRITE FS-REG-CUENTAS FROM RP-SEPAR
-
       *    EXEC SQL OPEN CUR-CUENTAS END-EXEC
            IF SQL-PREP OF SQL-STMT-3 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -1071,15 +1097,12 @@
            CALL 'OCSQLOCU' USING SQL-STMT-3
                                SQLCA
            END-CALL
-
-           IF SQLCODE NOT = 0
-               DISPLAY 'ERROR ABRIENDO CUR-CUENTAS: ' SQLCODE
+           PERFORM 9100-VERIFICAR-OPEN
+           IF WS-FIN-CURSOR = 'S'
+               MOVE 'ERROR ABRIENDO CUR-CUENTAS' TO LK-MENSAJE
                CLOSE FS-CUENTAS
                EXIT PARAGRAPH
            END-IF
-
-           MOVE 'N' TO WS-FIN-CURSOR
-
            PERFORM UNTIL WS-FIN-CURSOR = 'S'
       *        EXEC SQL
       *            FETCH CUR-CUENTAS INTO
@@ -1126,7 +1149,6 @@
            MOVE SQL-VAR-0003 TO HV-SALDO-CTA
            MOVE SQL-VAR-0004 TO HV-COD-ULT-MOV
            MOVE SQL-VAR-0005 TO HV-IMPORTE-MOV
-
                EVALUATE SQLCODE
                    WHEN 0
                        MOVE HV-ID-CLIENTE   TO WS-DCU-ID
@@ -1135,22 +1157,19 @@
                        MOVE HV-SALDO-CTA    TO WS-DCU-SALDO
                        MOVE HV-COD-ULT-MOV  TO WS-DCU-COD-MOV
                        MOVE HV-IMPORTE-MOV  TO WS-DCU-IMPORTE
-                       MOVE WS-DET-CUENTAS  TO FS-REG-CUENTAS
-                       WRITE FS-REG-CUENTAS
+                       WRITE FS-REG-CUENTAS FROM WS-DET-CUENTAS
                        ADD 1            TO WS-CTR-CUENTAS
                        ADD HV-SALDO-CTA TO WS-SUM-SALDO-CTA
                    WHEN 100
                        MOVE 'S' TO WS-FIN-CURSOR
                    WHEN OTHER
-                       DISPLAY 'ERROR FETCH CUR-CUENTAS: ' SQLCODE
+                       MOVE 'ERROR FETCH CUR-CUENTAS' TO LK-MENSAJE
                        MOVE 'S' TO WS-FIN-CURSOR
                END-EVALUATE
            END-PERFORM
-
       *    EXEC SQL CLOSE CUR-CUENTAS END-EXEC
            CALL 'OCSQLCCU' USING SQL-STMT-3
                                SQLCA
-
            WRITE FS-REG-CUENTAS FROM RP-SEPAR
            MOVE SPACES TO RP-INDIC
            STRING '  CUENTAS ACTIVAS: '  DELIMITED SIZE
@@ -1160,9 +1179,18 @@
                   INTO RP-INDIC
            END-STRING
            WRITE FS-REG-CUENTAS FROM RP-INDIC
-
            CLOSE FS-CUENTAS
-           DISPLAY ' REPORTE GENERADO: ' WS-NOM-CUENTAS
+           MOVE WS-CTR-CUENTAS TO WS-AUX-LOG-CTR
+           MOVE SPACES TO WS-LOG-LINE
+           STRING ' RPT CUENTAS - REGISTROS: '
+                      DELIMITED BY SIZE
+                  WS-AUX-LOG-CTR
+                      DELIMITED BY SIZE
+               INTO WS-LOG-LINE
+           PERFORM 9200-LOG-WRITE
+           DISPLAY 'REPORTE CUENTAS GENERADO. PRESIONE ENTER.'
+           ACCEPT WS-PAUSA
+           PERFORM 9900-LIMPIAR-PANTALLA
            MOVE 0 TO LK-COD-RETORNO
            MOVE 'REPORTE CUENTAS GENERADO EXITOSAMENTE'
                TO LK-MENSAJE.
@@ -1170,32 +1198,43 @@
       *================================================================*
       *   8000 - REPORTE GENERAL                                       *
       *================================================================*
+      *================================================================*
+      *   IMPORTANTE: este reporte produce UNA FILA POR PRODUCTO.
+      *   Un cliente con N tarjetas y M hipotecas aparece N*M veces.
+      *   El conteo de clientes unicos usa WS-ULTIMO-ID-CLI.
+      *================================================================*
        8000-RPT-GENERAL.
            MOVE ZERO TO WS-CTR-GEN-CLIENTES
            MOVE ZERO TO WS-CTR-GEN-TARJETAS
            MOVE ZERO TO WS-CTR-GEN-HIPOTECAS
            MOVE ZERO TO WS-ULTIMO-ID-CLI
-
-           STRING 'RPT_GENERAL_' DELIMITED SIZE
-                  WS-PERIODO     DELIMITED SIZE
-                  '.DAT'         DELIMITED SIZE
+           MOVE '>>> INICIO REPORTE GENERAL'
+               TO WS-LOG-LINE
+           PERFORM 9200-LOG-WRITE
+           STRING '../docs/reporteria/RPT_GENERAL_' DELIMITED SIZE
+                  WS-PERIODO                      DELIMITED SIZE
+                  '.DAT'                          DELIMITED SIZE
                   INTO WS-NOM-GENERAL
            END-STRING
-
            OPEN OUTPUT FS-GENERAL
-
-           MOVE 'REPORTE GENERAL - PERIODO: '
-               TO RP-TIT-TEXT
+           PERFORM 9300-VERIFICAR-FS
+           IF WS-FS-OK = 'N'
+               MOVE 'ERROR ABRIENDO ARCHIVO GENERAL'
+                   TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF
+           MOVE 'REPORTE GENERAL - PERIODO: ' TO RP-TIT-TEXT
            WRITE FS-REG-GENERAL FROM RP-TITULO
            WRITE FS-REG-GENERAL FROM RP-BLANK
-
            MOVE 'ID-CLI   NOMBRE                   APELLIDO'
              & '                 SALDO-CTA    NRO-TARJETA'
              & '     ACUM-MES    SALDO-HIPOT'
                TO RP-HEADER
            WRITE FS-REG-GENERAL FROM RP-HEADER
+           MOVE 'NOTA: una fila por producto (tarjeta/hipoteca)'
+               TO RP-INDIC
+           WRITE FS-REG-GENERAL FROM RP-INDIC
            WRITE FS-REG-GENERAL FROM RP-SEPAR
-
       *    EXEC SQL OPEN CUR-GENERAL END-EXEC
            IF SQL-PREP OF SQL-STMT-4 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -1210,15 +1249,12 @@
            CALL 'OCSQLOCU' USING SQL-STMT-4
                                SQLCA
            END-CALL
-
-           IF SQLCODE NOT = 0
-               DISPLAY 'ERROR ABRIENDO CUR-GENERAL: ' SQLCODE
+           PERFORM 9100-VERIFICAR-OPEN
+           IF WS-FIN-CURSOR = 'S'
+               MOVE 'ERROR ABRIENDO CUR-GENERAL' TO LK-MENSAJE
                CLOSE FS-GENERAL
                EXIT PARAGRAPH
            END-IF
-
-           MOVE 'N' TO WS-FIN-CURSOR
-
            PERFORM UNTIL WS-FIN-CURSOR = 'S'
       *        EXEC SQL
       *            FETCH CUR-GENERAL INTO
@@ -1279,7 +1315,6 @@
            MOVE SQL-VAR-0017 TO HV-GEN-SALDO-CTA
            MOVE SQL-VAR-0018 TO HV-GEN-ACUM-MES
            MOVE SQL-VAR-0019 TO HV-GEN-SALDO-HIPO
-
                EVALUATE SQLCODE
                    WHEN 0
                        IF HV-IND-NRO-TARJ   < 0
@@ -1292,20 +1327,16 @@
                        IF HV-IND-SALDO-HIPO < 0
                            MOVE ZERO TO HV-GEN-SALDO-HIPO
                        END-IF
-
                        IF HV-GEN-ID-CLI NOT = WS-ULTIMO-ID-CLI
                            ADD 1 TO WS-CTR-GEN-CLIENTES
                            MOVE HV-GEN-ID-CLI TO WS-ULTIMO-ID-CLI
                        END-IF
-
                        IF HV-IND-NRO-TARJ >= 0
                            ADD 1 TO WS-CTR-GEN-TARJETAS
                        END-IF
-
                        IF HV-IND-SALDO-HIPO >= 0
                            ADD 1 TO WS-CTR-GEN-HIPOTECAS
                        END-IF
-
                        MOVE HV-GEN-ID-CLI     TO WS-DG-ID-CLI
                        MOVE HV-GEN-NOMBRE     TO WS-DG-NOMBRE
                        MOVE HV-GEN-APELLIDOS  TO WS-DG-APELLIDOS
@@ -1313,21 +1344,17 @@
                        MOVE HV-GEN-NRO-TARJ   TO WS-DG-NRO-TARJ
                        MOVE HV-GEN-ACUM-MES   TO WS-DG-ACUM-MES
                        MOVE HV-GEN-SALDO-HIPO TO WS-DG-SALDO-HIPO
-                       MOVE WS-DET-GENERAL    TO FS-REG-GENERAL
-                       WRITE FS-REG-GENERAL
-
+                       WRITE FS-REG-GENERAL FROM WS-DET-GENERAL
                    WHEN 100
                        MOVE 'S' TO WS-FIN-CURSOR
                    WHEN OTHER
-                       DISPLAY 'ERROR FETCH CUR-GENERAL: ' SQLCODE
+                       MOVE 'ERROR FETCH CUR-GENERAL' TO LK-MENSAJE
                        MOVE 'S' TO WS-FIN-CURSOR
                END-EVALUATE
            END-PERFORM
-
       *    EXEC SQL CLOSE CUR-GENERAL END-EXEC
            CALL 'OCSQLCCU' USING SQL-STMT-4
                                SQLCA
-
            WRITE FS-REG-GENERAL FROM RP-SEPAR
            MOVE SPACES TO RP-INDIC
            STRING '  CLIENTES: '         DELIMITED SIZE
@@ -1339,9 +1366,18 @@
                   INTO RP-INDIC
            END-STRING
            WRITE FS-REG-GENERAL FROM RP-INDIC
-
            CLOSE FS-GENERAL
-           DISPLAY ' REPORTE GENERADO: ' WS-NOM-GENERAL
+           MOVE WS-CTR-GEN-CLIENTES TO WS-AUX-LOG-CTR
+           MOVE SPACES TO WS-LOG-LINE
+           STRING ' RPT GENERAL - CLIENTES: '
+                      DELIMITED BY SIZE
+                  WS-AUX-LOG-CTR
+                      DELIMITED BY SIZE
+               INTO WS-LOG-LINE
+           PERFORM 9200-LOG-WRITE
+           DISPLAY 'REPORTE GENERAL GENERADO. PRESIONE ENTER.'
+           ACCEPT WS-PAUSA
+           PERFORM 9900-LIMPIAR-PANTALLA
            MOVE 0 TO LK-COD-RETORNO
            MOVE 'REPORTE GENERAL GENERADO EXITOSAMENTE'
                TO LK-MENSAJE.
@@ -1361,6 +1397,41 @@
                    MOVE 'ERROR CRITICO EN BASE DE DATOS'
                        TO LK-MENSAJE
            END-EVALUATE.
+
+       9900-LIMPIAR-PANTALLA.
+           CALL "SYSTEM" USING WS-CLS-CMD.
+
+      *================================================================*
+      *   9300 - VERIFICAR FILE STATUS tras OPEN OUTPUT
+      *     Si falla, deja WS-FS-OK = 'N' y loguea el codigo.
+      *     Quien llama decide si abortar o continuar.
+      *================================================================*
+       9300-VERIFICAR-FS.
+           IF WS-FS-STATUS = '00'
+               MOVE 'S' TO WS-FS-OK
+           ELSE
+               MOVE 'N' TO WS-FS-OK
+               MOVE SPACES TO WS-LOG-LINE
+               STRING 'ERROR FILE STATUS: '
+                          DELIMITED BY SIZE
+                      WS-FS-STATUS
+                          DELIMITED BY SIZE
+                   INTO WS-LOG-LINE
+               PERFORM 9200-LOG-WRITE
+               DISPLAY 'ERROR ABRIENDO ARCHIVO. STATUS: '
+                       WS-FS-STATUS
+               DISPLAY 'Verifique que exista la carpeta '
+                       'docs/reporteria'
+           END-IF.
+
+      *================================================================*
+      *   9200 - ESCRIBIR LINEA AL ARCHIVO DE LOG                     *
+      *           Destino: ..\docs\logs\RPT_LOGS_<PERIODO>.txt         *
+      *================================================================*
+       9200-LOG-WRITE.
+           CALL 'LOGFILE' USING WS-MODULO-LOG,
+                                WS-PERIODO,
+                                WS-LOG-LINE.
 
        END PROGRAM RP0000.
       **********************************************************************
