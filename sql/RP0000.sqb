@@ -1,5 +1,5 @@
       *================================================================*
-      * PROGRAMA : RP0000.cob                                         *
+      * PROGRAMA : RP0000.sqb (precompilado a RP0000.cob)             *
       * FUNCION  : MODULO DE REPORTES GERENCIALES                     *
       * LLAMADO  : BANCSMENU (OPCION 6)                               *
       *================================================================*
@@ -10,15 +10,20 @@
        INPUT-OUTPUT SECTION.
        FILE-CONTROL.
            SELECT FS-CLIENTES  ASSIGN TO WS-NOM-CLIENTES
-               ORGANIZATION IS LINE SEQUENTIAL.
+               ORGANIZATION IS LINE SEQUENTIAL
+               FILE STATUS IS WS-FS-STATUS.
            SELECT FS-HIPOTECAS ASSIGN TO WS-NOM-HIPOTECAS
-               ORGANIZATION IS LINE SEQUENTIAL.
+               ORGANIZATION IS LINE SEQUENTIAL
+               FILE STATUS IS WS-FS-STATUS.
            SELECT FS-TARJETAS  ASSIGN TO WS-NOM-TARJETAS
-               ORGANIZATION IS LINE SEQUENTIAL.
+               ORGANIZATION IS LINE SEQUENTIAL
+               FILE STATUS IS WS-FS-STATUS.
            SELECT FS-CUENTAS   ASSIGN TO WS-NOM-CUENTAS
-               ORGANIZATION IS LINE SEQUENTIAL.
+               ORGANIZATION IS LINE SEQUENTIAL
+               FILE STATUS IS WS-FS-STATUS.
            SELECT FS-GENERAL   ASSIGN TO WS-NOM-GENERAL
-               ORGANIZATION IS LINE SEQUENTIAL.
+               ORGANIZATION IS LINE SEQUENTIAL
+               FILE STATUS IS WS-FS-STATUS.
 
        DATA DIVISION.
        FILE SECTION.
@@ -212,6 +217,16 @@
            05 WS-CTR-GEN-HIPOTECAS PIC 9(6) VALUE 0.
 
       *================================================================*
+      *   WORKING STORAGE - LOG A ARCHIVO                              *
+      *================================================================*
+       01  WS-LOG-LINE             PIC X(200).
+       01  WS-MODULO-LOG           PIC X(03) VALUE 'RPT'.
+       01  WS-CLS-CMD              PIC X(04) VALUE 'cls'.
+       01  WS-AUX-LOG-CTR          PIC 9(6).
+       01  WS-FS-STATUS            PIC X(02) VALUE '00'.
+       01  WS-FS-OK                PIC X    VALUE 'S'.
+
+      *================================================================*
       *   FORMATO DE REPORTE                                           *
       *================================================================*
        01  RP-FORMAT.
@@ -325,6 +340,7 @@
       *   1000 - INICIALIZAR                                           *
       *================================================================*
        1000-INICIALIZAR.
+           PERFORM 9900-LIMPIAR-PANTALLA
            MOVE FUNCTION CURRENT-DATE TO WS-FECHA-SISTEMA
            EXEC SQL
                SELECT MAX(PERIODO)
@@ -368,6 +384,9 @@
            IF LK-COD-RETORNO = 99
                MOVE 'ERROR AL VERIFICAR PERIODO' TO LK-MENSAJE
                MOVE 'S' TO WS-ABORT
+               MOVE 'ERROR SQL AL VERIFICAR PERIODO'
+                   TO WS-LOG-LINE
+               PERFORM 9200-LOG-WRITE
            ELSE
                IF HV-IND-COUNT = 0
                    DISPLAY 'PERIODO ' WS-PERIODO
@@ -377,6 +396,21 @@
                    MOVE 'PERIODO NO ENCONTRADO EN AUDITORIA'
                        TO LK-MENSAJE
                    MOVE 'S' TO WS-ABORT
+                   MOVE SPACES TO WS-LOG-LINE
+                   STRING 'PERIODO NO ENCONTRADO: '
+                              DELIMITED BY SIZE
+                          WS-PERIODO
+                              DELIMITED BY SIZE
+                       INTO WS-LOG-LINE
+                   PERFORM 9200-LOG-WRITE
+               ELSE
+                   MOVE SPACES TO WS-LOG-LINE
+                   STRING '>>> INGRESO A REPORTES - PERIODO: '
+                              DELIMITED BY SIZE
+                          WS-PERIODO
+                              DELIMITED BY SIZE
+                       INTO WS-LOG-LINE
+                   PERFORM 9200-LOG-WRITE
                END-IF
            END-IF.
 
@@ -385,6 +419,7 @@
       *================================================================*
        3000-MENU-REPORTES.
            PERFORM UNTIL WS-CONTINUAR = 'N'
+               PERFORM 9900-LIMPIAR-PANTALLA
                DISPLAY '================================'
                DISPLAY ' RP0000 - REPORTES GERENCIALES'
                DISPLAY ' PERIODO: ' WS-PERIODO
@@ -423,6 +458,9 @@
       *================================================================*
        4000-RPT-CLIENTES.
            MOVE ZERO TO WS-CTR-CLIENTES-NVO
+           MOVE '>>> INICIO REPORTE CLIENTES NUEVOS'
+               TO WS-LOG-LINE
+           PERFORM 9200-LOG-WRITE
            PERFORM 1100-ARMAR-FILTRO-LIKE
            STRING '../docs/reporteria/RPT_CLIENTES_' DELIMITED SIZE
                   WS-PERIODO                       DELIMITED SIZE
@@ -430,6 +468,12 @@
                   INTO WS-NOM-CLIENTES
            END-STRING
            OPEN OUTPUT FS-CLIENTES
+           PERFORM 9300-VERIFICAR-FS
+           IF WS-FS-OK = 'N'
+               MOVE 'ERROR ABRIENDO ARCHIVO CLIENTES'
+                   TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF
            MOVE 'REPORTE CLIENTES NUEVOS - PERIODO: '
                TO RP-TIT-TEXT
            WRITE FS-REG-CLIENTES FROM RP-TITULO
@@ -480,6 +524,14 @@
            END-STRING
            WRITE FS-REG-CLIENTES FROM RP-INDIC
            CLOSE FS-CLIENTES
+           MOVE WS-CTR-CLIENTES-NVO TO WS-AUX-LOG-CTR
+           MOVE SPACES TO WS-LOG-LINE
+           STRING ' RPT CLIENTES - REGISTROS: '
+                      DELIMITED BY SIZE
+                  WS-AUX-LOG-CTR
+                      DELIMITED BY SIZE
+               INTO WS-LOG-LINE
+           PERFORM 9200-LOG-WRITE
            DISPLAY 'REPORTE CLIENTES GENERADO. PRESIONE ENTER.'
            ACCEPT WS-PAUSA
            PERFORM 9900-LIMPIAR-PANTALLA
@@ -491,6 +543,9 @@
       *================================================================*
        5000-RPT-HIPOTECAS.
            MOVE ZERO TO WS-CTR-HIPOTECAS
+           MOVE '>>> INICIO REPORTE HIPOTECAS'
+               TO WS-LOG-LINE
+           PERFORM 9200-LOG-WRITE
            MOVE ZERO TO WS-SUM-SALDO-HIPO
            STRING '../docs/reporteria/RPT_HIPOTECAS_' DELIMITED SIZE
                   WS-PERIODO                        DELIMITED SIZE
@@ -498,6 +553,12 @@
                   INTO WS-NOM-HIPOTECAS
            END-STRING
            OPEN OUTPUT FS-HIPOTECAS
+           PERFORM 9300-VERIFICAR-FS
+           IF WS-FS-OK = 'N'
+               MOVE 'ERROR ABRIENDO ARCHIVO HIPOTECAS'
+                   TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF
            MOVE 'REPORTE HIPOTECAS - PERIODO: ' TO RP-TIT-TEXT
            WRITE FS-REG-HIPOTECAS FROM RP-TITULO
            WRITE FS-REG-HIPOTECAS FROM RP-BLANK
@@ -554,6 +615,14 @@
            END-STRING
            WRITE FS-REG-HIPOTECAS FROM RP-INDIC
            CLOSE FS-HIPOTECAS
+           MOVE WS-CTR-HIPOTECAS TO WS-AUX-LOG-CTR
+           MOVE SPACES TO WS-LOG-LINE
+           STRING ' RPT HIPOTECAS - REGISTROS: '
+                      DELIMITED BY SIZE
+                  WS-AUX-LOG-CTR
+                      DELIMITED BY SIZE
+               INTO WS-LOG-LINE
+           PERFORM 9200-LOG-WRITE
            DISPLAY 'REPORTE HIPOTECAS GENERADO. PRESIONE ENTER.'
            ACCEPT WS-PAUSA
            PERFORM 9900-LIMPIAR-PANTALLA
@@ -567,12 +636,21 @@
        6000-RPT-TARJETAS.
            MOVE ZERO TO WS-CTR-TARJETAS
            MOVE ZERO TO WS-SUM-ACUM-TARJ
+           MOVE '>>> INICIO REPORTE TARJETAS'
+               TO WS-LOG-LINE
+           PERFORM 9200-LOG-WRITE
            STRING '../docs/reporteria/RPT_TARJETAS_' DELIMITED SIZE
                   WS-PERIODO                       DELIMITED SIZE
                   '.DAT'                           DELIMITED SIZE
                   INTO WS-NOM-TARJETAS
            END-STRING
            OPEN OUTPUT FS-TARJETAS
+           PERFORM 9300-VERIFICAR-FS
+           IF WS-FS-OK = 'N'
+               MOVE 'ERROR ABRIENDO ARCHIVO TARJETAS'
+                   TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF
            MOVE 'REPORTE TARJETAS - PERIODO: ' TO RP-TIT-TEXT
            WRITE FS-REG-TARJETAS FROM RP-TITULO
            WRITE FS-REG-TARJETAS FROM RP-BLANK
@@ -629,6 +707,14 @@
            END-STRING
            WRITE FS-REG-TARJETAS FROM RP-INDIC
            CLOSE FS-TARJETAS
+           MOVE WS-CTR-TARJETAS TO WS-AUX-LOG-CTR
+           MOVE SPACES TO WS-LOG-LINE
+           STRING ' RPT TARJETAS - REGISTROS: '
+                      DELIMITED BY SIZE
+                  WS-AUX-LOG-CTR
+                      DELIMITED BY SIZE
+               INTO WS-LOG-LINE
+           PERFORM 9200-LOG-WRITE
            DISPLAY 'REPORTE TARJETAS GENERADO. PRESIONE ENTER.'
            ACCEPT WS-PAUSA
            PERFORM 9900-LIMPIAR-PANTALLA
@@ -642,12 +728,21 @@
        7000-RPT-CUENTAS.
            MOVE ZERO TO WS-CTR-CUENTAS
            MOVE ZERO TO WS-SUM-SALDO-CTA
+           MOVE '>>> INICIO REPORTE CUENTAS CORRIENTES'
+               TO WS-LOG-LINE
+           PERFORM 9200-LOG-WRITE
            STRING '../docs/reporteria/RPT_CUENTAS_' DELIMITED SIZE
                   WS-PERIODO                      DELIMITED SIZE
                   '.DAT'                          DELIMITED SIZE
                   INTO WS-NOM-CUENTAS
            END-STRING
            OPEN OUTPUT FS-CUENTAS
+           PERFORM 9300-VERIFICAR-FS
+           IF WS-FS-OK = 'N'
+               MOVE 'ERROR ABRIENDO ARCHIVO CUENTAS'
+                   TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF
            MOVE 'REPORTE CUENTAS CORRIENTES - PERIODO: '
                TO RP-TIT-TEXT
            WRITE FS-REG-CUENTAS FROM RP-TITULO
@@ -703,6 +798,14 @@
            END-STRING
            WRITE FS-REG-CUENTAS FROM RP-INDIC
            CLOSE FS-CUENTAS
+           MOVE WS-CTR-CUENTAS TO WS-AUX-LOG-CTR
+           MOVE SPACES TO WS-LOG-LINE
+           STRING ' RPT CUENTAS - REGISTROS: '
+                      DELIMITED BY SIZE
+                  WS-AUX-LOG-CTR
+                      DELIMITED BY SIZE
+               INTO WS-LOG-LINE
+           PERFORM 9200-LOG-WRITE
            DISPLAY 'REPORTE CUENTAS GENERADO. PRESIONE ENTER.'
            ACCEPT WS-PAUSA
            PERFORM 9900-LIMPIAR-PANTALLA
@@ -713,17 +816,31 @@
       *================================================================*
       *   8000 - REPORTE GENERAL                                       *
       *================================================================*
+      *================================================================*
+      *   IMPORTANTE: este reporte produce UNA FILA POR PRODUCTO.       *
+      *   Un cliente con N tarjetas y M hipotecas aparece N*M veces.    *
+      *   El conteo de clientes unicos usa WS-ULTIMO-ID-CLI.            *
+      *================================================================*
        8000-RPT-GENERAL.
            MOVE ZERO TO WS-CTR-GEN-CLIENTES
            MOVE ZERO TO WS-CTR-GEN-TARJETAS
            MOVE ZERO TO WS-CTR-GEN-HIPOTECAS
            MOVE ZERO TO WS-ULTIMO-ID-CLI
+           MOVE '>>> INICIO REPORTE GENERAL'
+               TO WS-LOG-LINE
+           PERFORM 9200-LOG-WRITE
            STRING '../docs/reporteria/RPT_GENERAL_' DELIMITED SIZE
                   WS-PERIODO                      DELIMITED SIZE
                   '.DAT'                          DELIMITED SIZE
                   INTO WS-NOM-GENERAL
            END-STRING
            OPEN OUTPUT FS-GENERAL
+           PERFORM 9300-VERIFICAR-FS
+           IF WS-FS-OK = 'N'
+               MOVE 'ERROR ABRIENDO ARCHIVO GENERAL'
+                   TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF
            MOVE 'REPORTE GENERAL - PERIODO: ' TO RP-TIT-TEXT
            WRITE FS-REG-GENERAL FROM RP-TITULO
            WRITE FS-REG-GENERAL FROM RP-BLANK
@@ -732,6 +849,9 @@
              & '     ACUM-MES    SALDO-HIPOT'
                TO RP-HEADER
            WRITE FS-REG-GENERAL FROM RP-HEADER
+           MOVE 'NOTA: una fila por producto (tarjeta/hipoteca)'
+               TO RP-INDIC
+           WRITE FS-REG-GENERAL FROM RP-INDIC
            WRITE FS-REG-GENERAL FROM RP-SEPAR
            EXEC SQL OPEN CUR-GENERAL END-EXEC
            PERFORM 9100-VERIFICAR-OPEN
@@ -801,6 +921,14 @@
            END-STRING
            WRITE FS-REG-GENERAL FROM RP-INDIC
            CLOSE FS-GENERAL
+           MOVE WS-CTR-GEN-CLIENTES TO WS-AUX-LOG-CTR
+           MOVE SPACES TO WS-LOG-LINE
+           STRING ' RPT GENERAL - CLIENTES: '
+                      DELIMITED BY SIZE
+                  WS-AUX-LOG-CTR
+                      DELIMITED BY SIZE
+               INTO WS-LOG-LINE
+           PERFORM 9200-LOG-WRITE
            DISPLAY 'REPORTE GENERAL GENERADO. PRESIONE ENTER.'
            ACCEPT WS-PAUSA
            PERFORM 9900-LIMPIAR-PANTALLA
@@ -825,8 +953,38 @@
            END-EVALUATE.
 
        9900-LIMPIAR-PANTALLA.
-           PERFORM 25 TIMES
-               DISPLAY RP-BLANK
-           END-PERFORM.
+           CALL "SYSTEM" USING WS-CLS-CMD.
+
+      *================================================================*
+      *   9300 - VERIFICAR FILE STATUS tras OPEN OUTPUT                 *
+      *     Si falla, deja WS-FS-OK = 'N' y loguea el codigo.           *
+      *     Quien llama decide si abortar o continuar.                  *
+      *================================================================*
+       9300-VERIFICAR-FS.
+           IF WS-FS-STATUS = '00'
+               MOVE 'S' TO WS-FS-OK
+           ELSE
+               MOVE 'N' TO WS-FS-OK
+               MOVE SPACES TO WS-LOG-LINE
+               STRING 'ERROR FILE STATUS: '
+                          DELIMITED BY SIZE
+                      WS-FS-STATUS
+                          DELIMITED BY SIZE
+                   INTO WS-LOG-LINE
+               PERFORM 9200-LOG-WRITE
+               DISPLAY 'ERROR ABRIENDO ARCHIVO. STATUS: '
+                       WS-FS-STATUS
+               DISPLAY 'Verifique que exista la carpeta '
+                       'docs/reporteria'
+           END-IF.
+
+      *================================================================*
+      *   9200 - ESCRIBIR LINEA AL ARCHIVO DE LOG                     *
+      *           Destino: ..\docs\logs\RPT_LOGS_<PERIODO>.txt         *
+      *================================================================*
+       9200-LOG-WRITE.
+           CALL 'LOGFILE' USING WS-MODULO-LOG,
+                                WS-PERIODO,
+                                WS-LOG-LINE.
 
        END PROGRAM RP0000.

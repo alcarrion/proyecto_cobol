@@ -26,7 +26,7 @@
       *    Control de periodo
        01  WS-PERIODO              PIC X(6).
 
-      *    Variables host - AUDIT_MAESTRA / clientes + ctactes
+      *    Variables host - AUDIT_MAESTRA / CLIENTES + CTACTES
        01  WS-HOST-MAESTRA.
            05 HV-ID-CLIENTE        PIC 9(8).
            05 HV-TIPO-DOC          PIC X(3).
@@ -42,7 +42,7 @@
            05 HV-COD-ULT-MOV       PIC 9(2).
            05 HV-FECHA-ULT-MOV     PIC X(10).
            05 HV-IMPORTE-MOV       PIC S9(10)V99.
-      *    Indicadores de NULL para el LEFT JOIN con ctactes
+      *    Indicadores de NULL para el LEFT JOIN con CTACTES
            05 HV-IND-SALDO-CTA     PIC S9(4) COMP-5.
            05 HV-IND-COD-MOV       PIC S9(4) COMP-5.
            05 HV-IND-FECHA-MOV     PIC S9(4) COMP-5.
@@ -74,8 +74,6 @@
            05 HV-MORA-SALDO-ACT    PIC S9(13)V99.
            05 HV-MORA-MONTO-ORIG   PIC S9(13)V99.
            05 HV-MORA-ESTADO       PIC X(20).
-           05 HV-MORA-MESES-TOT    PIC 9(4).
-           05 HV-MORA-MESES-TRANS  PIC 9(4).
            05 HV-MORA-PAGO-MENS    PIC S9(13)V99.
            05 HV-MORA-SALDO-ESP    PIC S9(13)V99.
            05 HV-MORA-MESES-MORA   PIC 9(4).
@@ -113,8 +111,8 @@
                       I.COD_ULT_MOV,
                       I.FECHA_ULT_MOV,
                       I.IMPORTE_MOV
-               FROM   clientes C
-               LEFT JOIN ctactes I
+               FROM   CLIENTES C
+               LEFT JOIN CTACTES I
                       ON C.ID_CLIENTE = I.ID_CLIENTE
                ORDER BY C.ID_CLIENTE
            END-EXEC.
@@ -142,29 +140,23 @@
                ORDER BY ID_CLIENTE, ID_HIPOTECA
            END-EXEC.
 
-      *    Cursor de mora: MySQL calcula todos los valores necesarios
+      *    Cursor de mora: usa CUOTA_MENSUAL y MESES_MORA de la BD.
+      *    SALDO_ESPERADO = cuota * (meses_totales - meses_transcurridos)
+      *    GREATEST(...,0) evita saldos negativos para creditos vencidos.
            EXEC SQL DECLARE CUR-MORA CURSOR FOR
                SELECT H.ID_HIPOTECA,
                       H.ID_CLIENTE,
                       H.SALDO_ACTUAL,
                       H.MONTO_ORIGINAL,
                       H.ESTADO,
-                      TIMESTAMPDIFF(MONTH,
-                          H.FECHA_INICIO, H.FECHA_VENCTO),
-                      TIMESTAMPDIFF(MONTH,
-                          H.FECHA_INICIO, CURDATE()),
-                      (H.MONTO_ORIGINAL * H.TASA_INTERES) /
-                      TIMESTAMPDIFF(MONTH,
-                          H.FECHA_INICIO, H.FECHA_VENCTO),
-                      H.MONTO_ORIGINAL -
-                      ((H.MONTO_ORIGINAL * H.TASA_INTERES) /
-                      TIMESTAMPDIFF(MONTH,
-                          H.FECHA_INICIO, H.FECHA_VENCTO)) *
-                      TIMESTAMPDIFF(MONTH,
-                          H.FECHA_INICIO, CURDATE()),
-                      (SELECT COUNT(*) FROM AUDIT_HIPOTECAS A
-                       WHERE  A.ID_HIPOTECA = H.ID_HIPOTECA
-                       AND    A.ESTADO      = 'MOROSO')
+                      H.CUOTA_MENSUAL,
+                      H.CUOTA_MENSUAL * GREATEST(
+                          TIMESTAMPDIFF(MONTH,
+                              H.FECHA_INICIO, H.FECHA_VENCTO) -
+                          TIMESTAMPDIFF(MONTH,
+                              H.FECHA_INICIO, CURDATE()),
+                          0),
+                      H.MESES_MORA
                FROM   HIPOTECAS H
                WHERE  H.ESTADO IN ('ACTIVO', 'MOROSO')
                ORDER BY H.ID_CLIENTE, H.ID_HIPOTECA
@@ -195,12 +187,15 @@
            05 WS-CTR-ERRORES       PIC 9(6) VALUE 0.
            05 WS-CTR-MOROSAS       PIC 9(6) VALUE 0.
            05 WS-CTR-CASTIGADAS    PIC 9(6) VALUE 0.
+           05 WS-CTR-REGULARIZADAS PIC 9(6) VALUE 0.
            05 WS-CTR-TARJ-BAJA     PIC 9(6) VALUE 0.
 
       *================================================================*
       *   WORKING STORAGE - LOG A ARCHIVO                              *
       *================================================================*
        01  WS-LOG-LINE             PIC X(200).
+       01  WS-MODULO-LOG           PIC X(03) VALUE 'BAT'.
+       01  WS-CLS-CMD              PIC X(04) VALUE 'cls'.
        01  WS-AUX-SQLCODE          PIC +9(9).
        01  WS-AUX-ID8              PIC 9(8).
        01  WS-AUX-ID9              PIC 9(9).
@@ -269,6 +264,9 @@
                   WS-DIA  DELIMITED SIZE
                   INTO WS-FECHA-HOY
            END-STRING
+
+           MOVE 'A' TO HV-ESTADO-ACTIVO
+           MOVE 'I' TO HV-ESTADO-INACTIVO
 
 
 
@@ -757,8 +755,6 @@
                        :HV-MORA-SALDO-ACT,
                        :HV-MORA-MONTO-ORIG,
                        :HV-MORA-ESTADO,
-                       :HV-MORA-MESES-TOT,
-                       :HV-MORA-MESES-TRANS,
                        :HV-MORA-PAGO-MENS,
                        :HV-MORA-SALDO-ESP,
                        :HV-MORA-MESES-MORA
@@ -804,10 +800,11 @@
                                PERFORM 9100-LOG-WRITE
                            END-IF
 
-      *                    Actualizar estado de la hipoteca
+      *                    Actualizar estado e incrementar MESES_MORA
                            EXEC SQL
                                UPDATE HIPOTECAS
-                               SET    ESTADO = :HV-MORA-NUEVO-ESTADO
+                               SET    ESTADO = :HV-MORA-NUEVO-ESTADO,
+                                      MESES_MORA = MESES_MORA + 1
                                WHERE  ID_HIPOTECA = :HV-MORA-ID-HIPO
                            END-EXEC
 
@@ -834,7 +831,7 @@
                            EXEC SQL
                                SELECT SALDO_CLIENTE
                                INTO   :HV-MORA-CLI-SALDO
-                               FROM   clientes
+                               FROM   CLIENTES
                                WHERE  ID_CLIENTE = :HV-MORA-ID-CLI
                            END-EXEC
 
@@ -843,7 +840,7 @@
                                IF HV-MORA-CLI-SALDO >=
                                   HV-MORA-PAGO-MENS
                                    EXEC SQL
-                                       UPDATE clientes
+                                       UPDATE CLIENTES
                                        SET    SALDO_CLIENTE =
                                               SALDO_CLIENTE -
                                               :HV-MORA-PAGO-MENS
@@ -870,6 +867,19 @@
                                        MOVE 'S' TO WS-ABORT
                                        MOVE 'S' TO WS-FIN-MORA
                                    ELSE
+      *                                Descontar cuota tambien del
+      *                                SALDO_ACTUAL de la hipoteca.
+                                       EXEC SQL
+                                           UPDATE HIPOTECAS
+                                           SET    SALDO_ACTUAL =
+                                                  SALDO_ACTUAL -
+                                                  :HV-MORA-PAGO-MENS,
+                                                  FECHA_ULT_PAGO =
+                                                  CURDATE()
+                                           WHERE  ID_HIPOTECA =
+                                                  :HV-MORA-ID-HIPO
+                                       END-EXEC
+
                                        MOVE HV-MORA-ID-CLI  TO
                                             WS-AUX-ID8
                                        MOVE HV-MORA-PAGO-MENS TO
@@ -922,14 +932,52 @@
                            END-IF
 
                        ELSE
-      *                    Saldo correcto, hipoteca activa
-                           IF HV-MORA-ESTADO NOT = 'ACTIVO'
+      *                    Saldo correcto - si estaba MOROSO, regularizar.
+      *                    Resetea MESES_MORA y marca FECHA_ULT_PAGO.
+                           IF HV-MORA-ESTADO = 'MOROSO'
                                EXEC SQL
                                    UPDATE HIPOTECAS
-                                   SET    ESTADO = 'ACTIVO'
+                                   SET    ESTADO = 'ACTIVO',
+                                          MESES_MORA = 0,
+                                          FECHA_ULT_PAGO = CURDATE()
                                    WHERE  ID_HIPOTECA =
                                           :HV-MORA-ID-HIPO
                                END-EXEC
+
+                               IF SQLCODE = 0
+                                   ADD 1 TO WS-CTR-REGULARIZADAS
+                                   MOVE HV-MORA-ID-HIPO TO WS-AUX-ID9
+                                   MOVE HV-MORA-ID-CLI  TO WS-AUX-ID8
+                                   MOVE SPACES TO WS-LOG-LINE
+                                   STRING ' HIPOTECA REGULARIZADA: '
+                                              DELIMITED BY SIZE
+                                          WS-AUX-ID9
+                                              DELIMITED BY SIZE
+                                          ' CLIENTE: '
+                                              DELIMITED BY SIZE
+                                          WS-AUX-ID8
+                                              DELIMITED BY SIZE
+                                       INTO WS-LOG-LINE
+                                   PERFORM 9100-LOG-WRITE
+                               ELSE
+                                   MOVE SQLCODE         TO
+                                        WS-AUX-SQLCODE
+                                   MOVE HV-MORA-ID-HIPO TO WS-AUX-ID9
+                                   MOVE SPACES TO WS-LOG-LINE
+                                   STRING 'ERROR REGULARIZAR HIPOTECA: '
+                                          DELIMITED BY SIZE
+                                          WS-AUX-ID9
+                                          DELIMITED BY SIZE
+                                          ' SQLCODE: '
+                                          DELIMITED BY SIZE
+                                          WS-AUX-SQLCODE
+                                          DELIMITED BY SIZE
+                                       INTO WS-LOG-LINE
+                                   PERFORM 9100-LOG-WRITE
+                                   ADD 1 TO WS-CTR-ERRORES
+                                   MOVE 'S' TO WS-ABORT
+                                   MOVE 'S' TO WS-FIN-MORA
+                               END-IF
                            END-IF
                        END-IF
 
@@ -986,9 +1034,6 @@
                TO WS-LOG-LINE
            PERFORM 9100-LOG-WRITE
 
-           MOVE 'I' TO HV-ESTADO-INACTIVO
-           MOVE 'A' TO HV-ESTADO-ACTIVO
-
            EXEC SQL
                UPDATE TARJETAS
                SET    ESTADO = :HV-ESTADO-INACTIVO
@@ -1036,7 +1081,7 @@
                UPDATE TARJETAS
                SET    LIQUIDACION_MES = ACUM_MES,
                       ACUM_MES        = 0
-               WHERE  ESTADO = 'A'
+               WHERE  ESTADO = :HV-ESTADO-ACTIVO
            END-EXEC
 
            IF SQLCODE = 0
@@ -1107,6 +1152,13 @@
                   WS-AUX-CTR DELIMITED BY SIZE
                INTO WS-LOG-LINE
            PERFORM 9100-LOG-WRITE
+           MOVE WS-CTR-REGULARIZADAS TO WS-AUX-CTR
+           MOVE SPACES TO WS-LOG-LINE
+           STRING ' HIPOTECAS REGULARIZADAS: '
+                      DELIMITED BY SIZE
+                  WS-AUX-CTR DELIMITED BY SIZE
+               INTO WS-LOG-LINE
+           PERFORM 9100-LOG-WRITE
            MOVE WS-CTR-TARJ-BAJA TO WS-AUX-CTR
            MOVE SPACES TO WS-LOG-LINE
            STRING ' TARJETAS DADAS BAJA  : '
@@ -1160,6 +1212,11 @@
       *   8000 - PAUSA FINAL: MUESTRA RESULTADO Y ESPERA TECLA       *
       *================================================================*
        8000-PAUSA-RESULTADO.
+           PERFORM 9900-LIMPIAR-PANTALLA
+           DISPLAY '================================================'
+           DISPLAY ' BAT000 - PROCESO DE CIERRE MENSUAL'
+           DISPLAY ' PERIODO: ' WS-PERIODO
+           DISPLAY '================================================'
            DISPLAY ' '
            IF WS-ABORT = 'N' AND WS-CTR-ERRORES = 0
                DISPLAY '>>> EXITO EN EJECUCION DE CIERRE MENSUAL'
@@ -1167,8 +1224,17 @@
                DISPLAY '>>> FALLO EN EJECUCION DE CIERRE MENSUAL'
            END-IF
            DISPLAY ' '
+           DISPLAY ' Consulte el detalle en: '
+           DISPLAY '   docs/logs/BAT_LOGS_' WS-PERIODO '.txt'
+           DISPLAY ' '
            DISPLAY 'Presione ENTER para regresar al menu...'
            ACCEPT WS-TECLA.
+
+      *================================================================*
+      *   9900 - LIMPIAR PANTALLA (Windows: cls)                       *
+      *================================================================*
+       9900-LIMPIAR-PANTALLA.
+           CALL "SYSTEM" USING WS-CLS-CMD.
 
       *================================================================*
       *   9000 - EVALUAR SQL             *
@@ -1188,8 +1254,11 @@
 
       *================================================================*
       *   9100 - ESCRIBIR LINEA AL ARCHIVO DE LOG                     *
+      *           Destino: ..\docs\logs\BAT_LOGS_<PERIODO>.txt         *
       *================================================================*
        9100-LOG-WRITE.
-           CALL 'SYSLOG' USING WS-LOG-LINE.
+           CALL 'LOGFILE' USING WS-MODULO-LOG,
+                                WS-PERIODO,
+                                WS-LOG-LINE.
 
        END PROGRAM BAT000.
