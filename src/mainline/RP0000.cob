@@ -1198,11 +1198,6 @@
       *================================================================*
       *   8000 - REPORTE GENERAL                                       *
       *================================================================*
-      *================================================================*
-      *   IMPORTANTE: este reporte produce UNA FILA POR PRODUCTO.
-      *   Un cliente con N tarjetas y M hipotecas aparece N*M veces.
-      *   El conteo de clientes unicos usa WS-ULTIMO-ID-CLI.
-      *================================================================*
        8000-RPT-GENERAL.
            MOVE ZERO TO WS-CTR-GEN-CLIENTES
            MOVE ZERO TO WS-CTR-GEN-TARJETAS
@@ -1403,8 +1398,6 @@
 
       *================================================================*
       *   9300 - VERIFICAR FILE STATUS tras OPEN OUTPUT
-      *     Si falla, deja WS-FS-OK = 'N' y loguea el codigo.
-      *     Quien llama decide si abortar o continuar.
       *================================================================*
        9300-VERIFICAR-FS.
            IF WS-FS-STATUS = '00'

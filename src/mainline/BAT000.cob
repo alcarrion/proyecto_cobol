@@ -6,7 +6,7 @@
       *            - DESCONTAR CUOTA DE CUENTA SI HAY FONDOS          *
       *            - DAR DE BAJA TARJETAS VENCIDAS                    *
       *            - RESET OPERATIVO DE TARJETAS                      *
-      *            - ROLLBACK si algo falla*
+      *            - ROLLBACK si algo falla
       * LLAMADO  : BANCSMENU (OPCION 5)                               *
       * PRECOMP  : esqlOC BAT000.sqb  ->  BAT000.cob                  *
       *================================================================*
@@ -428,9 +428,6 @@
        LINKAGE SECTION.
            COPY LKCIF.
 
-      *================================================================*
-      *   PROCEDURE DIVISION                                           *
-      *================================================================*
        PROCEDURE DIVISION USING LK-DATOS-TRANSACCION.
 
        0000-PRINCIPAL.

@@ -1,0 +1,103 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. tkin_tarj.
+      *==========================================================
+      * SUBPROGRAMA: tkin_tarj.sqb
+      * RESPONSABILIDAD: Especialista de Afectación de Tarjetas (004)
+      *==========================================================
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SPECIAL-NAMES.
+           DECIMAL-POINT IS COMMA.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+           EXEC SQL INCLUDE SQLCA END-EXEC.
+
+           EXEC SQL BEGIN DECLARE SECTION END-EXEC.
+       01  DB-VARS-TARJ.
+           05 DB-PAN-TARGET       PIC X(16).
+           05 DB-CTA-DEBITO       PIC 9(10).
+           05 DB-PAGO-MONTO       PIC S9(13)V99.
+           05 DB-SALDO-UTILIZADO  PIC S9(13)V99.
+           05 DB-ESTADO-TARJETA   PIC X(01).
+           05 DB-SALDO-CTA        PIC S9(13)V99.
+           05 DB-SALDO-RES-LEDG   PIC S9(13)V99.
+           EXEC SQL END DECLARE SECTION END-EXEC.
+
+       LINKAGE SECTION.
+       01  LK-CTA-DEBITO           PIC 9(10).
+       01  LK-NRO-TARJETA          PIC X(16).
+       01  LK-MONTO-PAGO           PIC S9(13)V99.
+       COPY LKTF.
+
+       PROCEDURE DIVISION USING LK-CTA-DEBITO, LK-NRO-TARJETA, 
+                                LK-MONTO-PAGO, 
+                                LK-TRICKLE-FEED-INTERFACE.
+       000-MAIN.
+           MOVE 00 TO LK-TF-COD-RETORNO
+           MOVE LK-CTA-DEBITO TO DB-CTA-DEBITO
+           MOVE LK-NRO-TARJETA TO DB-PAN-TARGET
+           MOVE LK-MONTO-PAGO TO DB-PAGO-MONTO
+           
+      * 1. Validar existencia y estatus del plástico en el Core
+           EXEC SQL
+               SELECT ESTADO_TARJETA, SALDO_UTILIZADO
+               INTO :DB-ESTADO-TARJETA, :DB-SALDO-UTILIZADO
+               FROM tarjetas
+               WHERE NRO_TARJETA = :DB-PAN-TARGET
+           END-EXEC.
+
+           IF SQLCODE NOT = 0
+               MOVE 01 TO LK-TF-COD-RETORNO
+               MOVE "TARJETA NO EXISTE EN EL CORE" TO LK-TF-MENSAJE
+               GOBACK
+           END-IF.
+
+           IF DB-ESTADO-TARJETA NOT = "A"
+               MOVE 01 TO LK-TF-COD-RETORNO
+               MOVE "TARJETA BLOQUEADA O VENCIDA" TO LK-TF-MENSAJE
+               GOBACK
+           END-IF.
+
+      * 2. Verificar cobertura de fondos en la Cuenta DDA asociada
+           EXEC SQL
+               SELECT SALDO_ACTUAL
+               INTO :DB-SALDO-CTA
+               FROM ctactes
+               WHERE ID_CUENTA = :DB-CTA-DEBITO
+           END-EXEC.
+
+           IF DB-SALDO-CTA < DB-PAGO-MONTO
+               MOVE 07 TO LK-TF-COD-RETORNO
+               MOVE "FONDOS INSUFICIENTES PARA PAGO" TO LK-TF-MENSAJE
+               GOBACK
+           END-IF.
+
+      * 3. APLICACIÓN CONTABLE ATÓMICA
+      * 3.1 Débito de la Cuenta Monetaria (Pasivo)
+           EXEC SQL
+               UPDATE ctactes
+               SET SALDO_ACTUAL = SALDO_ACTUAL - :DB-PAGO-MONTO
+               WHERE ID_CUENTA = :DB-CTA-DEBITO
+           END-EXEC.
+
+      * 3.2 Crédito / Amortización del saldo utilizado de la tarjeta (Activo)
+           EXEC SQL
+               UPDATE tarjetas
+               SET SALDO_UTILIZADO = SALDO_UTILIZADO - :DB-PAGO-MONTO
+               WHERE NRO_TARJETA = :DB-PAN-TARGET
+           END-EXEC.
+
+      * 3.3 Asentar movimiento en el Ledger Contable (Código 6 = Débito Batch)
+           COMPUTE DB-SALDO-RES-LEDG = DB-SALDO-CTA - DB-PAGO-MONTO
+           EXEC SQL
+               INSERT INTO movimientos (ID_CUENTA, TIPO_MOV, IMPORTE, 
+                                        SALDO_RESULTANTE, TERMINAL_ID)
+               VALUES (:DB-CTA-DEBITO, 6, :DB-PAGO-MONTO, 
+                       :DB-SALDO-RES-LEDG, 'BTCH')
+           END-EXEC.
+
+           EXEC SQL COMMIT END-EXEC.
+           MOVE 00 TO LK-TF-COD-RETORNO
+           MOVE "PAGO TARJETA OK" TO LK-TF-MENSAJE
+           GOBACK.

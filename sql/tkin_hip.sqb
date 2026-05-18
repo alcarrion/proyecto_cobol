@@ -1,20 +1,10 @@
        IDENTIFICATION DIVISION.
        PROGRAM-ID. tkin_hip.
-      *================================================================*
-      * PROGRAMA PRECOMPILABLE: tkin_hip.sqb                           *
-      * PRODUCTO: Hipotecas - Pago de cuota (cartera)                  *
-      * RESPONSABILIDAD: Aplicar pago "P" sobre la deuda hipotecaria,  *
-      *   recalcular estado y mantener trazabilidad para Trickle Feed. *
-      * LLAMADO POR: tkin01 cuando LK-TF-ACCION = "P".                  *
-      * REGLAS DE NEGOCIO:                                             *
-      *   - SALDO_ACTUAL decrece con cada pago hasta llegar a 0.        *
-      *   - Pago que pone al dia hipoteca MOROSA -> ACTIVO + MESES_MORA *
-      *     = 0.                                                       *
-      *   - Pago que lleva SALDO a 0 (o menos) -> estado CANCELADO.    *
-      *   - Pago sobre CASTIGADO o CANCELADO -> rechazado (cod 99).    *
-      *   - Si monto > CUOTA_MENSUAL -> aviso prepago.                  *
-      *   - Si monto > SALDO_ACTUAL -> aviso sobrepago (cancela).       *
-      *================================================================*
+      *==========================================================
+      * SUBPROGRAMA PRECOMPILABLE: tkin_hip.sqb
+      * RESPONSABILIDAD: Especialista de Amortización de Hipotecas
+      * INTERFAZ: Canal Maestro PAG - Código de Operación 005
+      *==========================================================
        ENVIRONMENT DIVISION.
        CONFIGURATION SECTION.
        SPECIAL-NAMES.
@@ -25,161 +15,117 @@
            EXEC SQL INCLUDE SQLCA END-EXEC.
 
            EXEC SQL BEGIN DECLARE SECTION END-EXEC.
-       01  WS-HOST-HIP.
-           05 WS-ID-HIPOTECA-SQL    PIC 9(09).
-           05 WS-MONTO-PAGO-SQL     PIC S9(13)V99.
-           05 WS-SALDO-ACTUAL-SQL   PIC S9(13)V99.
-           05 WS-NUEVO-SALDO-SQL    PIC S9(13)V99.
-           05 WS-CUOTA-MENS-SQL     PIC S9(13)V99.
-           05 WS-ESTADO-SQL         PIC X(20).
-           05 WS-NUEVO-ESTADO-SQL   PIC X(20).
-           05 WS-COUNT-HIP-SQL      PIC 9(02).
+      * Variables de host para interactuar con MySQL
+       01  DB-VARS-HIP.
+           05 DB-HIP-ID-TARGET    PIC 9(10).
+           05 DB-CTA-DEBITO       PIC 9(10).
+           05 DB-PAGO-MONTO       PIC S9(13)V99.
+           05 DB-SALDO-DEUDA      PIC S9(13)V99.
+           05 DB-CUOTA-MENSUAL    PIC S9(13)V99.
+           05 DB-MESES-MORA       PIC 9(02).
+           05 DB-ESTADO-PRESTAMO  PIC X(10).
+           05 DB-SALDO-CTA        PIC S9(13)V99.
+           05 DB-SALDO-RES-LEDG   PIC S9(13)V99.
            EXEC SQL END DECLARE SECTION END-EXEC.
 
-       01  WS-AUX.
-           05 WS-AUX-SQLCODE        PIC -9(09).
-
        LINKAGE SECTION.
-       01  REG-CTA.
-           05 CTA-NRO-CUENTA       PIC 9(09).
-           05 CTA-NUM-CREDITO      PIC X(20).
-           05 CTA-SALDO-ACTUAL     PIC S9(13)V99.
-           05 CTA-MONTO-MOV        PIC 9(13)V99.
-
+      * Argumentos atómicos desacoplados heredados desde el orquestador
+       01  LK-HIPOTECA-ID          PIC 9(10).
+       01  LK-NUM-CREDITO          PIC X(20).
+       01  LK-MONTO-PAGO           PIC S9(13)V99.
            COPY LKTF.
 
-       PROCEDURE DIVISION USING REG-CTA, LK-TRICKLE-FEED-INTERFACE.
+       PROCEDURE DIVISION USING LK-HIPOTECA-ID, LK-NUM-CREDITO,
+                                LK-MONTO-PAGO, 
+                                LK-TRICKLE-FEED-INTERFACE.
        0000-PRINCIPAL.
            MOVE 00 TO LK-TF-COD-RETORNO
-           MOVE "OK" TO LK-TF-MENSAJE
+           MOVE "OK TKIN_HIP" TO LK-TF-MENSAJE
+           
+           MOVE LK-HIPOTECA-ID TO DB-HIP-ID-TARGET
+           MOVE LK-MONTO-PAGO   TO DB-PAGO-MONTO.
 
-      *    Extraer ID_HIPOTECA del campo NUM_CREDITO (X(20) -> 9(09))
-           MOVE FUNCTION NUMVAL(CTA-NUM-CREDITO)
-                                  TO WS-ID-HIPOTECA-SQL
-           MOVE CTA-MONTO-MOV     TO WS-MONTO-PAGO-SQL.
-
-      *----------------------------------------------------------------*
-      * Ruteo por accion. tkin_hip solo admite "P" (pago de credito).  *
-      *----------------------------------------------------------------*
-           EVALUATE LK-TF-ACCION
-               WHEN "P"
-                   PERFORM 1000-PROCESAR-PAGO
-
-               WHEN OTHER
-                   MOVE 99 TO LK-TF-COD-RETORNO
-                   MOVE "ERR: ACCION INVALIDA EN HIP"
-                       TO LK-TF-MENSAJE
-           END-EVALUATE.
-
-           GOBACK.
-
-      *================================================================*
-      * 1000 - PROCESAR PAGO DE HIPOTECA                               *
-      *================================================================*
-       1000-PROCESAR-PAGO.
-      *    1. Consultar hipoteca (saldo, cuota, estado)
-           MOVE 0 TO WS-COUNT-HIP-SQL
+      * 1. VALIDACIÓN PREVIA DEL ACTIVO (Existencia del Préstamo)
            EXEC SQL
-               SELECT COUNT(*), SALDO_ACTUAL,
-                      CUOTA_MENSUAL, ESTADO
-               INTO   :WS-COUNT-HIP-SQL,
-                      :WS-SALDO-ACTUAL-SQL,
-                      :WS-CUOTA-MENS-SQL,
-                      :WS-ESTADO-SQL
-               FROM   hipotecas
-               WHERE  ID_HIPOTECA = :WS-ID-HIPOTECA-SQL
-               GROUP BY SALDO_ACTUAL, CUOTA_MENSUAL, ESTADO
-           END-EXEC
-
-           IF SQLCODE NOT = 0 AND SQLCODE NOT = 100
-               MOVE SQLCODE TO WS-AUX-SQLCODE
-               MOVE 99 TO LK-TF-COD-RETORNO
-               STRING "ERR DB CONSULTA HIPOTECA SQLCODE: "
-                          DELIMITED BY SIZE
-                      WS-AUX-SQLCODE
-                          DELIMITED BY SIZE
-                   INTO LK-TF-MENSAJE
-               EXIT PARAGRAPH
-           END-IF
-
-           IF WS-COUNT-HIP-SQL = 0
-               MOVE 01 TO LK-TF-COD-RETORNO
-               MOVE "HIPOTECA NO EXISTE" TO LK-TF-MENSAJE
-               EXIT PARAGRAPH
-           END-IF
-
-      *    2. Validar estados que no admiten pago
-           IF WS-ESTADO-SQL = "CANCELADO"
-               MOVE 99 TO LK-TF-COD-RETORNO
-               MOVE "ERR: HIPOTECA YA CANCELADA"
-                   TO LK-TF-MENSAJE
-               EXIT PARAGRAPH
-           END-IF
-
-           IF WS-ESTADO-SQL = "CASTIGADO"
-               MOVE 99 TO LK-TF-COD-RETORNO
-               MOVE "ERR: HIPOTECA CASTIGADA NO ADMITE PAGO"
-                   TO LK-TF-MENSAJE
-               EXIT PARAGRAPH
-           END-IF
-
-      *    3. Calcular nuevo saldo
-           COMPUTE WS-NUEVO-SALDO-SQL =
-                   WS-SALDO-ACTUAL-SQL - WS-MONTO-PAGO-SQL
-
-      *    4. Avisos de prepago / sobrepago (no son errores)
-           IF WS-MONTO-PAGO-SQL > WS-SALDO-ACTUAL-SQL
-               MOVE "WARN: SOBREPAGO - CANCELA Y QUEDA EXCEDENTE"
-                   TO LK-TF-MENSAJE
-           ELSE
-               IF WS-MONTO-PAGO-SQL > WS-CUOTA-MENS-SQL
-                   MOVE "WARN: PREPAGO - MONTO EXCEDE LA CUOTA"
-                       TO LK-TF-MENSAJE
-               END-IF
-           END-IF
-
-      *    5. Determinar nuevo estado y evitar saldo negativo
-           IF WS-NUEVO-SALDO-SQL <= 0
-               MOVE "CANCELADO" TO WS-NUEVO-ESTADO-SQL
-               MOVE 0           TO WS-NUEVO-SALDO-SQL
-           ELSE
-               IF WS-ESTADO-SQL = "MOROSO"
-                   MOVE "ACTIVO" TO WS-NUEVO-ESTADO-SQL
-               ELSE
-                   MOVE WS-ESTADO-SQL TO WS-NUEVO-ESTADO-SQL
-               END-IF
-           END-IF
-
-      *    6. Persistir cambios. MESES_MORA se resetea solo si el
-      *       nuevo estado es ACTIVO o CANCELADO; sino se conserva.
-           EVALUATE WS-NUEVO-ESTADO-SQL
-               WHEN "ACTIVO"
-               WHEN "CANCELADO"
-                   EXEC SQL
-                       UPDATE hipotecas
-                       SET    SALDO_ACTUAL = :WS-NUEVO-SALDO-SQL,
-                              ESTADO       = :WS-NUEVO-ESTADO-SQL,
-                              MESES_MORA   = 0,
-                              FECHA_ULT_PAGO = CURDATE()
-                       WHERE  ID_HIPOTECA = :WS-ID-HIPOTECA-SQL
-                   END-EXEC
-
-               WHEN OTHER
-                   EXEC SQL
-                       UPDATE hipotecas
-                       SET    SALDO_ACTUAL = :WS-NUEVO-SALDO-SQL,
-                              ESTADO       = :WS-NUEVO-ESTADO-SQL,
-                              FECHA_ULT_PAGO = CURDATE()
-                       WHERE  ID_HIPOTECA = :WS-ID-HIPOTECA-SQL
-                   END-EXEC
-           END-EVALUATE
+               SELECT CUENTA_DEBITO, SALDO_DEUDA, CUOTA_MENSUAL,
+                      MESES_MORA, ESTADO_PRESTAMO
+               INTO :DB-CTA-DEBITO, :DB-SALDO-DEUDA, :DB-CUOTA-MENSUAL,
+                    :DB-MESES-MORA, :DB-ESTADO-PRESTAMO
+               FROM hipotecas
+               WHERE ID_HIPOTECA = :DB-HIP-ID-TARGET
+           END-EXEC.
 
            IF SQLCODE NOT = 0
-               MOVE SQLCODE TO WS-AUX-SQLCODE
-               MOVE 99 TO LK-TF-COD-RETORNO
-               STRING "ERR DB UPDATE HIPOTECA SQLCODE: "
-                          DELIMITED BY SIZE
-                      WS-AUX-SQLCODE
-                          DELIMITED BY SIZE
-                   INTO LK-TF-MENSAJE
+               MOVE 01 TO LK-TF-COD-RETORNO
+               MOVE "PRESTAMO HIPOTECARIO NO EXISTE" TO LK-TF-MENSAJE
+               GOBACK
            END-IF.
+
+           IF DB-ESTADO-PRESTAMO NOT = "ACTIVO"
+               MOVE 01 TO LK-TF-COD-RETORNO
+               MOVE "CREDITO EN PROCESO JUDICIAL O INACTIVO" 
+                 TO LK-TF-MENSAJE
+               GOBACK
+           END-IF.
+
+      * 2. VALIDACIÓN DE COBERTURA DE FONDOS EN PASIVOS (Cuenta Monetaria)
+           EXEC SQL
+               SELECT SALDO_ACTUAL
+               INTO :DB-SALDO-CTA
+               FROM ctactes
+               WHERE ID_CUENTA = :DB-CTA-DEBITO
+           END-EXEC.
+
+           IF SQLCODE NOT = 0
+               MOVE 01 TO LK-TF-COD-RETORNO
+               MOVE "CUENTA MONETARIA DE DEBITO NO EXISTE" 
+                 TO LK-TF-MENSAJE
+               GOBACK
+           END-IF.
+
+           IF DB-SALDO-CTA < DB-PAGO-MONTO
+               MOVE 07 TO LK-TF-COD-RETORNO
+               MOVE "FONDO INSUFICIENTE EN CUENTA VISTA" 
+                 TO LK-TF-MENSAJE
+               GOBACK
+           END-IF.
+
+      * 3. APLICACIÓN CONTABLE DUAL CRUCIAL
+      * 3.1 Carga al Pasivo (Restar dinero de la Cuenta Corriente)
+           EXEC SQL
+               UPDATE ctactes
+               SET SALDO_ACTUAL = SALDO_ACTUAL - :DB-PAGO-MONTO
+               WHERE ID_CUENTA = :DB-CTA-DEBITO
+           END-EXEC.
+
+      * 3.2 Abono al Activo (Disminuir la deuda de la Hipoteca)
+           EXEC SQL
+               UPDATE hipotecas
+               SET SALDO_DEUDA = SALDO_DEUDA - :DB-PAGO-MONTO
+               WHERE ID_HIPOTECA = :DB-HIP-ID-TARGET
+           END-EXEC.
+
+      * 3.3 Mitigación de Riesgos: Si el pago cubre la cuota, bajamos mora
+           IF DB-PAGO-MONTO >= DB-CUOTA-MENSUAL AND DB-MESES-MORA > 0
+               EXEC SQL
+                   UPDATE hipotecas
+                   SET MESES_MORA = MESES_MORA - 1
+                   WHERE ID_HIPOTECA = :DB-HIP-ID-TARGET
+               END-EXEC
+           END-IF.
+
+      * 3.4 Inyección del Asiento en el Libro Mayor (Ledger)
+      * Código de movimiento 6 = Cobro de interfaces Batch asíncronas
+           COMPUTE DB-SALDO-RES-LEDG = DB-SALDO-CTA - DB-PAGO-MONTO.
+           
+           EXEC SQL
+               INSERT INTO movimientos (ID_CUENTA, TIPO_MOV, IMPORTE,
+                                        SALDO_RESULTANTE, TERMINAL_ID)
+               VALUES (:DB-CTA-DEBITO, 6, :DB-PAGO-MONTO,
+                       :DB-SALDO-RES-LEDG, 'BTCH')
+           END-EXEC.
+
+      * 4. CIERRE CON EXITO EN BASE DE DATOS
+           EXEC SQL COMMIT END-EXEC.
+           MOVE 00 TO LK-TF-COD-RETORNO.
+           GOBACK.

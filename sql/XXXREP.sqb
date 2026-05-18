@@ -2,9 +2,8 @@
        PROGRAM-ID. XXXREP.
       *==========================================================
       * PROGRAMA PRECOMPILABLE: XXXREP.sqb
-      * FASE 30: GENERACIÓN DE REPORTES PARCIALES DE CONCILIACIÓN
-      * PROTECCIÓN: Tratamiento de NULLs mediante COALESCE.
-      * CONTROL: Alerta temprana de caídas de Base de Datos en FETCH.
+      * FASE 30: GENERACIÓN DE REPORTES DE CONCILIACIÓN
+      * FIJACIÓN: Separación estricta de párrafos para esqlOC
       *==========================================================
 
        ENVIRONMENT DIVISION.
@@ -17,7 +16,7 @@
        DATA DIVISION.
        FILE SECTION.
        FD  ARCHIVO-SALIDA.
-       01  REG-SALIDA                  PIC X(600).
+       01  REG-SALIDA                  PIC X(800).
 
        WORKING-STORAGE SECTION.
            EXEC SQL INCLUDE SQLCA END-EXEC.
@@ -27,6 +26,7 @@
            05 WS-DATOS-TX-SQL      PIC X(500).
            05 WS-ESTADO-SQL        PIC 9(01).
            05 WS-COD-ERR-SQL       PIC X(10). 
+           05 WS-MSG-ERR-SQL       PIC X(200).
            05 WS-ID-LOTE-SQL       PIC 9(09).
            EXEC SQL END DECLARE SECTION END-EXEC.
 
@@ -65,11 +65,15 @@
 
            OPEN OUTPUT ARCHIVO-SALIDA
            IF WS-FS NOT = "00"
-               DISPLAY "ERROR CRÍTICO: NO SE PUDO CREAR REPORTE: " 
-                       WS-RUTA-FINAL " FS: " WS-FS
+               DISPLAY "ERR REPORTE: " WS-RUTA-FINAL
                MOVE 99 TO LK-TF-COD-RETORNO
                GOBACK
            END-IF.
+
+           MOVE "TRAMA_TX|ESTADO|COD_ERR|DESCRIPCION"
+             TO REG-SALIDA
+           WRITE REG-SALIDA
+           INITIALIZE REG-SALIDA
 
            PERFORM 100-ABRIR
            
@@ -82,8 +86,7 @@
            PERFORM 400-CERRAR
            CLOSE ARCHIVO-SALIDA
            
-           DISPLAY "  [REP] REPORTE PARCIAL GENERADO: " 
-                   FUNCTION TRIM(WS-FILE-NAME) ".out"
+           DISPLAY "  [REP] REPORTE GENERADO CON EXITO"
            GOBACK.
 
        100-ABRIR.
@@ -96,87 +99,112 @@
                WHEN "TF06" PERFORM 106-OR
            END-EVALUATE.
 
-      * PROTECCIÓN COALESCE: Si el campo de error es NULL, se inyectan espacios planos
        101-OR.
            EXEC SQL DECLARE R1 CURSOR FOR 
-           SELECT DATOS_TX, ESTADO, COALESCE(COD_ERROR, ' ') FROM tf01 
-           WHERE ID_LOTE = :WS-ID-LOTE-SQL END-EXEC
+               SELECT DATOS_TX, ESTADO, 
+                      COALESCE(COD_ERROR, '000'), 
+                      COALESCE(ERROR_MESSAGE, 'OK') 
+               FROM tf01 WHERE ID_LOTE = :WS-ID-LOTE-SQL 
+           END-EXEC.
            EXEC SQL OPEN R1 END-EXEC.
+
        102-OR.
            EXEC SQL DECLARE R2 CURSOR FOR 
-           SELECT DATOS_TX, ESTADO, COALESCE(COD_ERROR, ' ') FROM tf02 
-           WHERE ID_LOTE = :WS-ID-LOTE-SQL END-EXEC
+               SELECT DATOS_TX, ESTADO, 
+                      COALESCE(COD_ERROR, '000'), 
+                      COALESCE(ERROR_MESSAGE, 'OK') 
+               FROM tf02 WHERE ID_LOTE = :WS-ID-LOTE-SQL 
+           END-EXEC.
            EXEC SQL OPEN R2 END-EXEC.
+
        103-OR.
            EXEC SQL DECLARE R3 CURSOR FOR 
-           SELECT DATOS_TX, ESTADO, COALESCE(COD_ERROR, ' ') FROM tf03 
-           WHERE ID_LOTE = :WS-ID-LOTE-SQL END-EXEC
+               SELECT DATOS_TX, ESTADO, 
+                      COALESCE(COD_ERROR, '000'), 
+                      COALESCE(ERROR_MESSAGE, 'OK') 
+               FROM tf03 WHERE ID_LOTE = :WS-ID-LOTE-SQL 
+           END-EXEC.
            EXEC SQL OPEN R3 END-EXEC.
+
        104-OR.
            EXEC SQL DECLARE R4 CURSOR FOR 
-           SELECT DATOS_TX, ESTADO, COALESCE(COD_ERROR, ' ') FROM tf04 
-           WHERE ID_LOTE = :WS-ID-LOTE-SQL END-EXEC
+               SELECT DATOS_TX, ESTADO, 
+                      COALESCE(COD_ERROR, '000'), 
+                      COALESCE(ERROR_MESSAGE, 'OK') 
+               FROM tf04 WHERE ID_LOTE = :WS-ID-LOTE-SQL 
+           END-EXEC.
            EXEC SQL OPEN R4 END-EXEC.
+
        105-OR.
            EXEC SQL DECLARE R5 CURSOR FOR 
-           SELECT DATOS_TX, ESTADO, COALESCE(COD_ERROR, ' ') FROM tf05 
-           WHERE ID_LOTE = :WS-ID-LOTE-SQL END-EXEC
+               SELECT DATOS_TX, ESTADO, 
+                      COALESCE(COD_ERROR, '000'), 
+                      COALESCE(ERROR_MESSAGE, 'OK') 
+               FROM tf05 WHERE ID_LOTE = :WS-ID-LOTE-SQL 
+           END-EXEC.
            EXEC SQL OPEN R5 END-EXEC.
+
        106-OR.
            EXEC SQL DECLARE R6 CURSOR FOR 
-           SELECT DATOS_TX, ESTADO, COALESCE(COD_ERROR, ' ') FROM tf06 
-           WHERE ID_LOTE = :WS-ID-LOTE-SQL END-EXEC
+               SELECT DATOS_TX, ESTADO, 
+                      COALESCE(COD_ERROR, '000'), 
+                      COALESCE(ERROR_MESSAGE, 'OK') 
+               FROM tf06 WHERE ID_LOTE = :WS-ID-LOTE-SQL 
+           END-EXEC.
            EXEC SQL OPEN R6 END-EXEC.
 
        200-FETCH.
            EVALUATE WS-REPLICA-ASIG
                WHEN "TF01" 
                    EXEC SQL FETCH R1 INTO :WS-DATOS-TX-SQL, 
-                    :WS-ESTADO-SQL, :WS-COD-ERR-SQL END-EXEC
+                    :WS-ESTADO-SQL, :WS-COD-ERR-SQL, :WS-MSG-ERR-SQL 
+                   END-EXEC
                WHEN "TF02" 
                    EXEC SQL FETCH R2 INTO :WS-DATOS-TX-SQL, 
-                    :WS-ESTADO-SQL, :WS-COD-ERR-SQL END-EXEC
+                    :WS-ESTADO-SQL, :WS-COD-ERR-SQL, :WS-MSG-ERR-SQL 
+                   END-EXEC
                WHEN "TF03" 
                    EXEC SQL FETCH R3 INTO :WS-DATOS-TX-SQL, 
-                    :WS-ESTADO-SQL, :WS-COD-ERR-SQL END-EXEC
+                    :WS-ESTADO-SQL, :WS-COD-ERR-SQL, :WS-MSG-ERR-SQL 
+                   END-EXEC
                WHEN "TF04" 
                    EXEC SQL FETCH R4 INTO :WS-DATOS-TX-SQL, 
-                    :WS-ESTADO-SQL, :WS-COD-ERR-SQL END-EXEC
+                    :WS-ESTADO-SQL, :WS-COD-ERR-SQL, :WS-MSG-ERR-SQL 
+                   END-EXEC
                WHEN "TF05" 
                    EXEC SQL FETCH R5 INTO :WS-DATOS-TX-SQL, 
-                    :WS-ESTADO-SQL, :WS-COD-ERR-SQL END-EXEC
+                    :WS-ESTADO-SQL, :WS-COD-ERR-SQL, :WS-MSG-ERR-SQL 
+                   END-EXEC
                WHEN "TF06" 
                    EXEC SQL FETCH R6 INTO :WS-DATOS-TX-SQL, 
-                    :WS-ESTADO-SQL, :WS-COD-ERR-SQL END-EXEC
+                    :WS-ESTADO-SQL, :WS-COD-ERR-SQL, :WS-MSG-ERR-SQL 
+                   END-EXEC
            END-EVALUATE.
 
-      * CONTROL MAESTRO: Separamos el fin de datos legítimo (100) de una caída de BD (< 0)
            IF SQLCODE = 100
                MOVE 'Y' TO WS-EOF-REP
            ELSE
                IF SQLCODE < 0
-                   DISPLAY "ALERTA CONCILIACIÓN: ERROR FINANCIERO "
-                   "EN FETCH SQLCODE: " SQLCODE
                    MOVE 99 TO LK-TF-COD-RETORNO
-                   MOVE "ERR: FALLO LECTURA DE RÉPLICA PARA REPORTE" 
-                   TO LK-TF-MENSAJE
-                   MOVE 'Y' TO WS-EOF-REP
+                   MOVE "Y" TO WS-EOF-REP
                END-IF
            END-IF.
 
        300-ESCRIBIR.
            INITIALIZE REG-SALIDA
+           
            IF WS-ESTADO-SQL = 4 
                MOVE "OK" TO WS-STATUS-TXT 
                MOVE "000" TO WS-COD-ERR-SQL
+               MOVE "PROCESADO" TO WS-MSG-ERR-SQL
            ELSE 
                MOVE "ERROR" TO WS-STATUS-TXT 
            END-IF.
            
-      * Construcción del registro con append delimitado para sistemas de auditoría satélites
            STRING FUNCTION TRIM(WS-DATOS-TX-SQL) "|" 
                   FUNCTION TRIM(WS-STATUS-TXT)   "|" 
-                  FUNCTION TRIM(WS-COD-ERR-SQL)
+                  FUNCTION TRIM(WS-COD-ERR-SQL)  "|"
+                  FUNCTION TRIM(WS-MSG-ERR-SQL)
                   DELIMITED BY SIZE INTO REG-SALIDA.
            
            WRITE REG-SALIDA.
@@ -191,15 +219,16 @@
                WHEN "TF06" PERFORM 406-CLOSE-R6
            END-EVALUATE.
 
-       401-CLOSE-R1. 
+      * CORRECCIÓN CRÍTICA: Nombre de párrafo aislado en su propia línea
+       401-CLOSE-R1.
            EXEC SQL CLOSE R1 END-EXEC.
-       402-CLOSE-R2. 
+       402-CLOSE-R2.
            EXEC SQL CLOSE R2 END-EXEC.
-       403-CLOSE-R3. 
+       403-CLOSE-R3.
            EXEC SQL CLOSE R3 END-EXEC.
-       404-CLOSE-R4. 
+       404-CLOSE-R4.
            EXEC SQL CLOSE R4 END-EXEC.
-       405-CLOSE-R5. 
+       405-CLOSE-R5.
            EXEC SQL CLOSE R5 END-EXEC.
-       406-CLOSE-R6. 
+       406-CLOSE-R6.
            EXEC SQL CLOSE R6 END-EXEC.

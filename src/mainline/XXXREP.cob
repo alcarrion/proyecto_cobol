@@ -2,9 +2,8 @@
        PROGRAM-ID. XXXREP.
       *==========================================================
       * PROGRAMA PRECOMPILABLE: XXXREP.sqb
-      * FASE 30: GENERACIÓN DE REPORTES PARCIALES DE CONCILIACIÓN
-      * PROTECCIÓN: Tratamiento de NULLs mediante COALESCE.
-      * CONTROL: Alerta temprana de caídas de Base de Datos en FETCH.
+      * FASE 30: GENERACIÓN DE REPORTES DE CONCILIACIÓN
+      * FIJACIÓN: Separación estricta de párrafos para esqlOC
       *==========================================================
 
        ENVIRONMENT DIVISION.
@@ -17,27 +16,28 @@
        DATA DIVISION.
        FILE SECTION.
        FD  ARCHIVO-SALIDA.
-       01  REG-SALIDA                  PIC X(600).
+       01  REG-SALIDA                  PIC X(800).
 
        WORKING-STORAGE SECTION.
       **********************************************************************
       *******                EMBEDDED SQL VARIABLES                  *******
        01 SQLV.
-           05 SQL-ARRSZ  PIC S9(9) COMP-5 VALUE 3.
+           05 SQL-ARRSZ  PIC S9(9) COMP-5 VALUE 4.
            05 SQL-COUNT  PIC S9(9) COMP-5 VALUE ZERO.
-           05 SQL-ADDR   POINTER OCCURS 3 TIMES VALUE NULL.
-           05 SQL-LEN    PIC S9(9) COMP-5 OCCURS 3 TIMES VALUE ZERO.
-           05 SQL-TYPE   PIC X OCCURS 3 TIMES.
-           05 SQL-PREC   PIC X OCCURS 3 TIMES.
+           05 SQL-ADDR   POINTER OCCURS 4 TIMES VALUE NULL.
+           05 SQL-LEN    PIC S9(9) COMP-5 OCCURS 4 TIMES VALUE ZERO.
+           05 SQL-TYPE   PIC X OCCURS 4 TIMES.
+           05 SQL-PREC   PIC X OCCURS 4 TIMES.
       **********************************************************************
        01 SQL-STMT-0.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE 'C'.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 74.
-           05 SQL-STMT   PIC X(74) VALUE 'SELECT DATOS_TX,ESTADO,COALESC
-      -    'E(COD_ERROR,'' '') FROM tf01 WHERE ID_LOTE = ?'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 105.
+           05 SQL-STMT   PIC X(105) VALUE 'SELECT DATOS_TX,ESTADO,COALES
+      -    'CE(COD_ERROR,''000''),COALESCE(ERROR_MESSAGE,''OK'') FROM tf
+      -    '01 WHERE ID_LOTE = ?'.
            05 SQL-CNAME  PIC X(2) VALUE 'R1'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
@@ -46,9 +46,10 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE 'C'.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 74.
-           05 SQL-STMT   PIC X(74) VALUE 'SELECT DATOS_TX,ESTADO,COALESC
-      -    'E(COD_ERROR,'' '') FROM tf02 WHERE ID_LOTE = ?'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 105.
+           05 SQL-STMT   PIC X(105) VALUE 'SELECT DATOS_TX,ESTADO,COALES
+      -    'CE(COD_ERROR,''000''),COALESCE(ERROR_MESSAGE,''OK'') FROM tf
+      -    '02 WHERE ID_LOTE = ?'.
            05 SQL-CNAME  PIC X(2) VALUE 'R2'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
@@ -57,9 +58,10 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE 'C'.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 74.
-           05 SQL-STMT   PIC X(74) VALUE 'SELECT DATOS_TX,ESTADO,COALESC
-      -    'E(COD_ERROR,'' '') FROM tf03 WHERE ID_LOTE = ?'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 105.
+           05 SQL-STMT   PIC X(105) VALUE 'SELECT DATOS_TX,ESTADO,COALES
+      -    'CE(COD_ERROR,''000''),COALESCE(ERROR_MESSAGE,''OK'') FROM tf
+      -    '03 WHERE ID_LOTE = ?'.
            05 SQL-CNAME  PIC X(2) VALUE 'R3'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
@@ -68,9 +70,10 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE 'C'.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 74.
-           05 SQL-STMT   PIC X(74) VALUE 'SELECT DATOS_TX,ESTADO,COALESC
-      -    'E(COD_ERROR,'' '') FROM tf04 WHERE ID_LOTE = ?'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 105.
+           05 SQL-STMT   PIC X(105) VALUE 'SELECT DATOS_TX,ESTADO,COALES
+      -    'CE(COD_ERROR,''000''),COALESCE(ERROR_MESSAGE,''OK'') FROM tf
+      -    '04 WHERE ID_LOTE = ?'.
            05 SQL-CNAME  PIC X(2) VALUE 'R4'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
@@ -79,9 +82,10 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE 'C'.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 74.
-           05 SQL-STMT   PIC X(74) VALUE 'SELECT DATOS_TX,ESTADO,COALESC
-      -    'E(COD_ERROR,'' '') FROM tf05 WHERE ID_LOTE = ?'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 105.
+           05 SQL-STMT   PIC X(105) VALUE 'SELECT DATOS_TX,ESTADO,COALES
+      -    'CE(COD_ERROR,''000''),COALESCE(ERROR_MESSAGE,''OK'') FROM tf
+      -    '05 WHERE ID_LOTE = ?'.
            05 SQL-CNAME  PIC X(2) VALUE 'R5'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
@@ -90,9 +94,10 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE 'C'.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 74.
-           05 SQL-STMT   PIC X(74) VALUE 'SELECT DATOS_TX,ESTADO,COALESC
-      -    'E(COD_ERROR,'' '') FROM tf06 WHERE ID_LOTE = ?'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 105.
+           05 SQL-STMT   PIC X(105) VALUE 'SELECT DATOS_TX,ESTADO,COALES
+      -    'CE(COD_ERROR,''000''),COALESCE(ERROR_MESSAGE,''OK'') FROM tf
+      -    '06 WHERE ID_LOTE = ?'.
            05 SQL-CNAME  PIC X(2) VALUE 'R6'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
@@ -127,6 +132,7 @@
            05 WS-DATOS-TX-SQL      PIC X(500).
            05 WS-ESTADO-SQL        PIC 9(01).
            05 WS-COD-ERR-SQL       PIC X(10).
+           05 WS-MSG-ERR-SQL       PIC X(200).
            05 WS-ID-LOTE-SQL       PIC 9(09).
       *    EXEC SQL END DECLARE SECTION END-EXEC.
 
@@ -165,11 +171,15 @@
 
            OPEN OUTPUT ARCHIVO-SALIDA
            IF WS-FS NOT = "00"
-               DISPLAY "ERROR CRÍTICO: NO SE PUDO CREAR REPORTE: "
-                       WS-RUTA-FINAL " FS: " WS-FS
+               DISPLAY "ERR REPORTE: " WS-RUTA-FINAL
                MOVE 99 TO LK-TF-COD-RETORNO
                GOBACK
            END-IF.
+
+           MOVE "TRAMA_TX|ESTADO|COD_ERR|DESCRIPCION"
+             TO REG-SALIDA
+           WRITE REG-SALIDA
+           INITIALIZE REG-SALIDA
 
            PERFORM 100-ABRIR
 
@@ -182,8 +192,7 @@
            PERFORM 400-CERRAR
            CLOSE ARCHIVO-SALIDA
 
-           DISPLAY "  [REP] REPORTE PARCIAL GENERADO: "
-                   FUNCTION TRIM(WS-FILE-NAME) ".out"
+           DISPLAY "  [REP] REPORTE GENERADO CON EXITO"
            GOBACK.
 
        100-ABRIR.
@@ -196,11 +205,14 @@
                WHEN "TF06" PERFORM 106-OR
            END-EVALUATE.
 
-      * PROTECCIÓN COALESCE: Si el campo de error es NULL, se inyectan
        101-OR.
       *    EXEC SQL DECLARE R1 CURSOR FOR
-      *    SELECT DATOS_TX, ESTADO, COALESCE(COD_ERROR, ' ') FROM tf01
-      *    WHERE ID_LOTE = :WS-ID-LOTE-SQL END-EXEC
+      *        SELECT DATOS_TX, ESTADO,
+      *               COALESCE(COD_ERROR, '000'),
+      *               COALESCE(ERROR_MESSAGE, 'OK')
+      *        FROM tf01 WHERE ID_LOTE = :WS-ID-LOTE-SQL
+      *    END-EXEC.
+                   .
       *    EXEC SQL OPEN R1 END-EXEC.
            IF SQL-PREP OF SQL-STMT-0 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -218,10 +230,15 @@
                                SQLCA
            END-CALL
                                     .
+
        102-OR.
       *    EXEC SQL DECLARE R2 CURSOR FOR
-      *    SELECT DATOS_TX, ESTADO, COALESCE(COD_ERROR, ' ') FROM tf02
-      *    WHERE ID_LOTE = :WS-ID-LOTE-SQL END-EXEC
+      *        SELECT DATOS_TX, ESTADO,
+      *               COALESCE(COD_ERROR, '000'),
+      *               COALESCE(ERROR_MESSAGE, 'OK')
+      *        FROM tf02 WHERE ID_LOTE = :WS-ID-LOTE-SQL
+      *    END-EXEC.
+                   .
       *    EXEC SQL OPEN R2 END-EXEC.
            IF SQL-PREP OF SQL-STMT-1 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -239,10 +256,15 @@
                                SQLCA
            END-CALL
                                     .
+
        103-OR.
       *    EXEC SQL DECLARE R3 CURSOR FOR
-      *    SELECT DATOS_TX, ESTADO, COALESCE(COD_ERROR, ' ') FROM tf03
-      *    WHERE ID_LOTE = :WS-ID-LOTE-SQL END-EXEC
+      *        SELECT DATOS_TX, ESTADO,
+      *               COALESCE(COD_ERROR, '000'),
+      *               COALESCE(ERROR_MESSAGE, 'OK')
+      *        FROM tf03 WHERE ID_LOTE = :WS-ID-LOTE-SQL
+      *    END-EXEC.
+                   .
       *    EXEC SQL OPEN R3 END-EXEC.
            IF SQL-PREP OF SQL-STMT-2 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -260,10 +282,15 @@
                                SQLCA
            END-CALL
                                     .
+
        104-OR.
       *    EXEC SQL DECLARE R4 CURSOR FOR
-      *    SELECT DATOS_TX, ESTADO, COALESCE(COD_ERROR, ' ') FROM tf04
-      *    WHERE ID_LOTE = :WS-ID-LOTE-SQL END-EXEC
+      *        SELECT DATOS_TX, ESTADO,
+      *               COALESCE(COD_ERROR, '000'),
+      *               COALESCE(ERROR_MESSAGE, 'OK')
+      *        FROM tf04 WHERE ID_LOTE = :WS-ID-LOTE-SQL
+      *    END-EXEC.
+                   .
       *    EXEC SQL OPEN R4 END-EXEC.
            IF SQL-PREP OF SQL-STMT-3 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -281,10 +308,15 @@
                                SQLCA
            END-CALL
                                     .
+
        105-OR.
       *    EXEC SQL DECLARE R5 CURSOR FOR
-      *    SELECT DATOS_TX, ESTADO, COALESCE(COD_ERROR, ' ') FROM tf05
-      *    WHERE ID_LOTE = :WS-ID-LOTE-SQL END-EXEC
+      *        SELECT DATOS_TX, ESTADO,
+      *               COALESCE(COD_ERROR, '000'),
+      *               COALESCE(ERROR_MESSAGE, 'OK')
+      *        FROM tf05 WHERE ID_LOTE = :WS-ID-LOTE-SQL
+      *    END-EXEC.
+                   .
       *    EXEC SQL OPEN R5 END-EXEC.
            IF SQL-PREP OF SQL-STMT-4 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -302,10 +334,15 @@
                                SQLCA
            END-CALL
                                     .
+
        106-OR.
       *    EXEC SQL DECLARE R6 CURSOR FOR
-      *    SELECT DATOS_TX, ESTADO, COALESCE(COD_ERROR, ' ') FROM tf06
-      *    WHERE ID_LOTE = :WS-ID-LOTE-SQL END-EXEC
+      *        SELECT DATOS_TX, ESTADO,
+      *               COALESCE(COD_ERROR, '000'),
+      *               COALESCE(ERROR_MESSAGE, 'OK')
+      *        FROM tf06 WHERE ID_LOTE = :WS-ID-LOTE-SQL
+      *    END-EXEC.
+                   .
       *    EXEC SQL OPEN R6 END-EXEC.
            IF SQL-PREP OF SQL-STMT-5 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -328,7 +365,8 @@
            EVALUATE WS-REPLICA-ASIG
                WHEN "TF01"
       *            EXEC SQL FETCH R1 INTO :WS-DATOS-TX-SQL,
-      *             :WS-ESTADO-SQL, :WS-COD-ERR-SQL END-EXEC
+      *             :WS-ESTADO-SQL, :WS-COD-ERR-SQL, :WS-MSG-ERR-SQL
+      *            END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
              WS-DATOS-TX-SQL
            MOVE 'X' TO SQL-TYPE(1)
@@ -342,14 +380,19 @@
              WS-COD-ERR-SQL
            MOVE 'X' TO SQL-TYPE(3)
            MOVE 10 TO SQL-LEN(3)
-           MOVE 3 TO SQL-COUNT
+           SET SQL-ADDR(4) TO ADDRESS OF
+             WS-MSG-ERR-SQL
+           MOVE 'X' TO SQL-TYPE(4)
+           MOVE 200 TO SQL-LEN(4)
+           MOVE 4 TO SQL-COUNT
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-0
                                SQLCA
            MOVE SQL-VAR-0001 TO WS-ESTADO-SQL
                WHEN "TF02"
       *            EXEC SQL FETCH R2 INTO :WS-DATOS-TX-SQL,
-      *             :WS-ESTADO-SQL, :WS-COD-ERR-SQL END-EXEC
+      *             :WS-ESTADO-SQL, :WS-COD-ERR-SQL, :WS-MSG-ERR-SQL
+      *            END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
              WS-DATOS-TX-SQL
            MOVE 'X' TO SQL-TYPE(1)
@@ -363,14 +406,19 @@
              WS-COD-ERR-SQL
            MOVE 'X' TO SQL-TYPE(3)
            MOVE 10 TO SQL-LEN(3)
-           MOVE 3 TO SQL-COUNT
+           SET SQL-ADDR(4) TO ADDRESS OF
+             WS-MSG-ERR-SQL
+           MOVE 'X' TO SQL-TYPE(4)
+           MOVE 200 TO SQL-LEN(4)
+           MOVE 4 TO SQL-COUNT
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-1
                                SQLCA
            MOVE SQL-VAR-0001 TO WS-ESTADO-SQL
                WHEN "TF03"
       *            EXEC SQL FETCH R3 INTO :WS-DATOS-TX-SQL,
-      *             :WS-ESTADO-SQL, :WS-COD-ERR-SQL END-EXEC
+      *             :WS-ESTADO-SQL, :WS-COD-ERR-SQL, :WS-MSG-ERR-SQL
+      *            END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
              WS-DATOS-TX-SQL
            MOVE 'X' TO SQL-TYPE(1)
@@ -384,14 +432,19 @@
              WS-COD-ERR-SQL
            MOVE 'X' TO SQL-TYPE(3)
            MOVE 10 TO SQL-LEN(3)
-           MOVE 3 TO SQL-COUNT
+           SET SQL-ADDR(4) TO ADDRESS OF
+             WS-MSG-ERR-SQL
+           MOVE 'X' TO SQL-TYPE(4)
+           MOVE 200 TO SQL-LEN(4)
+           MOVE 4 TO SQL-COUNT
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-2
                                SQLCA
            MOVE SQL-VAR-0001 TO WS-ESTADO-SQL
                WHEN "TF04"
       *            EXEC SQL FETCH R4 INTO :WS-DATOS-TX-SQL,
-      *             :WS-ESTADO-SQL, :WS-COD-ERR-SQL END-EXEC
+      *             :WS-ESTADO-SQL, :WS-COD-ERR-SQL, :WS-MSG-ERR-SQL
+      *            END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
              WS-DATOS-TX-SQL
            MOVE 'X' TO SQL-TYPE(1)
@@ -405,14 +458,19 @@
              WS-COD-ERR-SQL
            MOVE 'X' TO SQL-TYPE(3)
            MOVE 10 TO SQL-LEN(3)
-           MOVE 3 TO SQL-COUNT
+           SET SQL-ADDR(4) TO ADDRESS OF
+             WS-MSG-ERR-SQL
+           MOVE 'X' TO SQL-TYPE(4)
+           MOVE 200 TO SQL-LEN(4)
+           MOVE 4 TO SQL-COUNT
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-3
                                SQLCA
            MOVE SQL-VAR-0001 TO WS-ESTADO-SQL
                WHEN "TF05"
       *            EXEC SQL FETCH R5 INTO :WS-DATOS-TX-SQL,
-      *             :WS-ESTADO-SQL, :WS-COD-ERR-SQL END-EXEC
+      *             :WS-ESTADO-SQL, :WS-COD-ERR-SQL, :WS-MSG-ERR-SQL
+      *            END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
              WS-DATOS-TX-SQL
            MOVE 'X' TO SQL-TYPE(1)
@@ -426,14 +484,19 @@
              WS-COD-ERR-SQL
            MOVE 'X' TO SQL-TYPE(3)
            MOVE 10 TO SQL-LEN(3)
-           MOVE 3 TO SQL-COUNT
+           SET SQL-ADDR(4) TO ADDRESS OF
+             WS-MSG-ERR-SQL
+           MOVE 'X' TO SQL-TYPE(4)
+           MOVE 200 TO SQL-LEN(4)
+           MOVE 4 TO SQL-COUNT
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-4
                                SQLCA
            MOVE SQL-VAR-0001 TO WS-ESTADO-SQL
                WHEN "TF06"
       *            EXEC SQL FETCH R6 INTO :WS-DATOS-TX-SQL,
-      *             :WS-ESTADO-SQL, :WS-COD-ERR-SQL END-EXEC
+      *             :WS-ESTADO-SQL, :WS-COD-ERR-SQL, :WS-MSG-ERR-SQL
+      *            END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
              WS-DATOS-TX-SQL
            MOVE 'X' TO SQL-TYPE(1)
@@ -447,40 +510,41 @@
              WS-COD-ERR-SQL
            MOVE 'X' TO SQL-TYPE(3)
            MOVE 10 TO SQL-LEN(3)
-           MOVE 3 TO SQL-COUNT
+           SET SQL-ADDR(4) TO ADDRESS OF
+             WS-MSG-ERR-SQL
+           MOVE 'X' TO SQL-TYPE(4)
+           MOVE 200 TO SQL-LEN(4)
+           MOVE 4 TO SQL-COUNT
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-5
                                SQLCA
            MOVE SQL-VAR-0001 TO WS-ESTADO-SQL
            END-EVALUATE.
 
-      * CONTROL MAESTRO: Separamos el fin de datos legítimo (100) de un
            IF SQLCODE = 100
                MOVE 'Y' TO WS-EOF-REP
            ELSE
                IF SQLCODE < 0
-                   DISPLAY "ALERTA CONCILIACIÓN: ERROR FINANCIERO "
-                   "EN FETCH SQLCODE: " SQLCODE
                    MOVE 99 TO LK-TF-COD-RETORNO
-                   MOVE "ERR: FALLO LECTURA DE RÉPLICA PARA REPORTE"
-                   TO LK-TF-MENSAJE
-                   MOVE 'Y' TO WS-EOF-REP
+                   MOVE "Y" TO WS-EOF-REP
                END-IF
            END-IF.
 
        300-ESCRIBIR.
            INITIALIZE REG-SALIDA
+
            IF WS-ESTADO-SQL = 4
                MOVE "OK" TO WS-STATUS-TXT
                MOVE "000" TO WS-COD-ERR-SQL
+               MOVE "PROCESADO" TO WS-MSG-ERR-SQL
            ELSE
                MOVE "ERROR" TO WS-STATUS-TXT
            END-IF.
 
-      * Construcción del registro con append delimitado para sistemas d
            STRING FUNCTION TRIM(WS-DATOS-TX-SQL) "|"
                   FUNCTION TRIM(WS-STATUS-TXT)   "|"
-                  FUNCTION TRIM(WS-COD-ERR-SQL)
+                  FUNCTION TRIM(WS-COD-ERR-SQL)  "|"
+                  FUNCTION TRIM(WS-MSG-ERR-SQL)
                   DELIMITED BY SIZE INTO REG-SALIDA.
 
            WRITE REG-SALIDA.
@@ -495,6 +559,7 @@
                WHEN "TF06" PERFORM 406-CLOSE-R6
            END-EVALUATE.
 
+      * CORRECCIÓN CRÍTICA: Nombre de párrafo aislado en su propia l
        401-CLOSE-R1.
       *    EXEC SQL CLOSE R1 END-EXEC.
            CALL 'OCSQLCCU' USING SQL-STMT-0
@@ -539,9 +604,11 @@
       *  WS-DATOS-TX-SQL          IN USE CHAR(500)
       *  WS-ESTADO-SQL            IN USE THROUGH TEMP VAR SQL-VAR-0001 DECIMAL(1,0)
       *  WS-ID-LOTE-SQL           IN USE THROUGH TEMP VAR SQL-VAR-0002 DECIMAL(9,0)
+      *  WS-MSG-ERR-SQL           IN USE CHAR(200)
       *  WS-TF-REGS-SQL       NOT IN USE
       *  WS-TF-REGS-SQL.WS-COD-ERR-SQL NOT IN USE
       *  WS-TF-REGS-SQL.WS-DATOS-TX-SQL NOT IN USE
       *  WS-TF-REGS-SQL.WS-ESTADO-SQL NOT IN USE
       *  WS-TF-REGS-SQL.WS-ID-LOTE-SQL NOT IN USE
+      *  WS-TF-REGS-SQL.WS-MSG-ERR-SQL NOT IN USE
       **********************************************************************
