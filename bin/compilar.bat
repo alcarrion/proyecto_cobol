@@ -112,22 +112,63 @@ echo ============================================
 echo  2. Compilando todos los modulos
 echo ============================================
 
-"%COBC%" -x -v -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql "%MAINLINE_DIR%\BANCSMENU.cob" "%MAINLINE_DIR%\DBIOCUSM.cob" "%MAINLINE_DIR%\DBIOTRAN.cob" "%MAINLINE_DIR%\DBIOINVM.cob" "%MAINLINE_DIR%\DBIOTARJ.cob" "%MAINLINE_DIR%\CI0000.cbl" "%MAINLINE_DIR%\IN0000.cbl" "%MAINLINE_DIR%\DF0000.cbl" "%MAINLINE_DIR%\TC0000.cbl" -o "%BIN_DIR%\BANCSMENU.exe"
-if %ERRORLEVEL% == 0 (
-    echo.
-    echo ============================================
-    echo  EXITO: COMPILACION COMPLETA
-    echo ============================================
-    echo Ejecutable: %BIN_DIR%\BANCSMENU.exe
-    echo ============================================
-) else (
-    echo.
-    echo ============================================
-    echo  ERROR: FALLO LA COMPILACION COBOL
-    echo ============================================
-    echo Revisa los errores mostrados arriba.
-    echo ============================================
-)
+:: Workaround bug cobc 3.x: compilar subprogramas como DLL y solo el main como EXE
+:: (al combinarlos en un unico -x el traductor de cobc hace SIGSEGV en TC0000)
+
+echo [DLL 1/8] DBIOCUSM
+"%COBC%" -m -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql -o "%BIN_DIR%\DBIOCUSM.dll" "%MAINLINE_DIR%\DBIOCUSM.cob"
+if %ERRORLEVEL% NEQ 0 goto :ERROR_COBOL
+
+echo [DLL 2/8] DBIOTRAN
+"%COBC%" -m -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql -o "%BIN_DIR%\DBIOTRAN.dll" "%MAINLINE_DIR%\DBIOTRAN.cob"
+if %ERRORLEVEL% NEQ 0 goto :ERROR_COBOL
+
+echo [DLL 3/8] DBIOINVM
+"%COBC%" -m -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql -o "%BIN_DIR%\DBIOINVM.dll" "%MAINLINE_DIR%\DBIOINVM.cob"
+if %ERRORLEVEL% NEQ 0 goto :ERROR_COBOL
+
+echo [DLL 4/8] DBIOTARJ
+"%COBC%" -m -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql -o "%BIN_DIR%\DBIOTARJ.dll" "%MAINLINE_DIR%\DBIOTARJ.cob"
+if %ERRORLEVEL% NEQ 0 goto :ERROR_COBOL
+
+echo [DLL 5/8] CI0000
+"%COBC%" -m -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql -o "%BIN_DIR%\CI0000.dll" "%MAINLINE_DIR%\CI0000.cbl"
+if %ERRORLEVEL% NEQ 0 goto :ERROR_COBOL
+
+echo [DLL 6/8] IN0000
+"%COBC%" -m -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql -o "%BIN_DIR%\IN0000.dll" "%MAINLINE_DIR%\IN0000.cbl"
+if %ERRORLEVEL% NEQ 0 goto :ERROR_COBOL
+
+echo [DLL 7/8] DF0000
+"%COBC%" -m -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql -o "%BIN_DIR%\DF0000.dll" "%MAINLINE_DIR%\DF0000.cbl"
+if %ERRORLEVEL% NEQ 0 goto :ERROR_COBOL
+
+echo [DLL 8/8] TC0000
+"%COBC%" -m -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql -o "%BIN_DIR%\TC0000.dll" "%MAINLINE_DIR%\TC0000.cbl"
+if %ERRORLEVEL% NEQ 0 goto :ERROR_COBOL
+
+echo [EXE] BANCSMENU
+"%COBC%" -x -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql -o "%BIN_DIR%\BANCSMENU.exe" "%MAINLINE_DIR%\BANCSMENU.cob"
+if %ERRORLEVEL% NEQ 0 goto :ERROR_COBOL
+
+echo.
+echo ============================================
+echo  EXITO: COMPILACION COMPLETA
+echo ============================================
+echo Ejecutable: %BIN_DIR%\BANCSMENU.exe
+echo DLLs      : %BIN_DIR%\*.dll
+echo ============================================
+goto :FIN_COBOL
+
+:ERROR_COBOL
+echo.
+echo ============================================
+echo  ERROR: FALLO LA COMPILACION COBOL
+echo ============================================
+echo Revisa los errores mostrados arriba.
+echo ============================================
+
+:FIN_COBOL
 
 pause
 

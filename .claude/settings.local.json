@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Read(//mnt/c/Users/dell/Desktop/proyecto_cobol/src/**)",
-      "Read(//mnt/c/Users/dell/Desktop/proyecto_cobol/**)"
+      "Read(//mnt/c/Users/dell/Desktop/proyecto_cobol/**)",
+      "Bash(Get-Content \"C:\\\\Users\\\\Alison\\\\Desktop\\\\proyecto_cobol\\\\src\\\\mainline\\\\TC0000.cbl\")",
+      "Bash(Measure-Object -Line)",
+      "PowerShell(\\(Get-Content \"C:\\\\Users\\\\Alison\\\\Desktop\\\\proyecto_cobol\\\\src\\\\mainline\\\\TC0000.cbl\" | Measure-Object -Line\\).Lines)"
     ]
   }
 }

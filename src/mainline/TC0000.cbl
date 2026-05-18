@@ -32,7 +32,6 @@
        01  WS-I                   PIC 9(02).
        01  WS-DOC-OK              PIC X(01) VALUE 'N'.
        01  WS-TARJ-OK             PIC X(01) VALUE 'N'.
-       01  WS-CLS-CMD             PIC X(03) VALUE 'cls'.
 
        01  WS-ENTRADA-MONTO       PIC X(12).
        01  WS-ENTRADA-CUOTAS      PIC X(03).
@@ -74,6 +73,35 @@
            COPY INVMREC.
            COPY TARJREC.
            COPY LKCIF.
+
+       SCREEN SECTION.
+       01  SCR-CLEAR.
+           05 BLANK SCREEN.
+
+       01  SCR-MARCO-TARJ.
+           05 BLANK SCREEN.
+           05 LINE 02 COL 02 VALUE
+              "---------------------------------------------------".
+           05 LINE 03 COL 02 VALUE
+              "    BANCO LAF - TARJETAS DE CREDITO v3.0".
+           05 LINE 04 COL 02 VALUE
+              "---------------------------------------------------".
+           05 LINE 05 COL 04 VALUE "Operador: ".
+           05 LINE 05 COL 14 PIC X(08) FROM LKCIF-USUARIO.
+           05 LINE 05 COL 26 VALUE "Terminal: ".
+           05 LINE 05 COL 36 PIC X(04) FROM LKCIF-TERMINAL.
+
+       01  SCR-MENU-TARJ.
+           05 LINE 08 COL 05 VALUE "1. Emitir Tarjeta Nueva".
+           05 LINE 09 COL 05 VALUE "2. Consultar Tarjeta".
+           05 LINE 10 COL 05 VALUE "3. Diferir Consumo".
+           05 LINE 11 COL 05 VALUE "4. Cancelar Tarjeta".
+           05 LINE 12 COL 05 VALUE "5. Volver al menu principal".
+           05 LINE 14 COL 05 VALUE
+              "---------------------------------------------".
+           05 LINE 16 COL 05 VALUE "Opcion: [ ]".
+           05 SCR-TARJ-OPC LINE 16 COL 14 PIC 9
+              USING WS-OPCION-TARJ REQUIRED.
 
        PROCEDURE DIVISION USING REG-CUSM,
                                 REG-INVM,
@@ -248,7 +276,7 @@
                MOVE 'R' TO WS-ACCION-TRANS
                CALL WS-PGM-DBIOTRAN USING WS-ACCION-TRANS
                IF LK-ERROR-DUPLICADO
-                   DISPLAY "ERROR: El cliente ya tiene tarjeta registrada."
+                   DISPLAY "ERROR: El cliente ya tiene tarjeta activa."
                ELSE
                    DISPLAY LK-MENSAJE
                END-IF
@@ -402,26 +430,9 @@
                EXIT PARAGRAPH
            END-IF.
 
+           MOVE 0 TO WS-CUOTAS-TX.
            DISPLAY "Num cuotas (1-36, 1=sin interes): "
-           ACCEPT WS-ENTRADA-CUOTAS.
-
-           IF WS-ENTRADA-CUOTAS = SPACES
-               DISPLAY "Operacion cancelada."
-               DISPLAY "Presione ENTER para continuar."
-               ACCEPT WS-PAUSA
-               EXIT PARAGRAPH
-           END-IF.
-
-           IF FUNCTION TRIM(WS-ENTRADA-CUOTAS, TRAILING)
-                   IS NOT NUMERIC
-               DISPLAY "ERROR: Ingrese solo digitos para cuotas."
-               DISPLAY "Presione ENTER para continuar."
-               ACCEPT WS-PAUSA
-               EXIT PARAGRAPH
-           END-IF.
-
-           COMPUTE WS-CUOTAS-TX =
-               FUNCTION NUMVAL(WS-ENTRADA-CUOTAS).
+           ACCEPT WS-CUOTAS-TX.
 
            IF WS-CUOTAS-TX < 1 OR WS-CUOTAS-TX > 36
                DISPLAY "ERROR: Cuotas invalidas. Rango: 1 a 36."
@@ -561,8 +572,8 @@
       ************************************************************
        9100-BUSCAR-CLIENTE.
            MOVE 'N' TO WS-DOC-OK.
-           DISPLAY "Documento del cliente (cedula/pasaporte): "
-           ACCEPT WS-DOC-ENTRADA.
+           DISPLAY "Documento (cedula/pasaporte): " LINE 09 COL 05.
+           ACCEPT WS-DOC-ENTRADA LINE 09 COL 36.
 
            MOVE 12 TO WS-I.
            PERFORM UNTIL WS-I = 0
@@ -572,9 +583,11 @@
            MOVE WS-I TO WS-DOC-LEN.
 
            IF WS-DOC-LEN < 6 OR WS-DOC-LEN > 12
-               DISPLAY "ERROR: Documento invalido (6-12 caracteres)."
+               DISPLAY "Documento invalido (6-12 caracteres)."
+                  LINE 11 COL 05
                DISPLAY "Presione ENTER para continuar."
-               ACCEPT WS-PAUSA
+                  LINE 23 COL 05
+               ACCEPT WS-PAUSA LINE 23 COL 36
                EXIT PARAGRAPH
            END-IF.
 
@@ -582,9 +595,11 @@
                IF WS-DOC-ENTRADA(1:10) IS NUMERIC
                    PERFORM 9800-VALIDAR-MODULO-10
                    IF WS-MOD10-OK = 'N'
-                       DISPLAY "ERROR: Cedula invalida (Modulo 10)."
+                       DISPLAY "Cedula invalida (Modulo 10)."
+                          LINE 11 COL 05
                        DISPLAY "Presione ENTER para continuar."
-                       ACCEPT WS-PAUSA
+                          LINE 23 COL 05
+                       ACCEPT WS-PAUSA LINE 23 COL 36
                        EXIT PARAGRAPH
                    END-IF
                    MOVE 'CED' TO CUSM-TIPO-DOC
@@ -603,22 +618,25 @@
                                       LK-DATOS-TRANSACCION.
 
            IF LK-ERROR-NODATA
-               DISPLAY "ERROR: Cliente no encontrado."
+               DISPLAY "Cliente no encontrado." LINE 11 COL 05
                DISPLAY "Presione ENTER para continuar."
-               ACCEPT WS-PAUSA
+                  LINE 23 COL 05
+               ACCEPT WS-PAUSA LINE 23 COL 36
                EXIT PARAGRAPH
            END-IF.
 
            IF NOT LK-EXITO
-               DISPLAY "ERROR tecnico al buscar cliente."
+               DISPLAY "Error tecnico al buscar cliente."
+                  LINE 11 COL 05
                DISPLAY "Presione ENTER para continuar."
-               ACCEPT WS-PAUSA
+                  LINE 23 COL 05
+               ACCEPT WS-PAUSA LINE 23 COL 36
                EXIT PARAGRAPH
            END-IF.
 
-           DISPLAY "Cliente: "
-           DISPLAY CUSM-NOMBRE-CLIENTE
-           DISPLAY CUSM-APELLIDOS-CLIENTE.
+           DISPLAY "Cliente: " LINE 11 COL 05.
+           DISPLAY CUSM-NOMBRE-CLIENTE LINE 11 COL 15.
+           DISPLAY CUSM-APELLIDOS-CLIENTE LINE 11 COL 42.
            MOVE 'S' TO WS-DOC-OK.
 
       ************************************************************
@@ -648,15 +666,14 @@
            PERFORM VARYING WS-K FROM 1 BY 1
                    UNTIL WS-K > 9
                MOVE WS-DOC-ENTRADA(WS-K:1) TO WS-DIGITO
-               EVALUATE TRUE
-                   WHEN FUNCTION MOD(WS-K, 2) = 1
-                       COMPUTE WS-RESULTADO = WS-DIGITO * 2
-                       IF WS-RESULTADO >= 10
-                           SUBTRACT 9 FROM WS-RESULTADO
-                       END-IF
-                   WHEN OTHER
-                       MOVE WS-DIGITO TO WS-RESULTADO
-               END-EVALUATE
+               IF FUNCTION MOD(WS-K, 2) = 1
+                   COMPUTE WS-RESULTADO = WS-DIGITO * 2
+                   IF WS-RESULTADO >= 10
+                       SUBTRACT 9 FROM WS-RESULTADO
+                   END-IF
+               ELSE
+                   MOVE WS-DIGITO TO WS-RESULTADO
+               END-IF
                ADD WS-RESULTADO TO WS-SUMA-MOD10
            END-PERFORM.
 
@@ -675,27 +692,13 @@
       * 9050 - Cabecera del modulo (limpia pantalla)
       ************************************************************
        9050-MARCO-TARJ.
-           CALL 'SYSTEM' USING WS-CLS-CMD.
-           DISPLAY "===================================================".
-           DISPLAY "     BANCO LAF - TARJETAS DE CREDITO v3.0".
-           DISPLAY "===================================================".
-           DISPLAY "Operador: "
-           DISPLAY LKCIF-USUARIO.
-           DISPLAY "Terminal: "
-           DISPLAY LKCIF-TERMINAL.
-           DISPLAY "===================================================".
+           DISPLAY SCR-MARCO-TARJ.
 
       ************************************************************
       * 9051 - Menu de opciones
       ************************************************************
        9051-MENU-TARJ.
-           DISPLAY "1. Emitir Tarjeta Nueva".
-           DISPLAY "2. Consultar Tarjeta".
-           DISPLAY "3. Diferir Consumo".
-           DISPLAY "4. Cancelar Tarjeta".
-           DISPLAY "5. Volver al menu principal".
-           DISPLAY "---------------------------------------------------".
-           DISPLAY "Opcion: "
-           ACCEPT WS-OPCION-TARJ.
+           DISPLAY SCR-MENU-TARJ.
+           ACCEPT SCR-TARJ-OPC.
 
        END PROGRAM TC0000.
