@@ -1,370 +1,528 @@
+      ******************************************************************
+      * CI0000.CBL - MODULO DE CLIENTES
+      ******************************************************************
        IDENTIFICATION DIVISION.
        PROGRAM-ID. CI0000.
-      *================================================================*
-      * PROGRAMA: MAINLINE CIF (CUSTOMER INFORMATION FACILITY)         *
-      * FUNCION:  Gestiona Altas, Bajas, Modificaciones y Consultas.   *
-      *================================================================*
 
        ENVIRONMENT DIVISION.
+
        DATA DIVISION.
        WORKING-STORAGE SECTION.
 
-       01  WS-OPCION-CIF       PIC 9(01).
-       01  WS-CONTINUAR-CIF    PIC X(01) VALUE 'S'.
-       01  WS-CONFIRMAR        PIC X(01).
+       01  WS-OPCION-CIF            PIC 9(01).
+       01  WS-CONTINUAR-CIF         PIC X(01) VALUE 'S'.
+       01  WS-CONFIRMAR             PIC X(01).
+       01  WS-DOC-LEN               PIC 9(02) VALUE 0.
+       01  WS-I                     PIC 9(02) VALUE 0.
+       01  WS-INGRESO-TEXTO         PIC X(15).
+       01  WS-SCORE                 PIC 9(03) VALUE 500.
+       01  WS-BLANK-LINE            PIC X(55) VALUE SPACES.
 
-       01  WS-PROGRAMAS.
-           05 WS-PGM-DBIOCUSM    PIC X(8) VALUE 'DBIOCUSM'.
-           05 WS-PGM-DBIOINVM    PIC X(8) VALUE 'DBIOINVM'.
+       01  WS-PGM-DBIOCUSM          PIC X(08) VALUE 'DBIOCUSM'.
+       01  WS-PGM-DBIOTRAN          PIC X(08) VALUE 'DBIOTRAN'.
+       01  WS-ACCION-TRANS          PIC X(01).
+
        01  WS-FECHA-SISTEMA.
-           05 WS-ANIO         PIC 9(04).
-           05 WS-MES          PIC 9(02).
-           05 WS-DIA          PIC 9(02).
-       01  WS-FECHA-ISO        PIC X(10).
+           05 WS-ANIO               PIC 9(04).
+           05 WS-MES                PIC 9(02).
+           05 WS-DIA                PIC 9(02).
 
-       01  WS-AUXILIARES-VALIDACION.
-           05 WS-I                PIC 9(02).
-           05 WS-DOC-LEN          PIC 9(02).
-           05 WS-DOC-VALIDO       PIC X(01) VALUE 'N'.
+       01  WS-ANIO-NAC              PIC 9(04).
+       01  WS-EDAD-CALCULADA        PIC 9(03).
 
+       01  WS-VALIDACIONES.
+           05 WS-DOC-OK             PIC X VALUE 'N'.
+           05 WS-NOMBRE-OK          PIC X VALUE 'N'.
+           05 WS-APELLIDO-OK        PIC X VALUE 'N'.
+           05 WS-EMAIL-OK           PIC X VALUE 'N'.
+           05 WS-FECHA-OK           PIC X VALUE 'N'.
 
-       01  WS-EMAIL-VAL.
-           05  WS-EMAIL-TEMP       PIC X(40).
-           05  WS-LOCAL-PART       PIC X(40).
-           05  WS-DOMAIN-PART      PIC X(40).
-           05  WS-AT-COUNT         PIC 9(02).
-           05  WS-DOT-COUNT        PIC 9(02).
-           05  WS-LEN              PIC 9(03).
-           05  WS-IND              PIC 9(03).
-           05  WS-EMAIL-VALIDO     PIC X(01).
-               88 EMAIL-OK         VALUE 'S'.
-               88 EMAIL-ERR        VALUE 'N'.
+       01  WS-EMAIL-REV.
+           05 WS-AT-COUNT           PIC 9(02) VALUE 0.
+           05 WS-DOT-COUNT          PIC 9(02) VALUE 0.
 
-      * BANDERAS DE REINTENTO
-       01  WS-VAL-CAMPOS.
-           05 WS-NOMBRE-OK        PIC X(01) VALUE 'N'.
-           05 WS-APELLIDO-OK      PIC X(01) VALUE 'N'.
-           05 WS-EMAIL-OK         PIC X(01) VALUE 'N'.
+       01  WS-MOD10.
+           05 WS-MOD10-OK           PIC X     VALUE 'N'.
+           05 WS-DIGITO             PIC 9(01).
+           05 WS-RESULTADO          PIC 9(02).
+           05 WS-SUMA-MOD10         PIC 9(04) VALUE 0.
+           05 WS-DIGITO-VERIF       PIC 9(01).
+           05 WS-DIGITO-CALC        PIC 9(01).
+           05 WS-K                  PIC 9(02).
+           05 WS-PROV-DOC           PIC 9(02).
 
-           COPY CUSMREC.
-           COPY INVMREC.
        LINKAGE SECTION.
+           COPY CUSMREC.
            COPY LKCIF.
 
-       PROCEDURE DIVISION USING LK-DATOS-TRANSACCION.
+       SCREEN SECTION.
+       01  SCR-MARCO.
+           05 BLANK SCREEN.
+           05 LINE 02 COL 02 VALUE
+              "---------------------------------------------------".
+           05 LINE 03 COL 02 VALUE
+              "        BANCO LAF - MODULO DE CLIENTES".
+           05 LINE 04 COL 02 VALUE
+              "---------------------------------------------------".
+
+       01  SCR-MENU-CIF.
+           05 LINE 07 COL 05 VALUE "1. Alta de cliente".
+           05 LINE 08 COL 05 VALUE "2. Consulta de cliente".
+           05 LINE 09 COL 05 VALUE "3. Modificar contacto".
+           05 LINE 10 COL 05 VALUE "4. Baja logica".
+           05 LINE 11 COL 05 VALUE "5. Volver".
+           05 LINE 14 COL 05 VALUE "Opcion: [ ]".
+           05 SCR-CIF-OPC LINE 14 COL 14 PIC 9
+              USING WS-OPCION-CIF REQUIRED.
+
+       PROCEDURE DIVISION USING REG-CUSM,
+                                LK-DATOS-SESION,
+                                LK-DATOS-TRANSACCION.
 
        0000-PRINCIPAL.
-           PERFORM 1000-PROCESAR-OPCIONES
-                   UNTIL WS-CONTINUAR-CIF = 'N' OR 'n'.
+           MOVE 'S' TO WS-CONTINUAR-CIF.
+           PERFORM 1000-MENU-CIF
+              UNTIL WS-CONTINUAR-CIF = 'N'.
            GOBACK.
 
-       1000-PROCESAR-OPCIONES.
-           DISPLAY "========================================".
-           DISPLAY "       MODULO ABM CLIENTES (CIF)        ".
-           DISPLAY "========================================".
-           DISPLAY "1. Alta de Cliente".
-           DISPLAY "2. Consulta de Cliente".
-           DISPLAY "3. Modificacion de Cliente".
-           DISPLAY "4. Baja (Logica) de Cliente".
-           DISPLAY "0. Volver al Menu Principal".
-           DISPLAY "========================================".
-           DISPLAY "Seleccione operacion: "
-           ACCEPT WS-OPCION-CIF.
+       1000-MENU-CIF.
+           DISPLAY SCR-MARCO.
+           DISPLAY SCR-MENU-CIF.
+           ACCEPT SCR-CIF-OPC.
 
            EVALUATE WS-OPCION-CIF
-               WHEN 1
-                   PERFORM 2000-ALTA-CLIENTE
-               WHEN 2
-                   PERFORM 3000-CONSULTA-CLIENTE
-               WHEN 3
-                   PERFORM 4000-MODIFICA-CLIENTE
-               WHEN 4
-                   PERFORM 5000-BAJA-CLIENTE
-               WHEN 0
-                   MOVE 'N' TO WS-CONTINUAR-CIF
-               WHEN OTHER
-                   DISPLAY "Opcion invalida. Intente de nuevo."
+              WHEN 1
+                 PERFORM 2000-ALTA-CLIENTE
+              WHEN 2
+                 PERFORM 3000-CONSULTA-CLIENTE
+              WHEN 3
+                 PERFORM 4000-MODIFICA-CLIENTE
+              WHEN 4
+                 PERFORM 5000-BAJA-CLIENTE
+              WHEN 5
+                 MOVE 'N' TO WS-CONTINUAR-CIF
+              WHEN OTHER
+                 DISPLAY "Opcion no valida." LINE 17 COL 05
+                 ACCEPT WS-CONFIRMAR LINE 17 COL 25
            END-EVALUATE.
 
+      ******************************************************************
+      * ALTA DE CLIENTE
+      ******************************************************************
        2000-ALTA-CLIENTE.
-           DISPLAY "--- ALTA DE CLIENTE ---".
+           DISPLAY SCR-MARCO.
            INITIALIZE REG-CUSM.
 
-      *    Validar tipo de documento
-           PERFORM 9100-VALIDAR-DOC-CAPTURA.
+           PERFORM 9100-CAPTURAR-DOCUMENTO.
 
-
-      *    Verificar si ya existe
            MOVE 'C' TO LK-ACCION-DB.
-           CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
+           CALL WS-PGM-DBIOCUSM USING REG-CUSM,
+                                      LK-DATOS-SESION,
+                                      LK-DATOS-TRANSACCION.
 
-           IF LK-COD-RETORNO = 0
-               DISPLAY "ERROR: ESA CEDULA YA EXISTE EN EL SISTEMA."
-           ELSE
-               MOVE 'N' TO WS-NOMBRE-OK
-               PERFORM UNTIL WS-NOMBRE-OK = 'S'
-                   DISPLAY "Nombre(s)    : "
-                   ACCEPT CUSM-NOMBRE
-                   IF CUSM-NOMBRE = SPACES
-                       DISPLAY "ERROR: El nombre no puede estar vacio."
-                   ELSE
-                       MOVE 'S' TO WS-NOMBRE-OK
-                   END-IF
-               END-PERFORM
-
-               MOVE 'N' TO WS-APELLIDO-OK
-               PERFORM UNTIL WS-APELLIDO-OK = 'S'
-                   DISPLAY "Apellido(s)  : "
-                   ACCEPT CUSM-APELLIDOS
-                   IF CUSM-APELLIDOS = SPACES
-                      DISPLAY "ERROR: El apellido no puede estar vacio."
-                   ELSE
-                       MOVE 'S' TO WS-APELLIDO-OK
-                   END-IF
-               END-PERFORM
-
-               DISPLAY "Direccion    : "
-               ACCEPT CUSM-DIRECCION
-               DISPLAY "Telefono     : "
-               ACCEPT CUSM-TELEFONO
-
-
-               MOVE 'N' TO WS-EMAIL-OK
-               PERFORM UNTIL WS-EMAIL-OK = 'S'
-                   DISPLAY "E-mail       : "
-                   ACCEPT CUSM-EMAIL
-                   PERFORM 9200-VALIDAR-EMAIL
-                   IF EMAIL-ERR
-                       DISPLAY ">>> ERROR DE VALIDACION: " LK-MENSAJE
-                       DISPLAY "POR FAVOR REINGRESE EL CORREO."
-                   ELSE
-                       MOVE 'S' TO WS-EMAIL-OK
-                   END-IF
-               END-PERFORM
-
-
-      *        Setear campos automaticos
-               MOVE 1 TO CUSM-CTA-ACTIVA
-               MOVE 0 TO CUSM-SALDO-CLIENTE
-               MOVE 0 TO CUSM-TARJETA
-               MOVE 0 TO CUSM-CREDITO
-               MOVE 0 TO CUSM-HIPOTECA
-               ACCEPT WS-FECHA-SISTEMA FROM DATE YYYYMMDD
-               STRING WS-ANIO "-" WS-MES "-" WS-DIA
-                   DELIMITED BY SIZE INTO CUSM-FECHA-ALTA
-               MOVE '9999-12-31' TO CUSM-FECHA-CIERRE
-
-      *        PASO 1: INSERTAR CLIENTE
-               MOVE 'A' TO LK-ACCION-DB
-               CALL WS-PGM-DBIOCUSM USING REG-CUSM,
-                   LK-DATOS-TRANSACCION
-
-               IF LK-COD-RETORNO = 0
-      *            PASO 2: CREAR CUENTA CORRIENTE
-                   INITIALIZE REG-INVM
-                   MOVE CUSM-ID-CLIENTE TO INVM-ID-CLIENTE
-                   MOVE 0 TO INVM-SALDO-ACTUAL
-                   MOVE CUSM-FECHA-ALTA TO INVM-FECHA-ULT-MOV
-
-                   MOVE 'A' TO LK-ACCION-DB
-                   CALL WS-PGM-DBIOINVM USING REG-INVM,
-                       LK-DATOS-TRANSACCION
-
-                   IF LK-COD-RETORNO = 0
-                       CALL 'DBIOTRAN' USING 'C'
-                       DISPLAY "ALTA EXITOSA. ID: " CUSM-ID-CLIENTE
-                   ELSE
-                       CALL 'DBIOTRAN' USING 'R'
-                       DISPLAY "ERROR EN CUENTA. NADA SE GUARDO."
-                   END-IF
-               ELSE
-                   CALL 'DBIOTRAN' USING 'R'
-                   DISPLAY "FALLO ALTA CLIENTE: " LK-MENSAJE
-               END-IF
+           IF LK-COD-RETORNO = '00  '
+              DISPLAY "Este cliente ya existe. Use consulta o"
+                 LINE 16 COL 05
+              DISPLAY "modificacion para actualizar datos."
+                 LINE 17 COL 05
+              DISPLAY "Presione ENTER para continuar."
+                 LINE 24 COL 05
+              ACCEPT WS-CONFIRMAR LINE 24 COL 36
+              EXIT PARAGRAPH
            END-IF.
 
+           PERFORM 9200-CAPTURAR-DATOS-ALTA.
 
+           MOVE 'A' TO LK-ACCION-DB.
+           CALL WS-PGM-DBIOCUSM USING REG-CUSM,
+                                      LK-DATOS-SESION,
+                                      LK-DATOS-TRANSACCION.
 
+           IF LK-COD-RETORNO = '00  '
+              MOVE 'C' TO WS-ACCION-TRANS
+              CALL WS-PGM-DBIOTRAN USING WS-ACCION-TRANS
+              DISPLAY "CLIENTE CREADO EXITOSAMENTE."
+                 LINE 22 COL 05
+              DISPLAY "ID asignado: " LINE 23 COL 05
+              DISPLAY CUSM-ID-CLIENTE LINE 23 COL 20
+           ELSE
+              MOVE 'R' TO WS-ACCION-TRANS
+              CALL WS-PGM-DBIOTRAN USING WS-ACCION-TRANS
+              DISPLAY "ERROR: No se pudo crear el cliente."
+                 LINE 22 COL 05
+              DISPLAY LK-MENSAJE LINE 23 COL 05
+           END-IF.
+
+           DISPLAY "Presione ENTER para continuar."
+              LINE 24 COL 05.
+           ACCEPT WS-CONFIRMAR LINE 24 COL 36.
+
+      ******************************************************************
+      * CONSULTA DE CLIENTE
+      ******************************************************************
        3000-CONSULTA-CLIENTE.
-           DISPLAY "--- CONSULTA DE CLIENTE ---".
+           DISPLAY SCR-MARCO.
            INITIALIZE REG-CUSM.
 
-           PERFORM 9100-VALIDAR-DOC-CAPTURA.
+           PERFORM 9100-CAPTURAR-DOCUMENTO.
 
            MOVE 'C' TO LK-ACCION-DB.
-           CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
+           CALL WS-PGM-DBIOCUSM USING REG-CUSM,
+                                      LK-DATOS-SESION,
+                                      LK-DATOS-TRANSACCION.
 
-           IF LK-COD-RETORNO = 0
-               DISPLAY "-----------------------------------"
-               DISPLAY "CEDULA    : " CUSM-DOC-CLIENTE
-               DISPLAY "CLIENTE   : " CUSM-NOMBRE " " CUSM-APELLIDOS
-               DISPLAY "DIRECCION : " CUSM-DIRECCION
-               DISPLAY "TELEFONO  : " CUSM-TELEFONO
-               DISPLAY "EMAIL     : " CUSM-EMAIL
-               DISPLAY "SALDO CT  : " CUSM-SALDO-CLIENTE
-               DISPLAY "CTA ACTIVA: " CUSM-CTA-ACTIVA
-               DISPLAY "-----------------------------------"
+           IF LK-COD-RETORNO = '00  '
+              DISPLAY "ID        : " LINE 14 COL 05
+              DISPLAY CUSM-ID-CLIENTE LINE 14 COL 18
+              DISPLAY "Tipo/Doc  : " LINE 15 COL 05
+              DISPLAY CUSM-TIPO-DOC LINE 15 COL 18
+              DISPLAY " / " LINE 15 COL 22
+              DISPLAY CUSM-DOC-CLIENTE LINE 15 COL 26
+              DISPLAY "Nombre    : " LINE 16 COL 05
+              DISPLAY CUSM-NOMBRE-CLIENTE LINE 16 COL 18
+              DISPLAY "Apellidos : " LINE 17 COL 05
+              DISPLAY CUSM-APELLIDOS-CLIENTE LINE 17 COL 18
+              DISPLAY "F.Alta    : " LINE 18 COL 05
+              DISPLAY CUSM-FECHA-ALTA LINE 18 COL 18
+              DISPLAY "F.Nacim.  : " LINE 18 COL 33
+              DISPLAY CUSM-FECHA-NACIMIENTO LINE 18 COL 46
+              DISPLAY "Email     : " LINE 19 COL 05
+              DISPLAY CUSM-EMAIL-CLIENTE LINE 19 COL 18
+              DISPLAY "Telefono  : " LINE 20 COL 05
+              DISPLAY CUSM-TELEF-CLIENTE LINE 20 COL 18
+              DISPLAY "Direccion : " LINE 21 COL 05
+              DISPLAY CUSM-DIRECCION-CLIENTE LINE 21 COL 18
+              DISPLAY "Estado    : " LINE 22 COL 05
+              DISPLAY CUSM-ESTADO-CLIENTE LINE 22 COL 18
+              DISPLAY "Score     : " LINE 22 COL 25
+              DISPLAY CUSM-SCORE-CREDITICIO LINE 22 COL 38
            ELSE
-               DISPLAY "CLIENTE NO ENCONTRADO."
+              DISPLAY "Cliente no encontrado."
+                 LINE 16 COL 05
            END-IF.
 
+           DISPLAY "Presione ENTER para continuar."
+              LINE 24 COL 05.
+           ACCEPT WS-CONFIRMAR LINE 24 COL 36.
+
+      ******************************************************************
+      * MODIFICAR CONTACTO
+      ******************************************************************
        4000-MODIFICA-CLIENTE.
-           DISPLAY "--- MODIFICACION DE CLIENTE ---".
+           DISPLAY SCR-MARCO.
            INITIALIZE REG-CUSM.
 
-           PERFORM 9100-VALIDAR-DOC-CAPTURA.
+           PERFORM 9100-CAPTURAR-DOCUMENTO.
 
            MOVE 'C' TO LK-ACCION-DB.
-           CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
+           CALL WS-PGM-DBIOCUSM USING REG-CUSM,
+                                      LK-DATOS-SESION,
+                                      LK-DATOS-TRANSACCION.
 
-           IF LK-COD-RETORNO = 0
-               DISPLAY "Direccion actual : " CUSM-DIRECCION
-               DISPLAY "Nueva Direccion  : "
-               ACCEPT CUSM-DIRECCION
-               DISPLAY "Telefono actual  : " CUSM-TELEFONO
-               DISPLAY "Nuevo Telefono   : "
-               ACCEPT CUSM-TELEFONO
-               DISPLAY "Email actual     : " CUSM-EMAIL
-               DISPLAY "Nuevo Email      : "
-               ACCEPT CUSM-EMAIL
-
-               MOVE 'M' TO LK-ACCION-DB
-               CALL WS-PGM-DBIOCUSM USING REG-CUSM,
-                   LK-DATOS-TRANSACCION
-
-               IF LK-COD-RETORNO = 0
-                   DISPLAY "CLIENTE ACTUALIZADO CORRECTAMENTE."
-               ELSE
-                   DISPLAY "ERROR AL ACTUALIZAR: " LK-MENSAJE
-               END-IF
-           ELSE
-               DISPLAY "CLIENTE NO EXISTE."
+           IF LK-COD-RETORNO NOT = '00  '
+              DISPLAY "Cliente no encontrado."
+                 LINE 16 COL 05
+              DISPLAY "Presione ENTER para continuar."
+                 LINE 24 COL 05
+              ACCEPT WS-CONFIRMAR LINE 24 COL 36
+              EXIT PARAGRAPH
            END-IF.
 
+           DISPLAY "Cliente : " LINE 14 COL 05.
+           DISPLAY CUSM-NOMBRE-CLIENTE LINE 14 COL 16.
+           DISPLAY CUSM-APELLIDOS-CLIENTE LINE 14 COL 42.
+
+           DISPLAY "Nueva direccion : " LINE 16 COL 05.
+           ACCEPT CUSM-DIRECCION-CLIENTE LINE 16 COL 24.
+
+           DISPLAY "Nuevo telefono  : " LINE 17 COL 05.
+           ACCEPT CUSM-TELEF-CLIENTE LINE 17 COL 24.
+
+           DISPLAY "Nuevo email     : " LINE 18 COL 05.
+           ACCEPT CUSM-EMAIL-CLIENTE LINE 18 COL 24.
+
+           MOVE 'M' TO LK-ACCION-DB.
+           CALL WS-PGM-DBIOCUSM USING REG-CUSM,
+                                      LK-DATOS-SESION,
+                                      LK-DATOS-TRANSACCION.
+
+           IF LK-COD-RETORNO = '00  '
+              MOVE 'C' TO WS-ACCION-TRANS
+              CALL WS-PGM-DBIOTRAN USING WS-ACCION-TRANS
+              DISPLAY "Cliente actualizado correctamente."
+                 LINE 22 COL 05
+           ELSE
+              MOVE 'R' TO WS-ACCION-TRANS
+              CALL WS-PGM-DBIOTRAN USING WS-ACCION-TRANS
+              DISPLAY "ERROR: No se pudo actualizar."
+                 LINE 22 COL 05
+              DISPLAY LK-MENSAJE LINE 23 COL 05
+           END-IF.
+
+           DISPLAY "Presione ENTER para continuar."
+              LINE 24 COL 05.
+           ACCEPT WS-CONFIRMAR LINE 24 COL 36.
+
+      ******************************************************************
+      * BAJA LOGICA
+      ******************************************************************
        5000-BAJA-CLIENTE.
-           DISPLAY "--- BAJA LOGICA DE CLIENTE ---".
+           DISPLAY SCR-MARCO.
            INITIALIZE REG-CUSM.
 
-           PERFORM 9100-VALIDAR-DOC-CAPTURA.
+           PERFORM 9100-CAPTURAR-DOCUMENTO.
 
-      *    Verificar que existe
            MOVE 'C' TO LK-ACCION-DB.
-           CALL WS-PGM-DBIOCUSM USING REG-CUSM, LK-DATOS-TRANSACCION.
+           CALL WS-PGM-DBIOCUSM USING REG-CUSM,
+                                      LK-DATOS-SESION,
+                                      LK-DATOS-TRANSACCION.
 
-           IF LK-COD-RETORNO = 0
-               IF CUSM-CTA-ACTIVA = 0
-                   DISPLAY "AVISO: Este cliente ya esta dado de baja."
-               ELSE
-                   IF CUSM-SALDO-CLIENTE NOT = ZERO OR
-                      CUSM-TARJETA NOT = ZERO OR
-                      CUSM-HIPOTECA NOT = ZERO
-
-               DISPLAY "**********************************************"
-               DISPLAY "ERROR: NO SE PUEDE DAR DE BAJA AL CLIENTE"
-               DISPLAY "MOTIVO: EL CLIENTE TIENE PRODUCTOS ACTIVOS"
-               DISPLAY "----------------------------------------------"
-               DISPLAY "SALDO ACTUAL : " CUSM-SALDO-CLIENTE
-               DISPLAY "TIENE TARJETA: " CUSM-TARJETA " (1=SI, 0=NO)"
-               DISPLAY "TIENE HIPOT. : " CUSM-HIPOTECA " (1=SI, 0=NO)"
-               DISPLAY "**********************************************"
-               DISPLAY "SOLUCION: DEBE CANCELAR PRODUCTOS Y RETIRAR"
-               DISPLAY "SALDO ANTES DE CONTINUAR."
-
-                   ELSE
-               DISPLAY "CLIENTE  : " CUSM-NOMBRE " " CUSM-APELLIDOS
-                       DISPLAY "CONFIRMAR BAJA DEFINITIVA? (S/N): "
-                       ACCEPT WS-CONFIRMAR
-
-                       IF WS-CONFIRMAR = 'S' OR 's'
-                           MOVE 'B' TO LK-ACCION-DB
-                           CALL WS-PGM-DBIOCUSM USING REG-CUSM,
-                                                  LK-DATOS-TRANSACCION
-                           DISPLAY ">>> " LK-MENSAJE
-                       ELSE
-                           DISPLAY "OPERACION CANCELADA POR EL USUARIO."
-                       END-IF
-                   END-IF
-               END-IF
-           ELSE
-              DISPLAY "ERROR: EL CLIENTE NO EXISTE EN LA BASE DE DATOS."
+           IF LK-COD-RETORNO NOT = '00  '
+              DISPLAY "Cliente no encontrado."
+                 LINE 16 COL 05
+              DISPLAY "Presione ENTER para continuar."
+                 LINE 24 COL 05
+              ACCEPT WS-CONFIRMAR LINE 24 COL 36
+              EXIT PARAGRAPH
            END-IF.
 
+           DISPLAY "Cliente : " LINE 14 COL 05.
+           DISPLAY CUSM-NOMBRE-CLIENTE LINE 14 COL 16.
+           DISPLAY CUSM-APELLIDOS-CLIENTE LINE 14 COL 42.
+           DISPLAY "Estado actual: " LINE 15 COL 05.
+           DISPLAY CUSM-ESTADO-CLIENTE LINE 15 COL 22.
 
-       9100-VALIDAR-DOC-CAPTURA.
-           MOVE 'N' TO WS-DOC-VALIDO.
+           DISPLAY "Confirma baja logica? (S/N):"
+              LINE 17 COL 05.
+           ACCEPT WS-CONFIRMAR LINE 17 COL 35.
 
-           PERFORM UNTIL WS-DOC-VALIDO = 'S'
-               DISPLAY "----------------------------------------------"
-               DISPLAY "INGRESE DOCUMENTO (8 CED / 12 PAS): "
-               ACCEPT CUSM-DOC-CLIENTE
+           IF WS-CONFIRMAR = 'S' OR WS-CONFIRMAR = 's'
 
-      * Calcular longitud real (eliminando espacios a la derecha)
-               MOVE 0 TO WS-DOC-LEN
-               MOVE 12 TO WS-I
-               PERFORM UNTIL WS-I = 0 OR CUSM-DOC-CLIENTE(WS-I:1)
-               NOT = SPACE
-                   SUBTRACT 1 FROM WS-I
-               END-PERFORM
-               MOVE WS-I TO WS-DOC-LEN
+              MOVE 'B' TO LK-ACCION-DB
+              CALL WS-PGM-DBIOCUSM USING REG-CUSM,
+                                         LK-DATOS-SESION,
+                                         LK-DATOS-TRANSACCION
 
-      * Lógica de Validación y Asignación Automática
-               IF WS-DOC-LEN >= 8 AND WS-DOC-LEN <= 12
-                   MOVE 'S' TO WS-DOC-VALIDO
+              IF LK-COD-RETORNO = '00  '
+                 MOVE 'C' TO WS-ACCION-TRANS
+                 CALL WS-PGM-DBIOTRAN USING WS-ACCION-TRANS
+                 DISPLAY "Cliente inactivado correctamente."
+                    LINE 20 COL 05
+              ELSE
+                 MOVE 'R' TO WS-ACCION-TRANS
+                 CALL WS-PGM-DBIOTRAN USING WS-ACCION-TRANS
+                 DISPLAY "ERROR: No se pudo inactivar."
+                    LINE 20 COL 05
+                 DISPLAY LK-MENSAJE LINE 21 COL 05
+              END-IF
+           ELSE
+              DISPLAY "Operacion cancelada."
+                 LINE 20 COL 05
+           END-IF.
 
-      * Identificación automática
-                   IF WS-DOC-LEN = 8
-                       MOVE "CED" TO CUSM-TIPO-DOC
-                   ELSE
-                       MOVE "PAS" TO CUSM-TIPO-DOC
-                   END-IF
+           DISPLAY "Presione ENTER para continuar."
+              LINE 24 COL 05.
+           ACCEPT WS-CONFIRMAR LINE 24 COL 36.
 
-                   DISPLAY ">>> SISTEMA: DOCUMENTO VALIDO"
-                   DISPLAY ">>> TIPO ASIGNADO: " CUSM-TIPO-DOC
-               ELSE
-                   DISPLAY "ERROR: LONGITUD INVALIDA (" WS-DOC-LEN ")"
-                   DISPLAY "DEBE TENER ENTRE 8 Y 12 CARACTERES."
-                   DISPLAY "POR FAVOR, INTENTE DE NUEVO."
-               END-IF
+      ******************************************************************
+      * CAPTURA Y VALIDACION DEL DOCUMENTO
+      ******************************************************************
+       9100-CAPTURAR-DOCUMENTO.
+           MOVE 'N' TO WS-DOC-OK.
+           DISPLAY WS-BLANK-LINE LINE 13 COL 02.
+
+           PERFORM UNTIL WS-DOC-OK = 'S'
+              DISPLAY "Documento (cedula 10 dig / pasaporte 6-12):"
+                 LINE 12 COL 05
+              ACCEPT CUSM-DOC-CLIENTE LINE 12 COL 51
+
+              MOVE 12 TO WS-I
+              PERFORM UNTIL WS-I = 0
+                         OR CUSM-DOC-CLIENTE(WS-I:1) NOT = SPACE
+                 SUBTRACT 1 FROM WS-I
+              END-PERFORM
+              MOVE WS-I TO WS-DOC-LEN
+
+              EVALUATE TRUE
+                 WHEN WS-DOC-LEN = 10
+                    IF CUSM-DOC-CLIENTE(1:10) IS NUMERIC
+                       PERFORM 9400-VALIDAR-MODULO-10
+                       IF WS-MOD10-OK = 'S'
+                          MOVE 'CED' TO CUSM-TIPO-DOC
+                          MOVE 'S' TO WS-DOC-OK
+                          DISPLAY WS-BLANK-LINE LINE 13 COL 02
+                       ELSE
+                          DISPLAY "Cedula invalida (falla Modulo 10)."
+                             LINE 13 COL 05
+                       END-IF
+                    ELSE
+                       MOVE 'PAS' TO CUSM-TIPO-DOC
+                       MOVE 'S' TO WS-DOC-OK
+                       DISPLAY WS-BLANK-LINE LINE 13 COL 02
+                    END-IF
+                 WHEN WS-DOC-LEN >= 6 AND WS-DOC-LEN <= 12
+                    MOVE 'PAS' TO CUSM-TIPO-DOC
+                    MOVE 'S' TO WS-DOC-OK
+                    DISPLAY WS-BLANK-LINE LINE 13 COL 02
+                 WHEN OTHER
+                    DISPLAY "Invalido: CED=10 dig, PAS=6-12 dig."
+                       LINE 13 COL 05
+              END-EVALUATE
            END-PERFORM.
 
-       9200-VALIDAR-EMAIL.
-           SET EMAIL-OK TO TRUE
-           INITIALIZE WS-LOCAL-PART WS-DOMAIN-PART
-           MOVE 0 TO WS-AT-COUNT WS-DOT-COUNT WS-IND
+      ******************************************************************
+      * CAPTURA DE DATOS PARA ALTA (CON VALIDACIONES)
+      ******************************************************************
+       9200-CAPTURAR-DATOS-ALTA.
+           MOVE 'N' TO WS-NOMBRE-OK.
+           MOVE 'N' TO WS-APELLIDO-OK.
+           MOVE 'N' TO WS-EMAIL-OK.
+           MOVE 'N' TO WS-FECHA-OK.
+           ACCEPT WS-FECHA-SISTEMA FROM DATE YYYYMMDD.
 
-           MOVE CUSM-EMAIL TO WS-EMAIL-TEMP
+           PERFORM UNTIL WS-NOMBRE-OK = 'S'
+              DISPLAY "Nombres   :" LINE 14 COL 05
+              ACCEPT CUSM-NOMBRE-CLIENTE LINE 14 COL 18
+              IF CUSM-NOMBRE-CLIENTE NOT = SPACES
+                 MOVE 'S' TO WS-NOMBRE-OK
+                 DISPLAY WS-BLANK-LINE LINE 22 COL 02
+              ELSE
+                 DISPLAY "Nombres no puede estar vacio."
+                    LINE 22 COL 05
+              END-IF
+           END-PERFORM.
 
-           *> 1. Buscar espacios en blanco (No permitidos en banca)
-           INSPECT WS-EMAIL-TEMP TALLYING WS-IND FOR ALL ' '
-           *> Calculamos longitud real restando espacios finales
-           COMPUTE WS-LEN = 40 - WS-IND
+           PERFORM UNTIL WS-APELLIDO-OK = 'S'
+              DISPLAY "Apellidos :" LINE 15 COL 05
+              ACCEPT CUSM-APELLIDOS-CLIENTE LINE 15 COL 18
+              IF CUSM-APELLIDOS-CLIENTE NOT = SPACES
+                 MOVE 'S' TO WS-APELLIDO-OK
+                 DISPLAY WS-BLANK-LINE LINE 22 COL 02
+              ELSE
+                 DISPLAY "Apellidos no puede estar vacio."
+                    LINE 22 COL 05
+              END-IF
+           END-PERFORM.
 
-           *> 2. Validar Arrobas (Debe haber exactamente una)
-           INSPECT WS-EMAIL-TEMP TALLYING WS-AT-COUNT FOR ALL '@'
+           PERFORM 9250-VALIDAR-FECHA-NACIMIENTO.
 
-           IF WS-AT-COUNT NOT = 1
-               SET EMAIL-ERR TO TRUE
-               MOVE "EL EMAIL DEBE TENER EXACTAMENTE UNA @"
-               TO LK-MENSAJE
-               EXIT PARAGRAPH
-           END-IF
+           DISPLAY "Direccion :" LINE 17 COL 05.
+           ACCEPT CUSM-DIRECCION-CLIENTE LINE 17 COL 18.
 
-           *> 3. Descomponer Email
-           UNSTRING WS-EMAIL-TEMP DELIMITED BY '@'
-               INTO WS-LOCAL-PART, WS-DOMAIN-PART
-           END-UNSTRING
+           DISPLAY "Telefono  :" LINE 18 COL 05.
+           ACCEPT CUSM-TELEF-CLIENTE LINE 18 COL 18.
 
-           *> 4. Validar que local y dominio no estén vacíos
-           IF WS-LOCAL-PART = SPACES OR WS-DOMAIN-PART = SPACES
-               SET EMAIL-ERR TO TRUE
-               MOVE "FORMATO DE EMAIL INCOMPLETO" TO LK-MENSAJE
-               EXIT PARAGRAPH
-           END-IF
+           PERFORM UNTIL WS-EMAIL-OK = 'S'
+              DISPLAY "Email     :" LINE 19 COL 05
+              ACCEPT CUSM-EMAIL-CLIENTE LINE 19 COL 18
+              PERFORM 9300-VALIDAR-EMAIL
+           END-PERFORM.
+           DISPLAY WS-BLANK-LINE LINE 22 COL 02.
 
-           *> 5. Validar puntos en el dominio (Debe tener al menos uno)
-           INSPECT WS-DOMAIN-PART TALLYING WS-DOT-COUNT FOR ALL '.'
+           DISPLAY "Ingresos mensuales:" LINE 20 COL 05.
+           ACCEPT WS-INGRESO-TEXTO LINE 20 COL 26.
+           COMPUTE CUSM-INGRESOS-MENSUALES =
+              FUNCTION NUMVAL(WS-INGRESO-TEXTO).
 
-           IF WS-DOT-COUNT < 1
-               SET EMAIL-ERR TO TRUE
-               MOVE "DOMINIO SIN PUNTO (EJ. .COM, .EC)" TO LK-MENSAJE
+           STRING WS-ANIO "-" WS-MES "-" WS-DIA
+              DELIMITED BY SIZE INTO CUSM-FECHA-ALTA.
+
+           COMPUTE CUSM-SCORE-CREDITICIO =
+              (CUSM-INGRESOS-MENSUALES / 2) + (WS-EDAD-CALCULADA * 4).
+           IF CUSM-SCORE-CREDITICIO > 999
+              MOVE 999 TO CUSM-SCORE-CREDITICIO
            END-IF.
+           MOVE 0                 TO CUSM-TIENE-TARJETA.
+           MOVE 0                 TO CUSM-TIENE-HIPOTECA.
+           MOVE 0                 TO CUSM-SALDO-TOTAL-VISTA.
+           MOVE 'A'               TO CUSM-ESTADO-CLIENTE.
+
+      ******************************************************************
+      * VALIDACION FECHA NACIMIENTO Y EDAD MINIMA 18 ANIOS
+      ******************************************************************
+       9250-VALIDAR-FECHA-NACIMIENTO.
+           MOVE 'N' TO WS-FECHA-OK.
+
+           PERFORM UNTIL WS-FECHA-OK = 'S'
+              DISPLAY "F.Nacim.  :" LINE 16 COL 05
+              DISPLAY "(AAAA-MM-DD)" LINE 16 COL 44
+              ACCEPT CUSM-FECHA-NACIMIENTO LINE 16 COL 18
+
+              IF CUSM-FECHA-NACIMIENTO(5:1) NOT = '-'
+                 OR CUSM-FECHA-NACIMIENTO(8:1) NOT = '-'
+                 DISPLAY "Formato invalido. Ingrese AAAA-MM-DD."
+                    LINE 22 COL 05
+              ELSE
+                 MOVE CUSM-FECHA-NACIMIENTO(1:4) TO WS-ANIO-NAC
+                 COMPUTE WS-EDAD-CALCULADA =
+                    WS-ANIO - WS-ANIO-NAC
+                 IF WS-EDAD-CALCULADA < 18
+                    DISPLAY "El cliente debe ser mayor de 18 anios."
+                       LINE 22 COL 05
+                 ELSE IF WS-EDAD-CALCULADA > 120
+                    DISPLAY "Fecha de nacimiento no valida."
+                       LINE 22 COL 05
+                 ELSE
+                    DISPLAY WS-BLANK-LINE LINE 22 COL 02
+                    MOVE 'S' TO WS-FECHA-OK
+                 END-IF
+              END-IF
+           END-PERFORM.
+
+      ******************************************************************
+      * VALIDACION DE EMAIL
+      ******************************************************************
+       9300-VALIDAR-EMAIL.
+           MOVE 0 TO WS-AT-COUNT.
+           MOVE 0 TO WS-DOT-COUNT.
+
+           INSPECT CUSM-EMAIL-CLIENTE
+              TALLYING WS-AT-COUNT FOR ALL '@'.
+           INSPECT CUSM-EMAIL-CLIENTE
+              TALLYING WS-DOT-COUNT FOR ALL '.'.
+
+           IF WS-AT-COUNT = 1 AND WS-DOT-COUNT >= 1
+              MOVE 'S' TO WS-EMAIL-OK
+              DISPLAY WS-BLANK-LINE LINE 22 COL 02
+           ELSE
+              DISPLAY "Email invalido (ej: usuario@dominio.com)."
+                 LINE 22 COL 05
+           END-IF.
+
+      ******************************************************************
+      * MODULO 10 - VALIDACION CEDULA ECUATORIANA (SRI)
+      ******************************************************************
+       9400-VALIDAR-MODULO-10.
+           MOVE 'N' TO WS-MOD10-OK.
+           MOVE 0 TO WS-SUMA-MOD10.
+           MOVE CUSM-DOC-CLIENTE(1:2) TO WS-PROV-DOC.
+
+           IF WS-PROV-DOC < 1 OR WS-PROV-DOC > 24
+              EXIT PARAGRAPH
+           END-IF.
+
+           PERFORM VARYING WS-K FROM 1 BY 1
+                          UNTIL WS-K > 9
+              MOVE CUSM-DOC-CLIENTE(WS-K:1) TO WS-DIGITO
+              IF FUNCTION MOD(WS-K, 2) = 1
+                 COMPUTE WS-RESULTADO = WS-DIGITO * 2
+                 IF WS-RESULTADO >= 10
+                    SUBTRACT 9 FROM WS-RESULTADO
+                 END-IF
+              ELSE
+                 MOVE WS-DIGITO TO WS-RESULTADO
+              END-IF
+              ADD WS-RESULTADO TO WS-SUMA-MOD10
+           END-PERFORM.
+
+           COMPUTE WS-DIGITO-CALC =
+              FUNCTION MOD(WS-SUMA-MOD10, 10).
+           IF WS-DIGITO-CALC NOT = 0
+              COMPUTE WS-DIGITO-CALC = 10 - WS-DIGITO-CALC
+           END-IF.
+           MOVE CUSM-DOC-CLIENTE(10:1) TO WS-DIGITO-VERIF.
+           IF WS-DIGITO-CALC = WS-DIGITO-VERIF
+              MOVE 'S' TO WS-MOD10-OK
+           END-IF.
+
+       END PROGRAM CI0000.

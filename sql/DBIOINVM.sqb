@@ -1,126 +1,347 @@
-      *================================================================*
-      * PROGRAMA: DBIOINVM.sqb                                         *
-      * FUNCION:  CRUD de la tabla ctactes (Cuentas Corrientes)        *
-      * ARQUITECTURA: Capa de Acceso a Datos (DBIO)                    *
-      *================================================================*
        IDENTIFICATION DIVISION.
        PROGRAM-ID. DBIOINVM.
 
        ENVIRONMENT DIVISION.
        DATA DIVISION.
        WORKING-STORAGE SECTION.
+
+      *> Variable de trabajo COBOL (debe ir ANTES de EXEC SQL)
+       01  WS-TX-IMPORTE          PIC S9(13)V99 COMP-3.
+
            EXEC SQL INCLUDE SQLCA END-EXEC.
-       LINKAGE SECTION.
+
            EXEC SQL BEGIN DECLARE SECTION END-EXEC.
-       01  REG-INVM.
-           05 INVM-ID-CLIENTE      PIC 9(08).
-           05 INVM-COD-ULT-MOV     PIC 9(02).
-           05 INVM-FECHA-ULT-MOV   PIC X(10).
-           05 INVM-IMPORTE-MOV     PIC S9(10)V99.
-           05 INVM-SALDO-ACTUAL    PIC S9(10)V99.
-
-
-           COPY LKCIF.
+       01  DB-INVM-ID-CUENTA      PIC 9(08).
+       01  DB-INVM-ID-CLIENTE     PIC 9(08).
+       01  DB-INVM-TIPO-CUENTA    PIC X(01).
+       01  DB-INVM-SALDO-ACTUAL   PIC S9(13)V99 COMP-3.
+       01  DB-INVM-FECHA-APERTURA PIC X(10).
+       01  DB-INVM-ESTADO-CUENTA  PIC X(01).
+       01  DB-INVM-FECHA-HOY      PIC X(10).
+       01  DB-MOV-ID-CUENTA       PIC 9(08).
+       01  DB-MOV-TIPO-MOV        PIC 9(01).
+       01  DB-MOV-IMPORTE         PIC S9(13)V99 COMP-3.
+       01  DB-MOV-SALDO-RES       PIC S9(13)V99 COMP-3.
+       01  DB-MOV-TERMINAL        PIC X(04).
+       01  DB-MOV-USUARIO         PIC X(08).
            EXEC SQL END DECLARE SECTION END-EXEC.
 
-       PROCEDURE DIVISION USING REG-INVM, LK-DATOS-TRANSACCION.
+           EXEC SQL
+               DECLARE cur_ctas CURSOR FOR
+               SELECT ID_CUENTA, TIPO_CUENTA, SALDO_ACTUAL,
+                      FECHA_APERTURA, ESTADO_CUENTA
+               FROM   ctactes
+               WHERE  ID_CLIENTE = :DB-INVM-ID-CLIENTE
+               ORDER  BY TIPO_CUENTA, ID_CUENTA
+           END-EXEC.
+
+       LINKAGE SECTION.
+           COPY INVMREC.
+           COPY LKCIF.
+
+       PROCEDURE DIVISION USING REG-INVM, LK-DATOS-SESION,
+                                LK-DATOS-TRANSACCION.
 
        0000-PRINCIPAL.
-           MOVE 0 TO LK-COD-RETORNO
-           MOVE SPACES TO LK-MENSAJE
+           MOVE '00  ' TO LK-COD-RETORNO.
+           MOVE SPACES TO LK-MENSAJE.
 
            EVALUATE LK-ACCION-DB
-               WHEN 'A'
-                   PERFORM 1000-INSERTAR-CUENTA
                WHEN 'C'
-                   PERFORM 2000-CONSULTAR-CUENTA
-               WHEN 'L'
-                   PERFORM 2100-CONSULTAR-BLOQUEO
-               WHEN 'M'
-                   PERFORM 3000-ACTUALIZAR-SALDO
+                   PERFORM 1000-ABRIR-CURSOR-FETCH
+               WHEN 'F'
+                   PERFORM 2000-FETCH-SIGUIENTE
+               WHEN 'Z'
+                   PERFORM 3000-CERRAR-CURSOR
+               WHEN 'A'
+                   PERFORM 4000-INSERTAR-CUENTA
+               WHEN 'B'
+                   PERFORM 5000-CERRAR-CUENTA
+               WHEN 'S'
+                   PERFORM 6000-CONSULTAR-UNA
+               WHEN 'D'
+                   PERFORM 7000-DEPOSITAR
+               WHEN 'R'
+                   PERFORM 8000-RETIRAR
                WHEN OTHER
-                   MOVE 98 TO LK-COD-RETORNO
-                   MOVE "ACCION DB NO SOPORTADA" TO LK-MENSAJE
+                   MOVE 'E999' TO LK-COD-RETORNO
+                   MOVE 'Accion no reconocida en DBIOINVM'
+                     TO LK-MENSAJE
            END-EVALUATE.
+           GOBACK.
 
-           EXIT PROGRAM.
+      ************************************************************
+      * C - Abrir cursor y primer FETCH
+      ************************************************************
+       1000-ABRIR-CURSOR-FETCH.
+           MOVE INVM-ID-CLIENTE TO DB-INVM-ID-CLIENTE.
 
-       1000-INSERTAR-CUENTA.
+           EXEC SQL OPEN cur_ctas END-EXEC.
+           PERFORM 9000-EVALUAR-SQLSTATE.
+           IF NOT LK-EXITO EXIT PARAGRAPH END-IF.
+
            EXEC SQL
-               INSERT INTO ctactes (
-                   ID_CLIENTE,
-                   COD_ULT_MOV,
-                   FECHA_ULT_MOV,
-                   IMPORTE_MOV,
-                   SALDO_ACTUAL
-               ) VALUES (
-                   :INVM-ID-CLIENTE,
-                   :INVM-COD-ULT-MOV,
-                   :INVM-FECHA-ULT-MOV,
-                   :INVM-IMPORTE-MOV,
-                   :INVM-SALDO-ACTUAL
-               )
+               FETCH cur_ctas
+               INTO  :DB-INVM-ID-CUENTA, :DB-INVM-TIPO-CUENTA,
+                     :DB-INVM-SALDO-ACTUAL, :DB-INVM-FECHA-APERTURA,
+                     :DB-INVM-ESTADO-CUENTA
            END-EXEC.
-           PERFORM 9000-EVALUAR-SQL.
-           IF LK-COD-RETORNO = 0
-               MOVE "EXITO" TO LK-MENSAJE
+           PERFORM 9000-EVALUAR-SQLSTATE.
+           IF LK-EXITO PERFORM 9100-MOVER-A-REG END-IF.
+
+      ************************************************************
+      * F - Fetch siguiente fila
+      ************************************************************
+       2000-FETCH-SIGUIENTE.
+           EXEC SQL
+               FETCH cur_ctas
+               INTO  :DB-INVM-ID-CUENTA, :DB-INVM-TIPO-CUENTA,
+                     :DB-INVM-SALDO-ACTUAL, :DB-INVM-FECHA-APERTURA,
+                     :DB-INVM-ESTADO-CUENTA
+           END-EXEC.
+           PERFORM 9000-EVALUAR-SQLSTATE.
+           IF LK-EXITO PERFORM 9100-MOVER-A-REG END-IF.
+
+      ************************************************************
+      * Z - Cerrar cursor
+      ************************************************************
+       3000-CERRAR-CURSOR.
+           EXEC SQL CLOSE cur_ctas END-EXEC.
+           PERFORM 9000-EVALUAR-SQLSTATE.
+
+      ************************************************************
+      * A - Insertar cuenta nueva
+      ************************************************************
+       4000-INSERTAR-CUENTA.
+           MOVE INVM-ID-CLIENTE    TO DB-INVM-ID-CLIENTE.
+           MOVE INVM-TIPO-CUENTA   TO DB-INVM-TIPO-CUENTA.
+           MOVE INVM-SALDO-ACTUAL  TO DB-INVM-SALDO-ACTUAL.
+           MOVE INVM-ESTADO-CUENTA TO DB-INVM-ESTADO-CUENTA.
+
+           EXEC SQL
+               SELECT DATE_FORMAT(CURDATE(),'%Y-%m-%d')
+               INTO   :DB-INVM-FECHA-HOY FROM DUAL
+           END-EXEC.
+
+           EXEC SQL
+               INSERT INTO ctactes
+                   (ID_CLIENTE, TIPO_CUENTA, SALDO_ACTUAL,
+                    FECHA_APERTURA, ESTADO_CUENTA)
+               VALUES
+                   (:DB-INVM-ID-CLIENTE, :DB-INVM-TIPO-CUENTA,
+                    :DB-INVM-SALDO-ACTUAL,
+                    :DB-INVM-FECHA-HOY, :DB-INVM-ESTADO-CUENTA)
+           END-EXEC.
+           PERFORM 9000-EVALUAR-SQLSTATE.
+
+           IF LK-EXITO
+               EXEC SQL
+                   SELECT LAST_INSERT_ID()
+                   INTO   :DB-INVM-ID-CUENTA FROM DUAL
+               END-EXEC
+               MOVE DB-INVM-ID-CUENTA TO INVM-ID-CUENTA
+               MOVE DB-INVM-FECHA-HOY TO INVM-FECHA-APERTURA
+               MOVE 'Cuenta abierta correctamente' TO LK-MENSAJE
            END-IF.
 
-       2000-CONSULTAR-CUENTA.
+      ************************************************************
+      * B - Cerrar cuenta logicamente (estado = C)
+      ************************************************************
+       5000-CERRAR-CUENTA.
+           MOVE INVM-ID-CUENTA  TO DB-INVM-ID-CUENTA.
+           MOVE INVM-ID-CLIENTE TO DB-INVM-ID-CLIENTE.
+
            EXEC SQL
-               SELECT COD_ULT_MOV, FECHA_ULT_MOV,
-                      IMPORTE_MOV, SALDO_ACTUAL
-               INTO :INVM-COD-ULT-MOV,
-                    :INVM-FECHA-ULT-MOV,
-                    :INVM-IMPORTE-MOV,
-                    :INVM-SALDO-ACTUAL
-               FROM ctactes
-               WHERE ID_CLIENTE = :INVM-ID-CLIENTE
+               UPDATE ctactes SET ESTADO_CUENTA = 'C'
+               WHERE  ID_CUENTA  = :DB-INVM-ID-CUENTA
+               AND    ID_CLIENTE = :DB-INVM-ID-CLIENTE
            END-EXEC.
-           PERFORM 9000-EVALUAR-SQL.
-           IF LK-COD-RETORNO = 0
-               MOVE "CONSULTA EXITOSA" TO LK-MENSAJE
+           PERFORM 9000-EVALUAR-SQLSTATE.
+           IF LK-EXITO
+               MOVE 'Cuenta cerrada correctamente' TO LK-MENSAJE
            END-IF.
 
-       2100-CONSULTAR-BLOQUEO.
-           EXEC SQL
-               SELECT COD_ULT_MOV, FECHA_ULT_MOV,
-                      IMPORTE_MOV, SALDO_ACTUAL
-               INTO :INVM-COD-ULT-MOV,
-                    :INVM-FECHA-ULT-MOV,
-                    :INVM-IMPORTE-MOV,
-                    :INVM-SALDO-ACTUAL
-               FROM ctactes
-               WHERE ID_CLIENTE = :INVM-ID-CLIENTE
-               FOR UPDATE
-           END-EXEC.
-           PERFORM 9000-EVALUAR-SQL.
+      ************************************************************
+      * S - Consultar una cuenta por ID_CUENTA + ID_CLIENTE
+      ************************************************************
+       6000-CONSULTAR-UNA.
+           MOVE INVM-ID-CUENTA  TO DB-INVM-ID-CUENTA.
+           MOVE INVM-ID-CLIENTE TO DB-INVM-ID-CLIENTE.
 
-       3000-ACTUALIZAR-SALDO.
+           EXEC SQL
+               SELECT TIPO_CUENTA, SALDO_ACTUAL,
+                      FECHA_APERTURA, ESTADO_CUENTA
+               INTO   :DB-INVM-TIPO-CUENTA, :DB-INVM-SALDO-ACTUAL,
+                      :DB-INVM-FECHA-APERTURA,
+                      :DB-INVM-ESTADO-CUENTA
+               FROM   ctactes
+               WHERE  ID_CUENTA  = :DB-INVM-ID-CUENTA
+               AND    ID_CLIENTE = :DB-INVM-ID-CLIENTE
+           END-EXEC.
+           PERFORM 9000-EVALUAR-SQLSTATE.
+           IF LK-EXITO PERFORM 9100-MOVER-A-REG END-IF.
+
+      ************************************************************
+      * D - Deposito: INVM-SALDO-ACTUAL contiene el monto
+      ************************************************************
+       7000-DEPOSITAR.
+           MOVE INVM-SALDO-ACTUAL TO WS-TX-IMPORTE.
+           MOVE INVM-ID-CUENTA    TO DB-INVM-ID-CUENTA.
+           MOVE INVM-ID-CLIENTE   TO DB-INVM-ID-CLIENTE.
+
+           EXEC SQL
+               SELECT SALDO_ACTUAL, ESTADO_CUENTA
+               INTO   :DB-INVM-SALDO-ACTUAL, :DB-INVM-ESTADO-CUENTA
+               FROM   ctactes
+               WHERE  ID_CUENTA  = :DB-INVM-ID-CUENTA
+               AND    ID_CLIENTE = :DB-INVM-ID-CLIENTE
+           END-EXEC.
+           PERFORM 9000-EVALUAR-SQLSTATE.
+           IF NOT LK-EXITO EXIT PARAGRAPH END-IF.
+
+           IF DB-INVM-ESTADO-CUENTA NOT = 'A'
+               MOVE 'E001' TO LK-COD-RETORNO
+               MOVE 'Cuenta no activa para depositar'
+                 TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF.
+
+           COMPUTE DB-INVM-SALDO-ACTUAL =
+               DB-INVM-SALDO-ACTUAL + WS-TX-IMPORTE.
+
            EXEC SQL
                UPDATE ctactes
-               SET COD_ULT_MOV = :INVM-COD-ULT-MOV,
-                   FECHA_ULT_MOV = CURDATE(),
-                   IMPORTE_MOV = :INVM-IMPORTE-MOV,
-                   SALDO_ACTUAL = :INVM-SALDO-ACTUAL
-               WHERE ID_CLIENTE = :INVM-ID-CLIENTE
+               SET    SALDO_ACTUAL = :DB-INVM-SALDO-ACTUAL
+               WHERE  ID_CUENTA    = :DB-INVM-ID-CUENTA
            END-EXEC.
-           PERFORM 9000-EVALUAR-SQL.
-           IF LK-COD-RETORNO = 0
-               MOVE "SALDO ACTUALIZADO" TO LK-MENSAJE
+           PERFORM 9000-EVALUAR-SQLSTATE.
+           IF NOT LK-EXITO EXIT PARAGRAPH END-IF.
+
+           MOVE DB-INVM-ID-CUENTA    TO DB-MOV-ID-CUENTA.
+           MOVE 2                    TO DB-MOV-TIPO-MOV.
+           MOVE WS-TX-IMPORTE        TO DB-MOV-IMPORTE.
+           MOVE DB-INVM-SALDO-ACTUAL TO DB-MOV-SALDO-RES.
+           MOVE LKCIF-TERMINAL       TO DB-MOV-TERMINAL.
+           MOVE LKCIF-USUARIO        TO DB-MOV-USUARIO.
+
+           EXEC SQL
+               INSERT INTO movimientos (
+                   ID_CUENTA, TIPO_MOV, IMPORTE,
+                   SALDO_RESULTANTE, TERMINAL_ID, USUARIO_ID)
+               VALUES (
+                   :DB-MOV-ID-CUENTA, :DB-MOV-TIPO-MOV,
+                   :DB-MOV-IMPORTE,   :DB-MOV-SALDO-RES,
+                   :DB-MOV-TERMINAL,  :DB-MOV-USUARIO)
+           END-EXEC.
+           PERFORM 9000-EVALUAR-SQLSTATE.
+
+           IF LK-EXITO
+               MOVE DB-INVM-SALDO-ACTUAL TO INVM-SALDO-ACTUAL
+               MOVE 'Deposito procesado' TO LK-MENSAJE
            END-IF.
 
-       9000-EVALUAR-SQL.
-           EVALUATE SQLCODE
-               WHEN 0
-                   MOVE 00 TO LK-COD-RETORNO
-                   IF LK-MENSAJE = SPACES
-                      MOVE "OPERACION EXITOSA" TO LK-MENSAJE
-                   END-IF
-               WHEN 100
-                   MOVE 01 TO LK-COD-RETORNO
-                   MOVE "CUENTA NO ENCONTRADA" TO LK-MENSAJE
+      ************************************************************
+      * R - Retiro: INVM-SALDO-ACTUAL contiene el monto
+      ************************************************************
+       8000-RETIRAR.
+           MOVE INVM-SALDO-ACTUAL TO WS-TX-IMPORTE.
+           MOVE INVM-ID-CUENTA    TO DB-INVM-ID-CUENTA.
+           MOVE INVM-ID-CLIENTE   TO DB-INVM-ID-CLIENTE.
+
+           EXEC SQL
+               SELECT SALDO_ACTUAL, ESTADO_CUENTA, TIPO_CUENTA
+               INTO   :DB-INVM-SALDO-ACTUAL, :DB-INVM-ESTADO-CUENTA,
+                      :DB-INVM-TIPO-CUENTA
+               FROM   ctactes
+               WHERE  ID_CUENTA  = :DB-INVM-ID-CUENTA
+               AND    ID_CLIENTE = :DB-INVM-ID-CLIENTE
+           END-EXEC.
+           PERFORM 9000-EVALUAR-SQLSTATE.
+           IF NOT LK-EXITO EXIT PARAGRAPH END-IF.
+
+           IF DB-INVM-ESTADO-CUENTA NOT = 'A'
+               MOVE 'E001' TO LK-COD-RETORNO
+               MOVE 'Cuenta no activa para retirar'
+                 TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF.
+
+           IF DB-INVM-TIPO-CUENTA = 'H'
+               MOVE 'E001' TO LK-COD-RETORNO
+               MOVE 'Retiro no permitido en cuenta hipotecaria'
+                 TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF.
+
+           IF WS-TX-IMPORTE > DB-INVM-SALDO-ACTUAL
+               MOVE 'E001' TO LK-COD-RETORNO
+               MOVE 'Saldo insuficiente para el retiro'
+                 TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF.
+
+           COMPUTE DB-INVM-SALDO-ACTUAL =
+               DB-INVM-SALDO-ACTUAL - WS-TX-IMPORTE.
+
+           EXEC SQL
+               UPDATE ctactes
+               SET    SALDO_ACTUAL = :DB-INVM-SALDO-ACTUAL
+               WHERE  ID_CUENTA    = :DB-INVM-ID-CUENTA
+           END-EXEC.
+           PERFORM 9000-EVALUAR-SQLSTATE.
+           IF NOT LK-EXITO EXIT PARAGRAPH END-IF.
+
+           MOVE DB-INVM-ID-CUENTA    TO DB-MOV-ID-CUENTA.
+           MOVE 3                    TO DB-MOV-TIPO-MOV.
+           MOVE WS-TX-IMPORTE        TO DB-MOV-IMPORTE.
+           MOVE DB-INVM-SALDO-ACTUAL TO DB-MOV-SALDO-RES.
+           MOVE LKCIF-TERMINAL       TO DB-MOV-TERMINAL.
+           MOVE LKCIF-USUARIO        TO DB-MOV-USUARIO.
+
+           EXEC SQL
+               INSERT INTO movimientos (
+                   ID_CUENTA, TIPO_MOV, IMPORTE,
+                   SALDO_RESULTANTE, TERMINAL_ID, USUARIO_ID)
+               VALUES (
+                   :DB-MOV-ID-CUENTA, :DB-MOV-TIPO-MOV,
+                   :DB-MOV-IMPORTE,   :DB-MOV-SALDO-RES,
+                   :DB-MOV-TERMINAL,  :DB-MOV-USUARIO)
+           END-EXEC.
+           PERFORM 9000-EVALUAR-SQLSTATE.
+
+           IF LK-EXITO
+               MOVE DB-INVM-SALDO-ACTUAL TO INVM-SALDO-ACTUAL
+               MOVE 'Retiro procesado' TO LK-MENSAJE
+           END-IF.
+
+      ************************************************************
+      * Mover campos DB a REG-INVM
+      ************************************************************
+       9100-MOVER-A-REG.
+           MOVE DB-INVM-ID-CUENTA      TO INVM-ID-CUENTA.
+           MOVE DB-INVM-TIPO-CUENTA    TO INVM-TIPO-CUENTA.
+           MOVE DB-INVM-SALDO-ACTUAL   TO INVM-SALDO-ACTUAL.
+           MOVE DB-INVM-FECHA-APERTURA TO INVM-FECHA-APERTURA.
+           MOVE DB-INVM-ESTADO-CUENTA  TO INVM-ESTADO-CUENTA.
+
+      ************************************************************
+      * Evaluador SQLSTATE centralizado
+      ************************************************************
+       9000-EVALUAR-SQLSTATE.
+           EVALUATE SQLSTATE
+               WHEN '00000'
+                   MOVE '00  ' TO LK-COD-RETORNO
+               WHEN '02000'
+                   MOVE 'E404' TO LK-COD-RETORNO
+                   MOVE 'Cuenta no encontrada' TO LK-MENSAJE
+               WHEN '23000' THRU '23999'
+                   MOVE 'E409' TO LK-COD-RETORNO
+                   MOVE 'Ya tiene una cuenta de ese tipo'
+                     TO LK-MENSAJE
                WHEN OTHER
-                   MOVE 99 TO LK-COD-RETORNO
-                   MOVE "ERROR CRITICO EN BASE DE DATOS" TO LK-MENSAJE
+                   MOVE 'E999' TO LK-COD-RETORNO
+                   MOVE 'Error tecnico en base de datos'
+                     TO LK-MENSAJE
            END-EVALUATE.
+
+       END PROGRAM DBIOINVM.

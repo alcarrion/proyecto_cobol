@@ -1,171 +1,234 @@
-      *================================================================*
-      * PROGRAMA: DBIOCUSM.sqb                                         *
-      * FUNCION:  CRUD de la tabla clientes                            *
-      * ARQUITECTURA: Capa de Acceso a Datos (DBIO)                    *
-      *================================================================*
+      ******************************************************************
+      * DBIOCUSM.SQB - PERSISTENCIA DE CLIENTES
+      ******************************************************************
        IDENTIFICATION DIVISION.
        PROGRAM-ID. DBIOCUSM.
 
        ENVIRONMENT DIVISION.
+
        DATA DIVISION.
        WORKING-STORAGE SECTION.
-      *    Area de comunicacion de SQL
-           EXEC SQL INCLUDE SQLCA END-EXEC.
-       01  WS-ULTIMO-ID            PIC 9(08).
 
-       LINKAGE SECTION.
-      *    Recibimos los datos del cliente y el control de transaccion
+           EXEC SQL INCLUDE SQLCA END-EXEC.
+
            EXEC SQL BEGIN DECLARE SECTION END-EXEC.
-       01  REG-CUSM.
-           05 CUSM-ID-CLIENTE          PIC 9(08).
-           05 CUSM-TIPO-DOC            PIC X(03).
-           05 CUSM-DOC-CLIENTE         PIC X(12).
-           05 CUSM-FECHA-ALTA          PIC X(10).
-           05 CUSM-NOMBRE              PIC X(25).
-           05 CUSM-APELLIDOS           PIC X(25).
-           05 CUSM-DIRECCION           PIC X(45).
-           05 CUSM-TELEFONO            PIC X(12).
-           05 CUSM-EMAIL               PIC X(40).
-           05 CUSM-TARJETA             PIC 9(01).
-           05 CUSM-CREDITO             PIC 9(01).
-           05 CUSM-HIPOTECA            PIC 9(01).
-           05 CUSM-CTA-ACTIVA          PIC 9(01).
-           05 CUSM-FECHA-CIERRE        PIC X(10).
-           05 CUSM-SALDO-CLIENTE       PIC S9(10)V99.
-           COPY LKCIF.
+       01  DB-ID-CLIENTE             PIC 9(08).
+       01  DB-TIPO-DOC               PIC X(03).
+       01  DB-DOC-CLIENTE            PIC X(12).
+       01  DB-FECHA-ALTA             PIC X(10).
+       01  DB-NOMBRE-CLIENTE         PIC X(25).
+       01  DB-APELLIDOS-CLIENTE      PIC X(25).
+       01  DB-FECHA-NACIMIENTO       PIC X(10).
+       01  DB-DIRECCION-CLIENTE      PIC X(45).
+       01  DB-TELEF-CLIENTE          PIC X(12).
+       01  DB-EMAIL-CLIENTE          PIC X(40).
+       01  DB-SCORE-CREDITICIO       PIC 9(03).
+       01  DB-INGRESOS-MENSUALES     PIC S9(10)V99 COMP-3.
+       01  DB-TIENE-TARJETA          PIC 9(01).
+       01  DB-TIENE-HIPOTECA         PIC 9(01).
+       01  DB-ESTADO-CLIENTE         PIC X(01).
+       01  DB-SALDO-TOTAL-VISTA      PIC S9(10)V99 COMP-3.
            EXEC SQL END DECLARE SECTION END-EXEC.
 
-       PROCEDURE DIVISION USING REG-CUSM, LK-DATOS-TRANSACCION.
+       LINKAGE SECTION.
+           COPY CUSMREC.
+           COPY LKCIF.
+
+       PROCEDURE DIVISION USING REG-CUSM,
+                                LK-DATOS-SESION,
+                                LK-DATOS-TRANSACCION.
 
        0000-PRINCIPAL.
-           MOVE 0 TO LK-COD-RETORNO
-           MOVE SPACES TO LK-MENSAJE
+           MOVE '00  ' TO LK-COD-RETORNO.
+           MOVE SPACES TO LK-MENSAJE.
 
            EVALUATE LK-ACCION-DB
-               WHEN 'A'
-                   PERFORM 1000-INSERTAR-CLIENTE
-               WHEN 'C'
-                   PERFORM 2000-CONSULTAR-CLIENTE
-               WHEN 'M'
-                   PERFORM 3000-ACTUALIZAR-CLIENTE
-               WHEN 'B'
-                   PERFORM 4000-BAJA-LOGICA-CLIENTE
-               WHEN OTHER
-                   MOVE 98 TO LK-COD-RETORNO
-                   MOVE "ACCION DB NO SOPORTADA" TO LK-MENSAJE
+              WHEN 'C'
+                 PERFORM 1000-CONSULTAR-CLIENTE
+              WHEN 'A'
+                 PERFORM 2000-INSERTAR-CLIENTE
+              WHEN 'M'
+                 PERFORM 3000-ACTUALIZAR-CLIENTE
+              WHEN 'B'
+                 PERFORM 4000-BAJA-CLIENTE
+              WHEN OTHER
+                 MOVE 'E999' TO LK-COD-RETORNO
+                 MOVE "ACCION NO SOPORTADA" TO LK-MENSAJE
            END-EVALUATE.
 
-           EXIT PROGRAM.
+           GOBACK.
 
-       1000-INSERTAR-CLIENTE.
+       1000-CONSULTAR-CLIENTE.
+           MOVE CUSM-TIPO-DOC TO DB-TIPO-DOC.
+           MOVE CUSM-DOC-CLIENTE TO DB-DOC-CLIENTE.
+
            EXEC SQL
-               INSERT INTO clientes (
-                   TIPO_DOC, DOC_CLIENTE,
-                   FECHA_ALTA, NOMBRE_CLIENTE, APELLIDOS_CLIENTE,
-                   DIRECCION_CLIENTE, TELEF_CLIENTE, EMAIL_CLIENTE,
-                   TARJETA, CREDITO, HIPOTECA, CTA_ACTIVA,
-                   FECHA_CIERRE, SALDO_CLIENTE
-               ) VALUES (
-                   :CUSM-TIPO-DOC,
-                   :CUSM-DOC-CLIENTE,
-                   :CUSM-FECHA-ALTA,
-                   :CUSM-NOMBRE,
-                   :CUSM-APELLIDOS,
-                   :CUSM-DIRECCION,
-                   :CUSM-TELEFONO,
-                   :CUSM-EMAIL,
-                   :CUSM-TARJETA,
-                   :CUSM-CREDITO,
-                   :CUSM-HIPOTECA,
-                   :CUSM-CTA-ACTIVA,
-                   :CUSM-FECHA-CIERRE,
-                   :CUSM-SALDO-CLIENTE
-               )
+              SELECT ID_CLIENTE,
+                     FECHA_ALTA,
+                     NOMBRE_CLIENTE,
+                     APELLIDOS_CLIENTE,
+                     FECHA_NACIMIENTO,
+                     DIRECCION_CLIENTE,
+                     TELEF_CLIENTE,
+                     EMAIL_CLIENTE,
+                     SCORE_CREDITICIO,
+                     INGRESOS_MENSUALES,
+                     TIENE_TARJETA,
+                     TIENE_HIPOTECA,
+                     ESTADO_CLIENTE,
+                     SALDO_TOTAL_VISTA
+                INTO :DB-ID-CLIENTE,
+                     :DB-FECHA-ALTA,
+                     :DB-NOMBRE-CLIENTE,
+                     :DB-APELLIDOS-CLIENTE,
+                     :DB-FECHA-NACIMIENTO,
+                     :DB-DIRECCION-CLIENTE,
+                     :DB-TELEF-CLIENTE,
+                     :DB-EMAIL-CLIENTE,
+                     :DB-SCORE-CREDITICIO,
+                     :DB-INGRESOS-MENSUALES,
+                     :DB-TIENE-TARJETA,
+                     :DB-TIENE-HIPOTECA,
+                     :DB-ESTADO-CLIENTE,
+                     :DB-SALDO-TOTAL-VISTA
+                FROM clientes
+               WHERE TIPO_DOC = :DB-TIPO-DOC
+                 AND DOC_CLIENTE = :DB-DOC-CLIENTE
            END-EXEC.
 
            PERFORM 9000-EVALUAR-SQL.
 
-           IF LK-COD-RETORNO = 0
-               EXEC SQL
-                   SELECT LAST_INSERT_ID() INTO :CUSM-ID-CLIENTE
-               END-EXEC
-               MOVE "CLIENTE REGISTRADO CON EXITO" TO LK-MENSAJE
+           IF LK-EXITO
+              MOVE DB-ID-CLIENTE TO CUSM-ID-CLIENTE
+              MOVE DB-FECHA-ALTA TO CUSM-FECHA-ALTA
+              MOVE DB-NOMBRE-CLIENTE TO CUSM-NOMBRE-CLIENTE
+              MOVE DB-APELLIDOS-CLIENTE TO CUSM-APELLIDOS-CLIENTE
+              MOVE DB-FECHA-NACIMIENTO TO CUSM-FECHA-NACIMIENTO
+              MOVE DB-DIRECCION-CLIENTE TO CUSM-DIRECCION-CLIENTE
+              MOVE DB-TELEF-CLIENTE TO CUSM-TELEF-CLIENTE
+              MOVE DB-EMAIL-CLIENTE TO CUSM-EMAIL-CLIENTE
+              MOVE DB-SCORE-CREDITICIO TO CUSM-SCORE-CREDITICIO
+              MOVE DB-INGRESOS-MENSUALES
+                 TO CUSM-INGRESOS-MENSUALES
+              MOVE DB-TIENE-TARJETA TO CUSM-TIENE-TARJETA
+              MOVE DB-TIENE-HIPOTECA TO CUSM-TIENE-HIPOTECA
+              MOVE DB-ESTADO-CLIENTE TO CUSM-ESTADO-CLIENTE
+              MOVE DB-SALDO-TOTAL-VISTA TO CUSM-SALDO-TOTAL-VISTA
+              MOVE "CONSULTA DE CLIENTE EXITOSA" TO LK-MENSAJE
            END-IF.
 
-       2000-CONSULTAR-CLIENTE.
-           EXEC SQL
-               SELECT ID_CLIENTE, TIPO_DOC, FECHA_ALTA,
-                      NOMBRE_CLIENTE, APELLIDOS_CLIENTE,
-                      DIRECCION_CLIENTE, TELEF_CLIENTE, EMAIL_CLIENTE,
-                      TARJETA, CREDITO, HIPOTECA, CTA_ACTIVA,
-                      FECHA_CIERRE, SALDO_CLIENTE
-               INTO :CUSM-ID-CLIENTE,
-                    :CUSM-TIPO-DOC,
-                    :CUSM-FECHA-ALTA,
-                    :CUSM-NOMBRE,
-                    :CUSM-APELLIDOS,
-                    :CUSM-DIRECCION,
-                    :CUSM-TELEFONO,
-                    :CUSM-EMAIL,
-                    :CUSM-TARJETA,
-                    :CUSM-CREDITO,
-                    :CUSM-HIPOTECA,
-                    :CUSM-CTA-ACTIVA,
-                    :CUSM-FECHA-CIERRE,
-                    :CUSM-SALDO-CLIENTE
-               FROM clientes
-               WHERE TRIM(DOC_CLIENTE) = TRIM(:CUSM-DOC-CLIENTE)
+       2000-INSERTAR-CLIENTE.
+           MOVE CUSM-TIPO-DOC TO DB-TIPO-DOC.
+           MOVE CUSM-DOC-CLIENTE TO DB-DOC-CLIENTE.
+           MOVE CUSM-FECHA-ALTA TO DB-FECHA-ALTA.
+           MOVE CUSM-NOMBRE-CLIENTE TO DB-NOMBRE-CLIENTE.
+           MOVE CUSM-APELLIDOS-CLIENTE TO DB-APELLIDOS-CLIENTE.
+           MOVE CUSM-FECHA-NACIMIENTO TO DB-FECHA-NACIMIENTO.
+           MOVE CUSM-DIRECCION-CLIENTE TO DB-DIRECCION-CLIENTE.
+           MOVE CUSM-TELEF-CLIENTE TO DB-TELEF-CLIENTE.
+           MOVE CUSM-EMAIL-CLIENTE TO DB-EMAIL-CLIENTE.
+           MOVE CUSM-SCORE-CREDITICIO TO DB-SCORE-CREDITICIO.
+           MOVE CUSM-INGRESOS-MENSUALES TO DB-INGRESOS-MENSUALES.
+           MOVE CUSM-TIENE-TARJETA TO DB-TIENE-TARJETA.
+           MOVE CUSM-TIENE-HIPOTECA TO DB-TIENE-HIPOTECA.
+           MOVE CUSM-ESTADO-CLIENTE TO DB-ESTADO-CLIENTE.
+           MOVE CUSM-SALDO-TOTAL-VISTA TO DB-SALDO-TOTAL-VISTA.
 
+           EXEC SQL
+              INSERT INTO clientes (
+                 TIPO_DOC,
+                 DOC_CLIENTE,
+                 FECHA_ALTA,
+                 NOMBRE_CLIENTE,
+                 APELLIDOS_CLIENTE,
+                 FECHA_NACIMIENTO,
+                 DIRECCION_CLIENTE,
+                 TELEF_CLIENTE,
+                 EMAIL_CLIENTE,
+                 SCORE_CREDITICIO,
+                 INGRESOS_MENSUALES,
+                 TIENE_TARJETA,
+                 TIENE_HIPOTECA,
+                 ESTADO_CLIENTE,
+                 SALDO_TOTAL_VISTA
+              ) VALUES (
+                 :DB-TIPO-DOC,
+                 :DB-DOC-CLIENTE,
+                 :DB-FECHA-ALTA,
+                 :DB-NOMBRE-CLIENTE,
+                 :DB-APELLIDOS-CLIENTE,
+                 :DB-FECHA-NACIMIENTO,
+                 :DB-DIRECCION-CLIENTE,
+                 :DB-TELEF-CLIENTE,
+                 :DB-EMAIL-CLIENTE,
+                 :DB-SCORE-CREDITICIO,
+                 :DB-INGRESOS-MENSUALES,
+                 :DB-TIENE-TARJETA,
+                 :DB-TIENE-HIPOTECA,
+                 :DB-ESTADO-CLIENTE,
+                 :DB-SALDO-TOTAL-VISTA
+              )
            END-EXEC.
+
            PERFORM 9000-EVALUAR-SQL.
-           IF LK-COD-RETORNO = 0
-               MOVE "CONSULTA EXITOSA" TO LK-MENSAJE
+
+           IF LK-EXITO
+              EXEC SQL
+                 SELECT LAST_INSERT_ID()
+                   INTO :DB-ID-CLIENTE
+              END-EXEC
+              MOVE DB-ID-CLIENTE TO CUSM-ID-CLIENTE
+              MOVE "CLIENTE CREADO" TO LK-MENSAJE
            END-IF.
 
        3000-ACTUALIZAR-CLIENTE.
+           MOVE CUSM-ID-CLIENTE TO DB-ID-CLIENTE.
+           MOVE CUSM-DIRECCION-CLIENTE TO DB-DIRECCION-CLIENTE.
+           MOVE CUSM-TELEF-CLIENTE TO DB-TELEF-CLIENTE.
+           MOVE CUSM-EMAIL-CLIENTE TO DB-EMAIL-CLIENTE.
+
            EXEC SQL
-               UPDATE clientes
-               SET DIRECCION_CLIENTE = :CUSM-DIRECCION,
-                   TELEF_CLIENTE = :CUSM-TELEFONO,
-                   EMAIL_CLIENTE = :CUSM-EMAIL
-               WHERE TRIM(DOC_CLIENTE) = TRIM(:CUSM-DOC-CLIENTE)
+              UPDATE clientes
+                 SET DIRECCION_CLIENTE = :DB-DIRECCION-CLIENTE,
+                     TELEF_CLIENTE = :DB-TELEF-CLIENTE,
+                     EMAIL_CLIENTE = :DB-EMAIL-CLIENTE
+               WHERE ID_CLIENTE = :DB-ID-CLIENTE
            END-EXEC.
 
            PERFORM 9000-EVALUAR-SQL.
-           IF LK-COD-RETORNO = 0 AND SQLCODE = 0
-               MOVE "CLIENTE ACTUALIZADO" TO LK-MENSAJE
-               EXEC SQL COMMIT END-EXEC
-           ELSE
-               EXEC SQL ROLLBACK END-EXEC
+
+           IF LK-EXITO
+              MOVE "CLIENTE ACTUALIZADO" TO LK-MENSAJE
            END-IF.
 
-       4000-BAJA-LOGICA-CLIENTE.
-      *    La tabla no tiene ESTADO. La baja se considera desactivar la cuenta.
+       4000-BAJA-CLIENTE.
+           MOVE CUSM-ID-CLIENTE TO DB-ID-CLIENTE.
+
            EXEC SQL
-               UPDATE clientes
-               SET CTA_ACTIVA = 0,
-                   FECHA_CIERRE = CURDATE()
-               WHERE TRIM(DOC_CLIENTE) = TRIM(:CUSM-DOC-CLIENTE)
+              UPDATE clientes
+                 SET ESTADO_CLIENTE = 'I'
+               WHERE ID_CLIENTE = :DB-ID-CLIENTE
            END-EXEC.
+
            PERFORM 9000-EVALUAR-SQL.
-           IF LK-COD-RETORNO = 0 AND SQLCODE = 0
-               MOVE "BAJA LOGICA REALIZADA (CTA_ACTIVA=0)" TO LK-MENSAJE
-               EXEC SQL COMMIT END-EXEC
-           ELSE
-               EXEC SQL ROLLBACK END-EXEC
+
+           IF LK-EXITO
+              MOVE "CLIENTE INACTIVADO" TO LK-MENSAJE
            END-IF.
 
        9000-EVALUAR-SQL.
-           EVALUATE SQLCODE
-               WHEN 0
-                   MOVE 00 TO LK-COD-RETORNO
-                   IF LK-MENSAJE = SPACES
-                       MOVE "OPERACION EXITOSA" TO LK-MENSAJE
-                   END-IF
-               WHEN 100
-                   MOVE 01 TO LK-COD-RETORNO
-                   MOVE "CLIENTE NO ENCONTRADO" TO LK-MENSAJE
-               WHEN OTHER
-                   MOVE 99 TO LK-COD-RETORNO
-                   MOVE "ERROR TECNICO EN DB" TO LK-MENSAJE
+           EVALUATE SQLSTATE
+              WHEN '00000'
+                 MOVE '00  ' TO LK-COD-RETORNO
+              WHEN '02000'
+                 MOVE 'E404' TO LK-COD-RETORNO
+                 MOVE "CLIENTE NO ENCONTRADO" TO LK-MENSAJE
+              WHEN '23000'
+                 MOVE 'E409' TO LK-COD-RETORNO
+                 MOVE "REGISTRO DUPLICADO" TO LK-MENSAJE
+              WHEN OTHER
+                 MOVE 'E999' TO LK-COD-RETORNO
+                 MOVE "ERROR SQL" TO LK-MENSAJE
            END-EVALUATE.
+
+       END PROGRAM DBIOCUSM.
