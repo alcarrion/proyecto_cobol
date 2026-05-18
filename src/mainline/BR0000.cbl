@@ -201,6 +201,25 @@
            END-IF.
 
            IF WS-PUEDE-CONTINUAR = 'S'
+               DISPLAY "Tasa interes mensual% (ej:4.50): "
+               ACCEPT WS-ENTRADA-TXT
+               PERFORM 9300-VALIDAR-NUMERO
+               IF VAL-ERROR
+                   DISPLAY "ERROR: TASA INVALIDA."
+                   MOVE 'N' TO WS-PUEDE-CONTINUAR
+               END-IF
+           END-IF.
+
+           IF WS-PUEDE-CONTINUAR = 'S'
+               MOVE FUNCTION NUMVAL(WS-ENTRADA-TXT)
+                   TO BORM-TASA-INTERES
+               IF BORM-TASA-INTERES <= 0
+                   DISPLAY "ERROR: TASA MAYOR A CERO."
+                   MOVE 'N' TO WS-PUEDE-CONTINUAR
+               END-IF
+           END-IF.
+
+           IF WS-PUEDE-CONTINUAR = 'S'
                DISPLAY "Plazo en meses: "
                ACCEPT WS-PLAZO-MESES
                IF WS-PLAZO-MESES <= 0
@@ -219,17 +238,13 @@
            END-IF.
 
            IF WS-PUEDE-CONTINUAR = 'S'
-               PERFORM 9125-CALCULAR-TASA
                PERFORM 9120-CALCULAR-VENCIMIENTO
                PERFORM 9130-CALCULAR-CUOTA
                PERFORM 2140-GUARDAR-HIPOTECA
            END-IF.
 
        2140-GUARDAR-HIPOTECA.
-      *    SALDO_ACTUAL inicia como deuda total (capital + intereses)
-      *    y decrece con cada cuota pagada.
-           COMPUTE BORM-SALDO-ACTUAL =
-               BORM-MONTO-ORIGINAL + WS-INTERES-TOTAL.
+           MOVE BORM-MONTO-ORIGINAL TO BORM-SALDO-ACTUAL.
            MOVE "ACTIVO"     TO BORM-ESTADO.
            MOVE ZERO         TO BORM-MESES-MORA.
            MOVE "0000-00-00" TO BORM-FECHA-ULT-PAGO.
@@ -255,8 +270,7 @@
                DISPLAY "CLIENTE  : " WS-NOMBRE-CLIENTE
                DISPLAY "APELLIDO : " WS-APELLIDO-CLIENTE
                DISPLAY "MONTO    : " BORM-MONTO-ORIGINAL
-               DISPLAY "TASA INT.: " BORM-TASA-INTERES
-                       " (calculada segun plazo)"
+               DISPLAY "TASA M.  : " BORM-TASA-INTERES
                DISPLAY "PLAZO    : " WS-PLAZO-MESES
                DISPLAY "CUOTA M. : " BORM-CUOTA-MENSUAL
                DISPLAY "INTERES  : " WS-INTERES-TOTAL
@@ -326,9 +340,6 @@
                    DISPLAY "================================"
                    DISPLAY " AVISO - HIPOTECA CASTIGADA"
                    DISPLAY "================================"
-                   DISPLAY "Puede abonar a la deuda."
-                   DISPLAY "La mora la actualiza el batch."
-                   DISPLAY "================================"
                END-IF
            END-IF.
 
@@ -396,7 +407,6 @@
                    DISPLAY " AVISO - ABONO PARCIAL"
                    DISPLAY "================================"
                    DISPLAY "El pago no cubre la cuota mensual."
-                   DISPLAY "Se registra como abono a la deuda."
                    DISPLAY "La mora sera evaluada por el batch."
                    DISPLAY "================================"
            END-EVALUATE.
@@ -521,40 +531,32 @@
            MOVE BORM-DIA-PAGO TO WS-ED-DIA.
            MOVE WS-FECHA-EDITADA TO BORM-FECHA-VENCTO.
 
-      *================================================================*
-      *   9125 - CALCULAR TASA SEGUN PLAZO                             *
-      *     <= 3 meses  -> 0.02  (2% sobre capital)                    *
-      *     <= 6 meses  -> 0.04  (4% sobre capital)                    *
-      *     >= 7 meses  -> 0.09  (9% sobre capital)                    *
-      *================================================================*
-       9125-CALCULAR-TASA.
-           EVALUATE TRUE
-               WHEN WS-PLAZO-MESES <= 3
-                   MOVE 0.02 TO BORM-TASA-INTERES
-               WHEN WS-PLAZO-MESES <= 6
-                   MOVE 0.04 TO BORM-TASA-INTERES
-               WHEN OTHER
-                   MOVE 0.09 TO BORM-TASA-INTERES
-           END-EVALUATE.
-
-      *================================================================*
-      *   9130 - CALCULAR CUOTA MENSUAL (lineal sobre capital)         *
-      *     INTERES_TOTAL  = MONTO_ORIGINAL * TASA_INTERES             *
-      *     TOTAL_FINANCIADO = MONTO_ORIGINAL + INTERES_TOTAL          *
-      *     CUOTA_MENSUAL  = TOTAL_FINANCIADO / PLAZO_MESES             *
-      *================================================================*
        9130-CALCULAR-CUOTA.
-           COMPUTE WS-INTERES-TOTAL =
-               BORM-MONTO-ORIGINAL * BORM-TASA-INTERES.
+           COMPUTE WS-TASA-MENSUAL =
+               BORM-TASA-INTERES / 100.
 
-           COMPUTE WS-TOTAL-FINANCIADO =
-               BORM-MONTO-ORIGINAL + WS-INTERES-TOTAL.
+           COMPUTE WS-FACTOR-BASE = 1 + WS-TASA-MENSUAL.
+           MOVE 1 TO WS-FACTOR-POT.
 
-           IF WS-PLAZO-MESES > 0
+           PERFORM VARYING WS-IDX-POT FROM 1 BY 1
+               UNTIL WS-IDX-POT > WS-PLAZO-MESES
+               COMPUTE WS-FACTOR-POT =
+                   WS-FACTOR-POT * WS-FACTOR-BASE
+           END-PERFORM.
+
+           COMPUTE WS-NUMERADOR =
+               BORM-MONTO-ORIGINAL *
+               WS-TASA-MENSUAL *
+               WS-FACTOR-POT.
+
+           COMPUTE WS-DENOMINADOR = WS-FACTOR-POT - 1.
+
+           IF WS-DENOMINADOR = 0
                COMPUTE BORM-CUOTA-MENSUAL =
-                   WS-TOTAL-FINANCIADO / WS-PLAZO-MESES
+                   BORM-MONTO-ORIGINAL / WS-PLAZO-MESES
            ELSE
-               MOVE ZERO TO BORM-CUOTA-MENSUAL
+               COMPUTE BORM-CUOTA-MENSUAL =
+                   WS-NUMERADOR / WS-DENOMINADOR
            END-IF.
 
        9300-VALIDAR-NUMERO.
