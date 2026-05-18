@@ -3,8 +3,8 @@
       *================================================================*
       * PROGRAMA: TFBATFIN.sqb                                         *
       * RESPONSABILIDAD: Procesador Core Contable Masivo Asíncrono
-      * CORRECCIÓN: Alineación con columnas reales ID_CUENTA,
-      * ESTADO_CUENTA y validación de Cédula de 10 dígitos.*
+      * MEJORA: Bifurcación dinámica de pasivos e invocación
+      * del especialista modular de hipotecas (tkin_hip)       *
       *================================================================*
        ENVIRONMENT DIVISION.
        CONFIGURATION SECTION.
@@ -1109,11 +1109,37 @@
       * 9000-EJECUTAR-CORE-REGLAS: NÚCLEO DRY DE INTELIGENCIA BANCARIA
       *================================================================*
        9000-EJECUTAR-CORE-REGLAS.
+
+      *==== MEJORA: BIFURCACIÓN DE ARQUITECTURA PARA HIPOTECAS ====
+           IF DB-TYPE-UPD = "HIP_PR"
+               CALL "tkin_hip" USING DB-CUENTA,
+                                     DB-NUM-CREDITO,
+                                     DB-MONTO,
+                                     LK-TRICKLE-FEED-INTERFACE
+
+               IF LK-TF-COD-RETORNO = 0
+                   MOVE 4 TO DB-ESTADO-FINAL
+                   MOVE "000" TO DB-COD-ERROR
+                   MOVE "OK" TO DB-MSG-ERROR
+               ELSE
+                   MOVE 7 TO DB-ESTADO-FINAL
+                   MOVE LK-TF-MENSAJE TO DB-MSG-ERROR
+                   EVALUATE LK-TF-COD-RETORNO
+                       WHEN 01 MOVE "HIP_NOT_FX" TO DB-COD-ERROR
+                       WHEN 07 MOVE "INSFONDOS"   TO DB-COD-ERROR
+                       WHEN OTHER MOVE "ERR_HIP"  TO DB-COD-ERROR
+                   END-EVALUATE
+               END-IF
+               EXIT PARAGRAPH
+           END-IF.
+
+      *----------------------------------------------------------------*
+      * FLUJO DE VALIDACIÓN PARA PASIVOS (DEP / RET / IMP / TAR)
+      *----------------------------------------------------------------*
            MOVE 0 TO MS-COUNT-MATCH
            INITIALIZE MS-TIPO-DOC, MS-DOC-CLIENTE, MS-ESTADO-CTA,
             MS-SALDO-ACTUAL
 
-      * CORRECCIÓN CANDADO 1: Ajustado milimétricamente a ID_CUENTA y
       *    EXEC SQL
       *        SELECT COUNT(*), c.TIPO_DOC, c.DOC_CLIENTE,
       *        cc.ESTADO_CUENTA, cc.SALDO_ACTUAL
@@ -1174,7 +1200,6 @@
                EXIT PARAGRAPH
            END-IF.
 
-      * CANDADO 2: Validación dinámica de longitud (CORRECCIÓN: CED =
            MOVE 0 TO WS-ESPACIOS-DERECHA
            INSPECT FUNCTION REVERSE(MS-DOC-CLIENTE)
                TALLYING WS-ESPACIOS-DERECHA FOR LEADING SPACES
@@ -1200,7 +1225,6 @@
                    END-IF
            END-EVALUATE.
 
-      * CANDADO 3: Control de activación (Alineado con tu estado 'A' de
            IF MS-ESTADO-CTA NOT = "A"
                MOVE 7 TO DB-ESTADO-FINAL
                MOVE "CTA_CONGEL" TO DB-COD-ERROR
@@ -1209,7 +1233,6 @@
                EXIT PARAGRAPH
            END-IF.
 
-      * CANDADO 4: Traducción de Prefijos Posicionales Fijos a Acciones
            MOVE DB-CUENTA        TO CTA-NRO-CUENTA
            MOVE DB-NUM-CREDITO   TO CTA-NUM-CREDITO
            MOVE DB-MONTO         TO CTA-MONTO-MOV
@@ -1219,16 +1242,11 @@
                WHEN "DEP_DDA" MOVE "C" TO LK-TF-ACCION
                WHEN "RET_DDA" MOVE "D" TO LK-TF-ACCION
                WHEN "TAR_CR"  MOVE "D" TO LK-TF-ACCION
-               WHEN "HIP_PR"  MOVE "P" TO LK-TF-ACCION
                WHEN OTHER     MOVE "C" TO LK-TF-ACCION
            END-EVALUATE.
 
-      * Invocación atómica del motor elemental de afectación de balan
            CALL "tkin01" USING REG-CTA, LK-TRICKLE-FEED-INTERFACE.
 
-      *----------------------------------------------------------------*
-      * MESA DE CONTROL: Formateo contable final del estatus de la fila
-      *----------------------------------------------------------------*
            IF LK-TF-COD-RETORNO = 0
                MOVE 4 TO DB-ESTADO-FINAL
                MOVE "000" TO DB-COD-ERROR
