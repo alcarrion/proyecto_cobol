@@ -6,7 +6,7 @@ title Compilador - Sistema Bancario COBOL (EPN Core 2026)
 :: 1. Configurar las rutas del compilador GnuCOBOL
 set "COBOL_MAIN=C:\Program Files (x86)\OpenCobolIDE\GnuCOBOL"
 set "COBOL_BIN=%COBOL_MAIN%\bin"
-set "COBOL_LIBS_ESQL=%COBOL_MAIN%\binaries3\win32\release"
+set "COBOL_LIBS_ESQL=%COBOL_MAIN%\binaries\win32\release"
 
 :: Variables de entorno del sistema operativo
 set "COB_MAIN_DIR=%COBOL_MAIN%"

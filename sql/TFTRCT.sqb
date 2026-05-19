@@ -33,6 +33,13 @@
        01  WS-FLAGS.
            05 WS-HAY-LOTES-PEND    PIC X(01) VALUE 'S'.
            05 WS-LOTE-TERMINADO    PIC X(01) VALUE 'N'.
+
+       01  WS-BALANCEO-CARGA.
+           05 WS-REPLICA-ACTUAL    PIC 9(02) VALUE 1.
+           05 WS-REPLICA-ARRAY     PIC X(04) OCCURS 10 TIMES VALUE SPACES.
+           05 WS-REPLICA-COUNT     PIC 9(02) VALUE 0.
+           05 WS-REPLICA-IDX       PIC 9(02) VALUE 0.
+           05 WS-LOTES-PROCESADOS  PIC 9(09) VALUE 0.
            
            COPY LKTF. 
 
@@ -42,12 +49,16 @@
            DISPLAY " [CORE ENGINE] INICIANDO ORQUESTADOR BATCH 3.0 ---"
            CALL "BNCR004" USING WS-FECHA-CONTABLE.
 
+           PERFORM 150-CARGAR-REPLICAS-DISPONIBLES
+
            PERFORM UNTIL WS-HAY-LOTES-PEND = 'N'
                PERFORM 100-BUSCAR-LOTE
                IF SQLCODE = 0
-                   PERFORM 200-BUSCAR-REPLICA
-                   IF WS-REP-DISPONIBLE NOT = SPACES
-                       PERFORM 300-PROCESAR-LOTE
+                   IF WS-REPLICA-COUNT > 0
+                       PERFORM 200-BUSCAR-REPLICA
+                       IF WS-REP-DISPONIBLE NOT = SPACES
+                           PERFORM 300-PROCESAR-LOTE
+                       END-IF
                    ELSE
                        DISPLAY "AVISO: NO HAY RÉPLICAS DISPONIBLES."
                        " REINTENTANDO..."
@@ -59,6 +70,7 @@
            END-PERFORM.
            
            DISPLAY "--- [CORE ENGINE] MÁQUINA DE ESTADOS EN REPOSO ---"
+           DISPLAY "TOTAL LOTES PROCESADOS: " WS-LOTES-PROCESADOS
            GOBACK.
 
        100-BUSCAR-LOTE.
@@ -68,14 +80,15 @@
                     :WS-TYPE-UPDATE 
                FROM tffm
                WHERE FASE < '40' AND ESTADO_REPLICA = 'R'
-               ORDER BY ID_LOTE ASC LIMIT 1
+               ORDER BY ID_LOTE ASC LIMIT 100
            END-EXEC.
 
        200-BUSCAR-REPLICA.
            MOVE SPACES TO WS-REP-DISPONIBLE.
            EXEC SQL
                SELECT REPLICA_NO INTO :WS-REP-DISPONIBLE
-               FROM tf_replicas WHERE STATUS = 'L' LIMIT 1
+               FROM tf_replicas WHERE STATUS = 'L' 
+               ORDER BY REPLICA_NO ASC LIMIT 10
            END-EXEC.
 
            IF WS-REP-DISPONIBLE NOT = SPACES

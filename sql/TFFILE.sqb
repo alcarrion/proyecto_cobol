@@ -186,7 +186,7 @@
            MOVE WS-MAX-LOTE-STR TO WS-MAX-LOTE-NUM
 
            IF WS-MAX-LOTE-NUM = 0
-               MOVE 1000 TO WS-MAX-LOTE-NUM
+               MOVE 10000 TO WS-MAX-LOTE-NUM
            END-IF
 
            EXEC SQL

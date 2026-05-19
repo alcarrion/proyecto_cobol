@@ -27,19 +27,19 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 0.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 123.
-           05 SQL-STMT   PIC X(123) VALUE 'SELECT ID_LOTE,FILE_NAME,FASE
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 124.
+           05 SQL-STMT   PIC X(124) VALUE 'SELECT ID_LOTE,FILE_NAME,FASE
       -    ',TYPE_UPDATE FROM tffm WHERE FASE < ''40'' AND ESTADO_REPLIC
-      -    'A = ''R'' ORDER BY ID_LOTE ASC LIMIT 1'.
+      -    'A = ''R'' ORDER BY ID_LOTE ASC LIMIT 100'.
       **********************************************************************
        01 SQL-STMT-1.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 0.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 61.
-           05 SQL-STMT   PIC X(61) VALUE 'SELECT REPLICA_NO FROM tf_repl
-      -    'icas WHERE STATUS = ''L'' LIMIT 1'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 108.
+           05 SQL-STMT   PIC X(108) VALUE 'SELECT REPLICA_NO FROM tf_repl
+      -    'icas WHERE STATUS = ''L'' ORDER BY REPLICA_NO ASC LIMIT 10'.
       **********************************************************************
        01 SQL-STMT-2.
            05 SQL-IPTR   POINTER VALUE NULL.
@@ -141,6 +141,13 @@
            05 WS-HAY-LOTES-PEND    PIC X(01) VALUE 'S'.
            05 WS-LOTE-TERMINADO    PIC X(01) VALUE 'N'.
 
+       01  WS-BALANCEO-CARGA.
+           05 WS-REPLICA-ACTUAL    PIC 9(02) VALUE 1.
+           05 WS-REPLICA-ARRAY     PIC X(04) OCCURS 10 TIMES VALUE SPACES.
+           05 WS-REPLICA-COUNT     PIC 9(02) VALUE 0.
+           05 WS-REPLICA-IDX       PIC 9(02) VALUE 0.
+           05 WS-LOTES-PROCESADOS  PIC 9(09) VALUE 0.
+
            COPY LKTF.
 
        PROCEDURE DIVISION.
@@ -149,12 +156,16 @@
            DISPLAY " [CORE ENGINE] INICIANDO ORQUESTADOR BATCH 3.0 ---"
            CALL "BNCR004" USING WS-FECHA-CONTABLE.
 
+           PERFORM 150-CARGAR-REPLICAS-DISPONIBLES
+
            PERFORM UNTIL WS-HAY-LOTES-PEND = 'N'
                PERFORM 100-BUSCAR-LOTE
                IF SQLCODE = 0
-                   PERFORM 200-BUSCAR-REPLICA
-                   IF WS-REP-DISPONIBLE NOT = SPACES
-                       PERFORM 300-PROCESAR-LOTE
+                   IF WS-REPLICA-COUNT > 0
+                       PERFORM 200-BUSCAR-REPLICA
+                       IF WS-REP-DISPONIBLE NOT = SPACES
+                           PERFORM 300-PROCESAR-LOTE
+                       END-IF
                    ELSE
                        DISPLAY "AVISO: NO HAY RÉPLICAS DISPONIBLES."
                        " REINTENTANDO..."
@@ -166,7 +177,27 @@
            END-PERFORM.
 
            DISPLAY "--- [CORE ENGINE] MÁQUINA DE ESTADOS EN REPOSO ---"
+           DISPLAY "TOTAL LOTES PROCESADOS: " WS-LOTES-PROCESADOS
            GOBACK.
+
+       150-CARGAR-REPLICAS-DISPONIBLES.
+      * Carga inicial de todas las réplicas disponibles
+           MOVE 0 TO WS-REPLICA-COUNT
+           MOVE 1 TO WS-REPLICA-ACTUAL
+           MOVE 0 TO WS-LOTES-PROCESADOS
+
+           PERFORM VARYING WS-REPLICA-IDX FROM 1 BY 1
+               UNTIL WS-REPLICA-IDX > 6
+               MOVE "TF0" TO WS-REPLICA-ARRAY(WS-REPLICA-IDX)
+               STRING WS-REPLICA-ARRAY(WS-REPLICA-IDX)
+                   DELIMITED BY SPACE
+                   WS-REPLICA-IDX DELIMITED BY SIZE
+                   INTO WS-REPLICA-ARRAY(WS-REPLICA-IDX)
+               END-STRING
+               ADD 1 TO WS-REPLICA-COUNT
+           END-PERFORM
+
+           DISPLAY "RÉPLICAS DISPONIBLES CARGADAS: " WS-REPLICA-COUNT.
 
        100-BUSCAR-LOTE.
       *    EXEC SQL
@@ -208,73 +239,60 @@
 
        200-BUSCAR-REPLICA.
            MOVE SPACES TO WS-REP-DISPONIBLE.
-      *    EXEC SQL
-      *        SELECT REPLICA_NO INTO :WS-REP-DISPONIBLE
-      *        FROM tf_replicas WHERE STATUS = 'L' LIMIT 1
-      *    END-EXEC.
-           IF SQL-PREP OF SQL-STMT-1 = 'N'
-               SET SQL-ADDR(1) TO ADDRESS OF
-                 WS-REP-DISPONIBLE
-               MOVE 'X' TO SQL-TYPE(1)
-               MOVE 4 TO SQL-LEN(1)
-               MOVE 1 TO SQL-COUNT
-               CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-1
-                                   SQLCA
-               SET SQL-HCONN OF SQLCA TO NULL
+
+      * Implementar selección round-robin de réplicas
+           IF WS-REPLICA-ACTUAL > WS-REPLICA-COUNT
+               MOVE 1 TO WS-REPLICA-ACTUAL
            END-IF
-           CALL 'OCSQLEXE' USING SQL-STMT-1
-                               SQLCA
-                   .
+
+           MOVE WS-REPLICA-ARRAY(WS-REPLICA-ACTUAL)
+               TO WS-REP-DISPONIBLE
+
+           ADD 1 TO WS-REPLICA-ACTUAL
 
            IF WS-REP-DISPONIBLE NOT = SPACES
-      *        EXEC SQL
-      *            UPDATE tf_replicas SET STATUS = 'O'
-      *            WHERE REPLICA_NO = :WS-REP-DISPONIBLE
-      *        END-EXEC
-           IF SQL-PREP OF SQL-STMT-2 = 'N'
-               SET SQL-ADDR(1) TO ADDRESS OF
-                 WS-REP-DISPONIBLE
-               MOVE 'X' TO SQL-TYPE(1)
-               MOVE 4 TO SQL-LEN(1)
-               MOVE 1 TO SQL-COUNT
-               CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-2
+      *        Marcar réplica como ocupada
+               IF SQL-PREP OF SQL-STMT-2 = 'N'
+                   SET SQL-ADDR(1) TO ADDRESS OF
+                     WS-REP-DISPONIBLE
+                   MOVE 'X' TO SQL-TYPE(1)
+                   MOVE 4 TO SQL-LEN(1)
+                   MOVE 1 TO SQL-COUNT
+                   CALL 'OCSQLPRE' USING SQLV
+                                       SQL-STMT-2
+                                       SQLCA
+                   SET SQL-HCONN OF SQLCA TO NULL
+               END-IF
+               CALL 'OCSQLEXE' USING SQL-STMT-2
                                    SQLCA
-               SET SQL-HCONN OF SQLCA TO NULL
-           END-IF
-           CALL 'OCSQLEXE' USING SQL-STMT-2
-                               SQLCA
-      *        EXEC SQL
-      *            UPDATE tffm
-      *            SET REPLICA_NO = :WS-REP-DISPONIBLE
-      *            WHERE ID_LOTE = :WS-ID-LOTE
-      *        END-EXEC
-           IF SQL-PREP OF SQL-STMT-3 = 'N'
-               SET SQL-ADDR(1) TO ADDRESS OF
-                 WS-REP-DISPONIBLE
-               MOVE 'X' TO SQL-TYPE(1)
-               MOVE 4 TO SQL-LEN(1)
-               SET SQL-ADDR(2) TO ADDRESS OF
-                 SQL-VAR-0001
-               MOVE '3' TO SQL-TYPE(2)
-               MOVE 5 TO SQL-LEN(2)
-               MOVE X'00' TO SQL-PREC(2)
-               MOVE 2 TO SQL-COUNT
-               CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-3
+
+      *        Asignar réplica al lote
+               IF SQL-PREP OF SQL-STMT-3 = 'N'
+                   SET SQL-ADDR(1) TO ADDRESS OF
+                     WS-REP-DISPONIBLE
+                   MOVE 'X' TO SQL-TYPE(1)
+                   MOVE 4 TO SQL-LEN(1)
+                   SET SQL-ADDR(2) TO ADDRESS OF
+                     SQL-VAR-0001
+                   MOVE '3' TO SQL-TYPE(2)
+                   MOVE 5 TO SQL-LEN(2)
+                   MOVE X'00' TO SQL-PREC(2)
+                   MOVE 2 TO SQL-COUNT
+                   CALL 'OCSQLPRE' USING SQLV
+                                       SQL-STMT-3
+                                       SQLCA
+                   SET SQL-HCONN OF SQLCA TO NULL
+               END-IF
+               MOVE WS-ID-LOTE
+                 TO SQL-VAR-0001
+               CALL 'OCSQLEXE' USING SQL-STMT-3
                                    SQLCA
-               SET SQL-HCONN OF SQLCA TO NULL
-           END-IF
-           MOVE WS-ID-LOTE
-             TO SQL-VAR-0001
-           CALL 'OCSQLEXE' USING SQL-STMT-3
-                               SQLCA
-      *        EXEC SQL COMMIT END-EXEC
-           CALL 'OCSQLCMT' USING SQLCA END-CALL
+
+               CALL 'OCSQLCMT' USING SQLCA END-CALL
            END-IF.
 
        300-PROCESAR-LOTE.
+           ADD 1 TO WS-LOTES-PROCESADOS
            MOVE 'N' TO WS-LOTE-TERMINADO.
            PERFORM UNTIL WS-LOTE-TERMINADO = 'S'
                PERFORM 400-EVALUAR-FASE
