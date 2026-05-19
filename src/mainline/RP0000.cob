@@ -55,11 +55,11 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE 'C'.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 2.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 154.
-           05 SQL-STMT   PIC X(154) VALUE 'SELECT ID_CLIENTE,NOMBRE_CLIE
-      -    'NTE,APELLIDOS_CLIENTE,FECHA_ALTA,SALDO_CLIENTE FROM AUDIT_MA
-      -    'ESTRA WHERE PERIODO = ? AND FECHA_ALTA LIKE ? ORDER BY ID_CL
-      -    'IENTE'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 158.
+           05 SQL-STMT   PIC X(158) VALUE 'SELECT ID_CLIENTE,NOMBRE_CLIE
+      -    'NTE,APELLIDOS_CLIENTE,FECHA_ALTA,SALDO_TOTAL_VISTA FROM AUDI
+      -    'T_MAESTRA WHERE PERIODO = ? AND FECHA_ALTA LIKE ? ORDER BY I
+      -    'D_CLIENTE'.
            05 SQL-CNAME  PIC X(12) VALUE 'CUR-CLIENTES'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
@@ -68,13 +68,13 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE 'C'.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 269.
-           05 SQL-STMT   PIC X(269) VALUE 'SELECT H.ID_HIPOTECA,H.ID_CLI
-      -    'ENTE,M.NOMBRE_CLIENTE,H.MONTO_ORIGINAL,H.SALDO_ACTUAL,H.TASA
-      -    '_INTERES,H.ESTADO FROM AUDIT_HIPOTECAS H INNER JOIN AUDIT_MA
-      -    'ESTRA M ON H.ID_CLIENTE = M.ID_CLIENTE AND H.PERIODO = M.PER
-      -    'IODO WHERE H.PERIODO = ? ORDER BY H.ID_CLIENTE,H.ID_HIPOTECA
-      -    ''.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 275.
+           05 SQL-STMT   PIC X(275) VALUE 'SELECT H.ID_HIPOTECA,H.ID_CLI
+      -    'ENTE,M.NOMBRE_CLIENTE,H.MONTO_PRESTAMO,H.SALDO_DEUDA,H.TASA_
+      -    'ANUAL,H.ESTADO_PRESTAMO FROM AUDIT_HIPOTECAS H INNER JOIN AU
+      -    'DIT_MAESTRA M ON H.ID_CLIENTE = M.ID_CLIENTE AND H.PERIODO =
+      -    ' M.PERIODO WHERE H.PERIODO = ? ORDER BY H.ID_CLIENTE,H.ID_HI
+      -    'POTECA'.
            05 SQL-CNAME  PIC X(13) VALUE 'CUR-HIPOTECAS'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
@@ -83,12 +83,12 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE 'C'.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 267.
-           05 SQL-STMT   PIC X(267) VALUE 'SELECT T.ID_CLIENTE,M.NOMBRE_
-      -    'CLIENTE,T.NRO_TARJETA,T.LIMITE_TARJETA,T.ACUM_MES,T.LIQUIDAC
-      -    'ION_MES,T.ESTADO FROM AUDIT_TARJETAS T INNER JOIN AUDIT_MAES
-      -    'TRA M ON T.ID_CLIENTE = M.ID_CLIENTE AND T.PERIODO = M.PERIO
-      -    'DO WHERE T.PERIODO = ? ORDER BY T.ID_CLIENTE,T.NRO_TARJETA'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 263.
+           05 SQL-STMT   PIC X(263) VALUE 'SELECT T.ID_CLIENTE,M.NOMBRE_
+      -    'CLIENTE,T.NRO_TARJETA,T.CUPO_APROBADO,T.SALDO_UTILIZADO,T.ES
+      -    'TADO_TARJETA FROM AUDIT_TARJETAS T INNER JOIN AUDIT_MAESTRA 
+      -    'M ON T.ID_CLIENTE = M.ID_CLIENTE AND T.PERIODO = M.PERIODO W
+      -    'HERE T.PERIODO = ? ORDER BY T.ID_CLIENTE,T.NRO_TARJETA'.
            05 SQL-CNAME  PIC X(12) VALUE 'CUR-TARJETAS'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
@@ -97,11 +97,10 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE 'C'.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 160.
-           05 SQL-STMT   PIC X(160) VALUE 'SELECT ID_CLIENTE,NOMBRE_CLIE
-      -    'NTE,APELLIDOS_CLIENTE,SALDO_CTA,COD_ULT_MOV,IMPORTE_MOV FROM
-      -    ' AUDIT_MAESTRA WHERE PERIODO = ? AND CTA_ACTIVA = 1 ORDER BY
-      -    ' ID_CLIENTE'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 142.
+           05 SQL-STMT   PIC X(142) VALUE 'SELECT ID_CLIENTE,NOMBRE_CLIE
+      -    'NTE,APELLIDOS_CLIENTE,SALDO_CTA FROM AUDIT_MAESTRA WHERE PER
+      -    'IODO = ? AND ESTADO_CLIENTE = ''A'' ORDER BY ID_CLIENTE'.
            05 SQL-CNAME  PIC X(11) VALUE 'CUR-CUENTAS'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
@@ -110,14 +109,14 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE 'C'.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 340.
-           05 SQL-STMT   PIC X(340) VALUE 'SELECT M.ID_CLIENTE,M.NOMBRE_
-      -    'CLIENTE,M.APELLIDOS_CLIENTE,M.SALDO_CTA,T.NRO_TARJETA,T.ACUM
-      -    '_MES,H.SALDO_ACTUAL FROM AUDIT_MAESTRA M LEFT JOIN AUDIT_TAR
-      -    'JETAS T ON M.ID_CLIENTE = T.ID_CLIENTE AND M.PERIODO = T.PER
-      -    'IODO LEFT JOIN AUDIT_HIPOTECAS H ON M.ID_CLIENTE = H.ID_CLIE
-      -    'NTE AND M.PERIODO = H.PERIODO WHERE M.PERIODO = ? ORDER BY M
-      -    '.ID_CLIENTE'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 346.
+           05 SQL-STMT   PIC X(346) VALUE 'SELECT M.ID_CLIENTE,M.NOMBRE_
+      -    'CLIENTE,M.APELLIDOS_CLIENTE,M.SALDO_CTA,T.NRO_TARJETA,T.SALD
+      -    'O_UTILIZADO,H.SALDO_DEUDA FROM AUDIT_MAESTRA M LEFT JOIN AUD
+      -    'IT_TARJETAS T ON M.ID_CLIENTE = T.ID_CLIENTE AND M.PERIODO =
+      -    ' T.PERIODO LEFT JOIN AUDIT_HIPOTECAS H ON M.ID_CLIENTE = H.I
+      -    'D_CLIENTE AND M.PERIODO = H.PERIODO WHERE M.PERIODO = ? ORDE
+      -    'R BY M.ID_CLIENTE'.
            05 SQL-CNAME  PIC X(11) VALUE 'CUR-GENERAL'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
@@ -144,22 +143,19 @@
            05 SQL-VAR-0001  PIC S9(9) COMP-3.
            05 SQL-VAR-0002  PIC S9(11)V9(2) COMP-3.
            05 SQL-VAR-0003  PIC S9(11)V9(2) COMP-3.
-           05 SQL-VAR-0004  PIC S9(3) COMP-3.
+           05 SQL-VAR-0004  PIC S9(9) COMP-3.
            05 SQL-VAR-0005  PIC S9(11)V9(2) COMP-3.
+           05 SQL-VAR-0006  PIC S9(11)V9(2) COMP-3.
            05 SQL-VAR-0007  PIC S9(9) COMP-3.
-           05 SQL-VAR-0008  PIC S9(11)V9(2) COMP-3.
-           05 SQL-VAR-0009  PIC S9(11)V9(2) COMP-3.
-           05 SQL-VAR-0010  PIC S9(11)V9(2) COMP-3.
-           05 SQL-VAR-0011  PIC S9(9) COMP-3.
+           05 SQL-VAR-0008  PIC S9(9) COMP-3.
+           05 SQL-VAR-0009  PIC S9(13)V9(2) COMP-3.
+           05 SQL-VAR-0010  PIC S9(13)V9(2) COMP-3.
+           05 SQL-VAR-0011  PIC S9(3)V9(4) COMP-3.
            05 SQL-VAR-0012  PIC S9(9) COMP-3.
-           05 SQL-VAR-0013  PIC S9(13)V9(2) COMP-3.
-           05 SQL-VAR-0014  PIC S9(13)V9(2) COMP-3.
-           05 SQL-VAR-0015  PIC S9(3)V9(4) COMP-3.
+           05 SQL-VAR-0013  PIC S9(11)V9(2) COMP-3.
+           05 SQL-VAR-0014  PIC S9(11)V9(2) COMP-3.
+           05 SQL-VAR-0015  PIC S9(13)V9(2) COMP-3.
            05 SQL-VAR-0016  PIC S9(9) COMP-3.
-           05 SQL-VAR-0017  PIC S9(11)V9(2) COMP-3.
-           05 SQL-VAR-0018  PIC S9(11)V9(2) COMP-3.
-           05 SQL-VAR-0019  PIC S9(13)V9(2) COMP-3.
-           05 SQL-VAR-0020  PIC S9(9) COMP-3.
       *******       END OF PRECOMPILER-GENERATED VARIABLES           *******
       **********************************************************************
 
@@ -192,6 +188,8 @@
        01  WS-PERIODO-DEF          PIC X(6).
        01  WS-ANIO-MES-LIKE        PIC X(9).
 
+      *    Schema v3: SALDO_TOTAL_VISTA, ESTADO_CLIENTE (CHAR).
+      *    AUDIT_MAESTRA no almacena COD_ULT_MOV / IMPORTE_MOV.
        01  WS-HOST-MAESTRA.
            05 HV-ID-CLIENTE        PIC 9(8).
            05 HV-NOMBRE            PIC X(25).
@@ -199,17 +197,16 @@
            05 HV-FECHA-ALTA        PIC X(10).
            05 HV-SALDO-CLI         PIC S9(10)V99.
            05 HV-SALDO-CTA         PIC S9(10)V99.
-           05 HV-COD-ULT-MOV       PIC 9(2).
-           05 HV-IMPORTE-MOV       PIC S9(10)V99.
-           05 HV-CTA-ACTIVA        PIC 9(1).
+           05 HV-ESTADO-CLI        PIC X(1).
 
+      *    Schema v3 (AUDIT_TARJETAS): CUPO_APROBADO, SALDO_UTILIZADO,
+      *    ESTADO_TARJETA. LIQUIDACION_MES fue eliminada.
        01  WS-HOST-TARJETAS.
            05 HV-TARJ-ID-CLI       PIC 9(8).
            05 HV-TARJ-NOMBRE       PIC X(25).
            05 HV-TARJ-NRO          PIC X(16).
            05 HV-TARJ-LIMITE       PIC S9(10)V99.
            05 HV-TARJ-ACUM         PIC S9(10)V99.
-           05 HV-TARJ-LIQUID       PIC S9(10)V99.
            05 HV-TARJ-ESTADO       PIC X(1).
 
        01  WS-HOST-HIPOTECAS.
@@ -246,7 +243,7 @@
       *               NOMBRE_CLIENTE,
       *               APELLIDOS_CLIENTE,
       *               FECHA_ALTA,
-      *               SALDO_CLIENTE
+      *               SALDO_TOTAL_VISTA
       *        FROM   AUDIT_MAESTRA
       *        WHERE  PERIODO    = :WS-PERIODO
       *        AND    FECHA_ALTA LIKE :WS-ANIO-MES-LIKE
@@ -257,10 +254,10 @@
       *        SELECT H.ID_HIPOTECA,
       *               H.ID_CLIENTE,
       *               M.NOMBRE_CLIENTE,
-      *               H.MONTO_ORIGINAL,
-      *               H.SALDO_ACTUAL,
-      *               H.TASA_INTERES,
-      *               H.ESTADO
+      *               H.MONTO_PRESTAMO,
+      *               H.SALDO_DEUDA,
+      *               H.TASA_ANUAL,
+      *               H.ESTADO_PRESTAMO
       *        FROM   AUDIT_HIPOTECAS H
       *        INNER JOIN AUDIT_MAESTRA M
       *               ON  H.ID_CLIENTE = M.ID_CLIENTE
@@ -273,10 +270,9 @@
       *        SELECT T.ID_CLIENTE,
       *               M.NOMBRE_CLIENTE,
       *               T.NRO_TARJETA,
-      *               T.LIMITE_TARJETA,
-      *               T.ACUM_MES,
-      *               T.LIQUIDACION_MES,
-      *               T.ESTADO
+      *               T.CUPO_APROBADO,
+      *               T.SALDO_UTILIZADO,
+      *               T.ESTADO_TARJETA
       *        FROM   AUDIT_TARJETAS T
       *        INNER JOIN AUDIT_MAESTRA M
       *               ON  T.ID_CLIENTE = M.ID_CLIENTE
@@ -289,12 +285,10 @@
       *        SELECT ID_CLIENTE,
       *               NOMBRE_CLIENTE,
       *               APELLIDOS_CLIENTE,
-      *               SALDO_CTA,
-      *               COD_ULT_MOV,
-      *               IMPORTE_MOV
+      *               SALDO_CTA
       *        FROM   AUDIT_MAESTRA
-      *        WHERE  PERIODO    = :WS-PERIODO
-      *        AND    CTA_ACTIVA = 1
+      *        WHERE  PERIODO        = :WS-PERIODO
+      *        AND    ESTADO_CLIENTE = 'A'
       *        ORDER BY ID_CLIENTE
       *    END-EXEC.
 
@@ -304,8 +298,8 @@
       *               M.APELLIDOS_CLIENTE,
       *               M.SALDO_CTA,
       *               T.NRO_TARJETA,
-      *               T.ACUM_MES,
-      *               H.SALDO_ACTUAL
+      *               T.SALDO_UTILIZADO,
+      *               H.SALDO_DEUDA
       *        FROM   AUDIT_MAESTRA M
       *        LEFT JOIN AUDIT_TARJETAS T
       *               ON  M.ID_CLIENTE = T.ID_CLIENTE
@@ -339,7 +333,7 @@
        01  WS-NOM-TARJETAS         PIC X(80).
        01  WS-NOM-CUENTAS          PIC X(80).
        01  WS-NOM-GENERAL          PIC X(80).
-       01  WS-PAUSA                PIC X(1).
+       01  WS-PAUSA                PIC X(20).
 
       *================================================================*
       *   CONTADORES                                                   *
@@ -423,6 +417,8 @@
            05 WS-DT-ESTADO         PIC X(1).
            05 FILLER               PIC X(17) VALUE SPACES.
 
+      *    Schema v3: AUDIT_MAESTRA no expone COD_ULT_MOV ni IMPORTE_MOV
+      *    Esos campos se convierten en FILLER para preservar longitud.
        01  WS-DET-CUENTAS.
            05 WS-DCU-ID            PIC 9(8).
            05 FILLER               PIC X VALUE SPACE.
@@ -431,11 +427,7 @@
            05 WS-DCU-APELLIDO      PIC X(25).
            05 FILLER               PIC X VALUE SPACE.
            05 WS-DCU-SALDO         PIC ZZZ,ZZZ,ZZ9.99.
-           05 FILLER               PIC X VALUE SPACE.
-           05 WS-DCU-COD-MOV       PIC 99.
-           05 FILLER               PIC X VALUE SPACE.
-           05 WS-DCU-IMPORTE       PIC ZZZ,ZZZ,ZZ9.99.
-           05 FILLER               PIC X(22) VALUE SPACES.
+           05 FILLER               PIC X(40) VALUE SPACES.
 
        01  WS-DET-GENERAL.
            05 WS-DG-ID-CLI         PIC 9(8).
@@ -460,6 +452,57 @@
            COPY LKCIF.
 
       *================================================================*
+      *   SCREEN SECTION (estilo CI0000 / BANCSMENU - pdcurses)        *
+      *================================================================*
+       SCREEN SECTION.
+       01  SCR-MARCO.
+           05 BLANK SCREEN.
+           05 LINE 02 COL 02 VALUE
+              "+------------------------------------------+".
+           05 LINE 03 COL 02 VALUE
+              "|     RP0000 - REPORTES GERENCIALES v3.0   |".
+           05 LINE 04 COL 02 VALUE
+              "+------------------------------------------+".
+
+       01  SCR-PERIODO.
+           05 LINE 06 COL 04 VALUE "Ultimo periodo procesado: ".
+           05 LINE 06 COL 30 PIC X(6) FROM WS-PERIODO-DEF.
+           05 LINE 08 COL 04 VALUE
+              "Ingrese periodo (YYYYMM) o ENTER para default:".
+           05 LINE 09 COL 04 VALUE "[      ]".
+           05 SCR-PER-IN LINE 09 COL 05 PIC X(6)
+              USING WS-PERIODO.
+
+       01  SCR-MENU-RPT.
+           05 LINE 06 COL 04 VALUE "PERIODO ACTIVO: ".
+           05 LINE 06 COL 20 PIC X(6) FROM WS-PERIODO.
+           05 LINE 08 COL 05 VALUE "1. Reporte Clientes Nuevos".
+           05 LINE 09 COL 05 VALUE "2. Reporte Hipotecas".
+           05 LINE 10 COL 05 VALUE "3. Reporte Tarjetas".
+           05 LINE 11 COL 05 VALUE "4. Reporte Cuentas Corrientes".
+           05 LINE 12 COL 05 VALUE "5. Reporte General".
+           05 LINE 13 COL 05 VALUE "6. Volver al Menu Principal".
+           05 LINE 16 COL 05 VALUE "Opcion: [ ]".
+           05 SCR-RPT-OPC LINE 16 COL 14 PIC 9
+              USING WS-OPCION REQUIRED.
+
+       01  SCR-MSG-OK.
+           05 LINE 18 COL 05 VALUE "Reporte generado exitosamente.".
+           05 LINE 19 COL 05 VALUE "Archivo en: docs/reporteria/".
+           05 LINE 21 COL 05 VALUE "Presione ENTER para continuar.".
+
+       01  SCR-MSG-ERR.
+           05 LINE 18 COL 05 VALUE
+              "PERIODO NO EXISTE EN AUDITORIA.".
+           05 LINE 19 COL 05 VALUE
+              "Ejecute primero el CIERRE MENSUAL (opcion 5).".
+           05 LINE 21 COL 05 VALUE "Presione ENTER para regresar.".
+
+       01  SCR-MSG-INV.
+           05 LINE 18 COL 05 VALUE "Opcion no valida. Use 1-6.".
+           05 LINE 21 COL 05 VALUE "Presione ENTER para continuar.".
+
+      *================================================================*
       *   PROCEDURE DIVISION                                           *
       *================================================================*
        PROCEDURE DIVISION USING LK-DATOS-TRANSACCION.
@@ -480,7 +523,6 @@
       *   1000 - INICIALIZAR                                           *
       *================================================================*
        1000-INICIALIZAR.
-           PERFORM 9900-LIMPIAR-PANTALLA
            MOVE FUNCTION CURRENT-DATE TO WS-FECHA-SISTEMA
       *    EXEC SQL
       *        SELECT MAX(PERIODO)
@@ -503,13 +545,13 @@
            IF SQLCODE NOT = 0 OR WS-PERIODO-DEF = SPACES
                MOVE '000000' TO WS-PERIODO-DEF
            END-IF
-           DISPLAY ' ULTIMO PERIODO: ' WS-PERIODO-DEF
-           DISPLAY ' INGRESE PERIODO (YYYYMM) O ENTER PARA DEFAULT:'
-           ACCEPT WS-PERIODO
+           MOVE SPACES TO WS-PERIODO
+           DISPLAY SCR-MARCO
+           DISPLAY SCR-PERIODO
+           ACCEPT SCR-PER-IN
            IF WS-PERIODO = SPACES
                MOVE WS-PERIODO-DEF TO WS-PERIODO
            END-IF
-           DISPLAY ' PERIODO: ' WS-PERIODO
            PERFORM 1100-ARMAR-FILTRO-LIKE.
 
        1100-ARMAR-FILTRO-LIKE.
@@ -519,8 +561,7 @@
                   WS-PERIODO(5:2) DELIMITED SIZE
                   '-%'            DELIMITED SIZE
                   INTO WS-ANIO-MES-LIKE
-           END-STRING
-           DISPLAY ' FILTRO LIKE: [' WS-ANIO-MES-LIKE ']'.
+           END-STRING.
 
       *================================================================*
       *   2000 - VALIDAR PERIODO                                       *
@@ -535,7 +576,7 @@
       *    END-EXEC
            IF SQL-PREP OF SQL-STMT-6 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
-                 SQL-VAR-0020
+                 SQL-VAR-0016
                MOVE '3' TO SQL-TYPE(1)
                MOVE 5 TO SQL-LEN(1)
                MOVE X'00' TO SQL-PREC(1)
@@ -551,7 +592,7 @@
            END-IF
            CALL 'OCSQLEXE' USING SQL-STMT-6
                                SQLCA
-           MOVE SQL-VAR-0020 TO HV-IND-COUNT
+           MOVE SQL-VAR-0016 TO HV-IND-COUNT
            PERFORM 9000-EVALUAR-SQL
            IF LK-COD-RETORNO = 99
                MOVE 'ERROR AL VERIFICAR PERIODO' TO LK-MENSAJE
@@ -561,9 +602,9 @@
                PERFORM 9200-LOG-WRITE
            ELSE
                IF HV-IND-COUNT = 0
-                   DISPLAY 'PERIODO ' WS-PERIODO
-                           ' NO EXISTE EN AUDITORIA.'
-                   DISPLAY 'EJECUTE PRIMERO EL CIERRE MENSUAL.'
+                   DISPLAY SCR-MARCO
+                   DISPLAY SCR-MSG-ERR
+                   ACCEPT WS-PAUSA LINE 22 COL 05
                    MOVE 11 TO LK-COD-RETORNO
                    MOVE 'PERIODO NO ENCONTRADO EN AUDITORIA'
                        TO LK-MENSAJE
@@ -591,27 +632,19 @@
       *================================================================*
        3000-MENU-REPORTES.
            PERFORM UNTIL WS-CONTINUAR = 'N'
-               PERFORM 9900-LIMPIAR-PANTALLA
-               DISPLAY '================================'
-               DISPLAY ' RP0000 - REPORTES GERENCIALES'
-               DISPLAY ' PERIODO: ' WS-PERIODO
-               DISPLAY '================================'
-               DISPLAY '1. Reporte Clientes Nuevos'
-               DISPLAY '2. Reporte Hipotecas'
-               DISPLAY '3. Reporte Tarjetas'
-               DISPLAY '4. Reporte Cuentas Corrientes'
-               DISPLAY '5. Reporte General'
-               DISPLAY '0. Volver al Menu Principal'
-               DISPLAY '================================'
-               ACCEPT WS-OPCION
+               DISPLAY SCR-MARCO
+               DISPLAY SCR-MENU-RPT
+               ACCEPT SCR-RPT-OPC
                EVALUATE WS-OPCION
                    WHEN 1  PERFORM 4000-RPT-CLIENTES
                    WHEN 2  PERFORM 5000-RPT-HIPOTECAS
                    WHEN 3  PERFORM 6000-RPT-TARJETAS
                    WHEN 4  PERFORM 7000-RPT-CUENTAS
                    WHEN 5  PERFORM 8000-RPT-GENERAL
-                   WHEN 0  MOVE 'N' TO WS-CONTINUAR
-                   WHEN OTHER DISPLAY 'OPCION INVALIDA.'
+                   WHEN 6  MOVE 'N' TO WS-CONTINUAR
+                   WHEN OTHER
+                       DISPLAY SCR-MSG-INV
+                       ACCEPT WS-PAUSA LINE 22 COL 05
                END-EVALUATE
            END-PERFORM.
 
@@ -751,9 +784,11 @@
                       DELIMITED BY SIZE
                INTO WS-LOG-LINE
            PERFORM 9200-LOG-WRITE
-           DISPLAY 'REPORTE CLIENTES GENERADO. PRESIONE ENTER.'
-           ACCEPT WS-PAUSA
-           PERFORM 9900-LIMPIAR-PANTALLA
+           DISPLAY SCR-MARCO
+           DISPLAY SCR-MSG-OK
+           DISPLAY "RPT_CLIENTES_" WS-PERIODO ".DAT"
+                   LINE 19 COL 33
+           ACCEPT WS-PAUSA LINE 22 COL 05
            MOVE 0 TO LK-COD-RETORNO
            MOVE 'REPORTE CLIENTES GENERADO EXITOSAMENTE' TO LK-MENSAJE.
 
@@ -818,12 +853,12 @@
       *                :HV-HIPO-ESTADO
       *        END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
-             SQL-VAR-0011
+             SQL-VAR-0007
            MOVE '3' TO SQL-TYPE(1)
            MOVE 5 TO SQL-LEN(1)
                MOVE X'00' TO SQL-PREC(1)
            SET SQL-ADDR(2) TO ADDRESS OF
-             SQL-VAR-0012
+             SQL-VAR-0008
            MOVE '3' TO SQL-TYPE(2)
            MOVE 5 TO SQL-LEN(2)
                MOVE X'00' TO SQL-PREC(2)
@@ -832,17 +867,17 @@
            MOVE 'X' TO SQL-TYPE(3)
            MOVE 25 TO SQL-LEN(3)
            SET SQL-ADDR(4) TO ADDRESS OF
-             SQL-VAR-0013
+             SQL-VAR-0009
            MOVE '3' TO SQL-TYPE(4)
            MOVE 8 TO SQL-LEN(4)
                MOVE X'02' TO SQL-PREC(4)
            SET SQL-ADDR(5) TO ADDRESS OF
-             SQL-VAR-0014
+             SQL-VAR-0010
            MOVE '3' TO SQL-TYPE(5)
            MOVE 8 TO SQL-LEN(5)
                MOVE X'02' TO SQL-PREC(5)
            SET SQL-ADDR(6) TO ADDRESS OF
-             SQL-VAR-0015
+             SQL-VAR-0011
            MOVE '3' TO SQL-TYPE(6)
            MOVE 4 TO SQL-LEN(6)
                MOVE X'04' TO SQL-PREC(6)
@@ -854,11 +889,11 @@
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-1
                                SQLCA
-           MOVE SQL-VAR-0011 TO HV-HIPO-ID-HIPO
-           MOVE SQL-VAR-0012 TO HV-HIPO-ID-CLI
-           MOVE SQL-VAR-0013 TO HV-HIPO-MONTO-ORIG
-           MOVE SQL-VAR-0014 TO HV-HIPO-SALDO
-           MOVE SQL-VAR-0015 TO HV-HIPO-TASA
+           MOVE SQL-VAR-0007 TO HV-HIPO-ID-HIPO
+           MOVE SQL-VAR-0008 TO HV-HIPO-ID-CLI
+           MOVE SQL-VAR-0009 TO HV-HIPO-MONTO-ORIG
+           MOVE SQL-VAR-0010 TO HV-HIPO-SALDO
+           MOVE SQL-VAR-0011 TO HV-HIPO-TASA
                EVALUATE SQLCODE
                    WHEN 0
                        MOVE HV-HIPO-ID-HIPO    TO WS-DH-ID-HIPO
@@ -899,9 +934,11 @@
                       DELIMITED BY SIZE
                INTO WS-LOG-LINE
            PERFORM 9200-LOG-WRITE
-           DISPLAY 'REPORTE HIPOTECAS GENERADO. PRESIONE ENTER.'
-           ACCEPT WS-PAUSA
-           PERFORM 9900-LIMPIAR-PANTALLA
+           DISPLAY SCR-MARCO
+           DISPLAY SCR-MSG-OK
+           DISPLAY "RPT_HIPOTECAS_" WS-PERIODO ".DAT"
+                   LINE 19 COL 33
+           ACCEPT WS-PAUSA LINE 22 COL 05
            MOVE 0 TO LK-COD-RETORNO
            MOVE 'REPORTE HIPOTECAS GENERADO EXITOSAMENTE'
                TO LK-MENSAJE.
@@ -963,11 +1000,10 @@
       *                :HV-TARJ-NRO,
       *                :HV-TARJ-LIMITE,
       *                :HV-TARJ-ACUM,
-      *                :HV-TARJ-LIQUID,
       *                :HV-TARJ-ESTADO
       *        END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
-             SQL-VAR-0007
+             SQL-VAR-0004
            MOVE '3' TO SQL-TYPE(1)
            MOVE 5 TO SQL-LEN(1)
                MOVE X'00' TO SQL-PREC(1)
@@ -980,32 +1016,26 @@
            MOVE 'X' TO SQL-TYPE(3)
            MOVE 16 TO SQL-LEN(3)
            SET SQL-ADDR(4) TO ADDRESS OF
-             SQL-VAR-0008
+             SQL-VAR-0005
            MOVE '3' TO SQL-TYPE(4)
            MOVE 7 TO SQL-LEN(4)
                MOVE X'02' TO SQL-PREC(4)
            SET SQL-ADDR(5) TO ADDRESS OF
-             SQL-VAR-0009
+             SQL-VAR-0006
            MOVE '3' TO SQL-TYPE(5)
            MOVE 7 TO SQL-LEN(5)
                MOVE X'02' TO SQL-PREC(5)
            SET SQL-ADDR(6) TO ADDRESS OF
-             SQL-VAR-0010
-           MOVE '3' TO SQL-TYPE(6)
-           MOVE 7 TO SQL-LEN(6)
-               MOVE X'02' TO SQL-PREC(6)
-           SET SQL-ADDR(7) TO ADDRESS OF
              HV-TARJ-ESTADO
-           MOVE 'X' TO SQL-TYPE(7)
-           MOVE 1 TO SQL-LEN(7)
-           MOVE 7 TO SQL-COUNT
+           MOVE 'X' TO SQL-TYPE(6)
+           MOVE 1 TO SQL-LEN(6)
+           MOVE 6 TO SQL-COUNT
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-2
                                SQLCA
-           MOVE SQL-VAR-0007 TO HV-TARJ-ID-CLI
-           MOVE SQL-VAR-0008 TO HV-TARJ-LIMITE
-           MOVE SQL-VAR-0009 TO HV-TARJ-ACUM
-           MOVE SQL-VAR-0010 TO HV-TARJ-LIQUID
+           MOVE SQL-VAR-0004 TO HV-TARJ-ID-CLI
+           MOVE SQL-VAR-0005 TO HV-TARJ-LIMITE
+           MOVE SQL-VAR-0006 TO HV-TARJ-ACUM
                EVALUATE SQLCODE
                    WHEN 0
                        MOVE HV-TARJ-ID-CLI  TO WS-DT-ID-CLI
@@ -1013,7 +1043,7 @@
                        MOVE HV-TARJ-NRO     TO WS-DT-NRO
                        MOVE HV-TARJ-LIMITE  TO WS-DT-LIMITE
                        MOVE HV-TARJ-ACUM    TO WS-DT-ACUM
-                       MOVE HV-TARJ-LIQUID  TO WS-DT-LIQUID
+                       MOVE ZERO            TO WS-DT-LIQUID
                        MOVE HV-TARJ-ESTADO  TO WS-DT-ESTADO
                        WRITE FS-REG-TARJETAS FROM WS-DET-TARJETAS
                        ADD 1            TO WS-CTR-TARJETAS
@@ -1046,9 +1076,11 @@
                       DELIMITED BY SIZE
                INTO WS-LOG-LINE
            PERFORM 9200-LOG-WRITE
-           DISPLAY 'REPORTE TARJETAS GENERADO. PRESIONE ENTER.'
-           ACCEPT WS-PAUSA
-           PERFORM 9900-LIMPIAR-PANTALLA
+           DISPLAY SCR-MARCO
+           DISPLAY SCR-MSG-OK
+           DISPLAY "RPT_TARJETAS_" WS-PERIODO ".DAT"
+                   LINE 19 COL 33
+           ACCEPT WS-PAUSA LINE 22 COL 05
            MOVE 0 TO LK-COD-RETORNO
            MOVE 'REPORTE TARJETAS GENERADO EXITOSAMENTE'
                TO LK-MENSAJE.
@@ -1079,7 +1111,7 @@
            WRITE FS-REG-CUENTAS FROM RP-TITULO
            WRITE FS-REG-CUENTAS FROM RP-BLANK
            MOVE 'ID-CLI   NOMBRE                   APELLIDO'
-             & '                 SALDO-CTA    COD IMPORTE-MOV'
+             & '                 SALDO-CTA'
                TO RP-HEADER
            WRITE FS-REG-CUENTAS FROM RP-HEADER
            WRITE FS-REG-CUENTAS FROM RP-SEPAR
@@ -1109,9 +1141,7 @@
       *                :HV-ID-CLIENTE,
       *                :HV-NOMBRE,
       *                :HV-APELLIDOS,
-      *                :HV-SALDO-CTA,
-      *                :HV-COD-ULT-MOV,
-      *                :HV-IMPORTE-MOV
+      *                :HV-SALDO-CTA
       *        END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
              SQL-VAR-0001
@@ -1131,32 +1161,18 @@
            MOVE '3' TO SQL-TYPE(4)
            MOVE 7 TO SQL-LEN(4)
                MOVE X'02' TO SQL-PREC(4)
-           SET SQL-ADDR(5) TO ADDRESS OF
-             SQL-VAR-0004
-           MOVE '3' TO SQL-TYPE(5)
-           MOVE 2 TO SQL-LEN(5)
-               MOVE X'00' TO SQL-PREC(5)
-           SET SQL-ADDR(6) TO ADDRESS OF
-             SQL-VAR-0005
-           MOVE '3' TO SQL-TYPE(6)
-           MOVE 7 TO SQL-LEN(6)
-               MOVE X'02' TO SQL-PREC(6)
-           MOVE 6 TO SQL-COUNT
+           MOVE 4 TO SQL-COUNT
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-3
                                SQLCA
            MOVE SQL-VAR-0001 TO HV-ID-CLIENTE
            MOVE SQL-VAR-0003 TO HV-SALDO-CTA
-           MOVE SQL-VAR-0004 TO HV-COD-ULT-MOV
-           MOVE SQL-VAR-0005 TO HV-IMPORTE-MOV
                EVALUATE SQLCODE
                    WHEN 0
                        MOVE HV-ID-CLIENTE   TO WS-DCU-ID
                        MOVE HV-NOMBRE       TO WS-DCU-NOMBRE
                        MOVE HV-APELLIDOS    TO WS-DCU-APELLIDO
                        MOVE HV-SALDO-CTA    TO WS-DCU-SALDO
-                       MOVE HV-COD-ULT-MOV  TO WS-DCU-COD-MOV
-                       MOVE HV-IMPORTE-MOV  TO WS-DCU-IMPORTE
                        WRITE FS-REG-CUENTAS FROM WS-DET-CUENTAS
                        ADD 1            TO WS-CTR-CUENTAS
                        ADD HV-SALDO-CTA TO WS-SUM-SALDO-CTA
@@ -1188,9 +1204,11 @@
                       DELIMITED BY SIZE
                INTO WS-LOG-LINE
            PERFORM 9200-LOG-WRITE
-           DISPLAY 'REPORTE CUENTAS GENERADO. PRESIONE ENTER.'
-           ACCEPT WS-PAUSA
-           PERFORM 9900-LIMPIAR-PANTALLA
+           DISPLAY SCR-MARCO
+           DISPLAY SCR-MSG-OK
+           DISPLAY "RPT_CUENTAS_" WS-PERIODO ".DAT"
+                   LINE 19 COL 33
+           ACCEPT WS-PAUSA LINE 22 COL 05
            MOVE 0 TO LK-COD-RETORNO
            MOVE 'REPORTE CUENTAS GENERADO EXITOSAMENTE'
                TO LK-MENSAJE.
@@ -1262,7 +1280,7 @@
       *                :HV-GEN-SALDO-HIPO :HV-IND-SALDO-HIPO
       *        END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
-             SQL-VAR-0016
+             SQL-VAR-0012
            MOVE '3' TO SQL-TYPE(1)
            MOVE 5 TO SQL-LEN(1)
                MOVE X'00' TO SQL-PREC(1)
@@ -1275,7 +1293,7 @@
            MOVE 'X' TO SQL-TYPE(3)
            MOVE 25 TO SQL-LEN(3)
            SET SQL-ADDR(4) TO ADDRESS OF
-             SQL-VAR-0017
+             SQL-VAR-0013
            MOVE '3' TO SQL-TYPE(4)
            MOVE 7 TO SQL-LEN(4)
                MOVE X'02' TO SQL-PREC(4)
@@ -1287,7 +1305,7 @@
              HV-IND-NRO-TARJ
            MOVE 'i' TO SQL-TYPE(6)
            SET SQL-ADDR(7) TO ADDRESS OF
-             SQL-VAR-0018
+             SQL-VAR-0014
            MOVE '3' TO SQL-TYPE(7)
            MOVE 7 TO SQL-LEN(7)
                MOVE X'02' TO SQL-PREC(7)
@@ -1295,7 +1313,7 @@
              HV-IND-ACUM-MES
            MOVE 'i' TO SQL-TYPE(8)
            SET SQL-ADDR(9) TO ADDRESS OF
-             SQL-VAR-0019
+             SQL-VAR-0015
            MOVE '3' TO SQL-TYPE(9)
            MOVE 8 TO SQL-LEN(9)
                MOVE X'02' TO SQL-PREC(9)
@@ -1306,10 +1324,10 @@
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-4
                                SQLCA
-           MOVE SQL-VAR-0016 TO HV-GEN-ID-CLI
-           MOVE SQL-VAR-0017 TO HV-GEN-SALDO-CTA
-           MOVE SQL-VAR-0018 TO HV-GEN-ACUM-MES
-           MOVE SQL-VAR-0019 TO HV-GEN-SALDO-HIPO
+           MOVE SQL-VAR-0012 TO HV-GEN-ID-CLI
+           MOVE SQL-VAR-0013 TO HV-GEN-SALDO-CTA
+           MOVE SQL-VAR-0014 TO HV-GEN-ACUM-MES
+           MOVE SQL-VAR-0015 TO HV-GEN-SALDO-HIPO
                EVALUATE SQLCODE
                    WHEN 0
                        IF HV-IND-NRO-TARJ   < 0
@@ -1370,9 +1388,11 @@
                       DELIMITED BY SIZE
                INTO WS-LOG-LINE
            PERFORM 9200-LOG-WRITE
-           DISPLAY 'REPORTE GENERAL GENERADO. PRESIONE ENTER.'
-           ACCEPT WS-PAUSA
-           PERFORM 9900-LIMPIAR-PANTALLA
+           DISPLAY SCR-MARCO
+           DISPLAY SCR-MSG-OK
+           DISPLAY "RPT_GENERAL_" WS-PERIODO ".DAT"
+                   LINE 19 COL 33
+           ACCEPT WS-PAUSA LINE 22 COL 05
            MOVE 0 TO LK-COD-RETORNO
            MOVE 'REPORTE GENERAL GENERADO EXITOSAMENTE'
                TO LK-MENSAJE.
@@ -1437,37 +1457,34 @@
       *  CUR-HIPOTECAS            IN USE CURSOR
       *  CUR-TARJETAS             IN USE CURSOR
       *  HV-APELLIDOS             IN USE CHAR(25)
-      *  HV-COD-ULT-MOV           IN USE THROUGH TEMP VAR SQL-VAR-0004 DECIMAL(3,0)
-      *  HV-CTA-ACTIVA        NOT IN USE
+      *  HV-ESTADO-CLI        NOT IN USE
       *  HV-FECHA-ALTA            IN USE CHAR(10)
-      *  HV-GEN-ACUM-MES          IN USE THROUGH TEMP VAR SQL-VAR-0018 DECIMAL(13,2)
+      *  HV-GEN-ACUM-MES          IN USE THROUGH TEMP VAR SQL-VAR-0014 DECIMAL(13,2)
       *  HV-GEN-APELLIDOS         IN USE CHAR(25)
-      *  HV-GEN-ID-CLI            IN USE THROUGH TEMP VAR SQL-VAR-0016 DECIMAL(9,0)
+      *  HV-GEN-ID-CLI            IN USE THROUGH TEMP VAR SQL-VAR-0012 DECIMAL(9,0)
       *  HV-GEN-NOMBRE            IN USE CHAR(25)
       *  HV-GEN-NRO-TARJ          IN USE CHAR(16)
-      *  HV-GEN-SALDO-CTA         IN USE THROUGH TEMP VAR SQL-VAR-0017 DECIMAL(13,2)
-      *  HV-GEN-SALDO-HIPO        IN USE THROUGH TEMP VAR SQL-VAR-0019 DECIMAL(15,2)
+      *  HV-GEN-SALDO-CTA         IN USE THROUGH TEMP VAR SQL-VAR-0013 DECIMAL(13,2)
+      *  HV-GEN-SALDO-HIPO        IN USE THROUGH TEMP VAR SQL-VAR-0015 DECIMAL(15,2)
       *  HV-HIPO-ESTADO           IN USE CHAR(20)
-      *  HV-HIPO-ID-CLI           IN USE THROUGH TEMP VAR SQL-VAR-0012 DECIMAL(9,0)
-      *  HV-HIPO-ID-HIPO          IN USE THROUGH TEMP VAR SQL-VAR-0011 DECIMAL(9,0)
-      *  HV-HIPO-MONTO-ORIG       IN USE THROUGH TEMP VAR SQL-VAR-0013 DECIMAL(15,2)
+      *  HV-HIPO-ID-CLI           IN USE THROUGH TEMP VAR SQL-VAR-0008 DECIMAL(9,0)
+      *  HV-HIPO-ID-HIPO          IN USE THROUGH TEMP VAR SQL-VAR-0007 DECIMAL(9,0)
+      *  HV-HIPO-MONTO-ORIG       IN USE THROUGH TEMP VAR SQL-VAR-0009 DECIMAL(15,2)
       *  HV-HIPO-NOMBRE           IN USE CHAR(25)
-      *  HV-HIPO-SALDO            IN USE THROUGH TEMP VAR SQL-VAR-0014 DECIMAL(15,2)
-      *  HV-HIPO-TASA             IN USE THROUGH TEMP VAR SQL-VAR-0015 DECIMAL(7,4)
+      *  HV-HIPO-SALDO            IN USE THROUGH TEMP VAR SQL-VAR-0010 DECIMAL(15,2)
+      *  HV-HIPO-TASA             IN USE THROUGH TEMP VAR SQL-VAR-0011 DECIMAL(7,4)
       *  HV-ID-CLIENTE            IN USE THROUGH TEMP VAR SQL-VAR-0001 DECIMAL(9,0)
-      *  HV-IMPORTE-MOV           IN USE THROUGH TEMP VAR SQL-VAR-0005 DECIMAL(13,2)
       *  HV-IND-ACUM-MES          IN USE INTEGER(2 BYTES)
-      *  HV-IND-COUNT             IN USE THROUGH TEMP VAR SQL-VAR-0020 DECIMAL(9,0)
+      *  HV-IND-COUNT             IN USE THROUGH TEMP VAR SQL-VAR-0016 DECIMAL(9,0)
       *  HV-IND-NRO-TARJ          IN USE INTEGER(2 BYTES)
       *  HV-IND-SALDO-HIPO        IN USE INTEGER(2 BYTES)
       *  HV-NOMBRE                IN USE CHAR(25)
       *  HV-SALDO-CLI             IN USE THROUGH TEMP VAR SQL-VAR-0002 DECIMAL(13,2)
       *  HV-SALDO-CTA             IN USE THROUGH TEMP VAR SQL-VAR-0003 DECIMAL(13,2)
-      *  HV-TARJ-ACUM             IN USE THROUGH TEMP VAR SQL-VAR-0009 DECIMAL(13,2)
+      *  HV-TARJ-ACUM             IN USE THROUGH TEMP VAR SQL-VAR-0006 DECIMAL(13,2)
       *  HV-TARJ-ESTADO           IN USE CHAR(1)
-      *  HV-TARJ-ID-CLI           IN USE THROUGH TEMP VAR SQL-VAR-0007 DECIMAL(9,0)
-      *  HV-TARJ-LIMITE           IN USE THROUGH TEMP VAR SQL-VAR-0008 DECIMAL(13,2)
-      *  HV-TARJ-LIQUID           IN USE THROUGH TEMP VAR SQL-VAR-0010 DECIMAL(13,2)
+      *  HV-TARJ-ID-CLI           IN USE THROUGH TEMP VAR SQL-VAR-0004 DECIMAL(9,0)
+      *  HV-TARJ-LIMITE           IN USE THROUGH TEMP VAR SQL-VAR-0005 DECIMAL(13,2)
       *  HV-TARJ-NOMBRE           IN USE CHAR(25)
       *  HV-TARJ-NRO              IN USE CHAR(16)
       *  WS-ANIO-MES-LIKE         IN USE CHAR(9)
@@ -1492,11 +1509,9 @@
       *  WS-HOST-HIPOTECAS.HV-HIPO-TASA NOT IN USE
       *  WS-HOST-MAESTRA      NOT IN USE
       *  WS-HOST-MAESTRA.HV-APELLIDOS NOT IN USE
-      *  WS-HOST-MAESTRA.HV-COD-ULT-MOV NOT IN USE
-      *  WS-HOST-MAESTRA.HV-CTA-ACTIVA NOT IN USE
+      *  WS-HOST-MAESTRA.HV-ESTADO-CLI NOT IN USE
       *  WS-HOST-MAESTRA.HV-FECHA-ALTA NOT IN USE
       *  WS-HOST-MAESTRA.HV-ID-CLIENTE NOT IN USE
-      *  WS-HOST-MAESTRA.HV-IMPORTE-MOV NOT IN USE
       *  WS-HOST-MAESTRA.HV-NOMBRE NOT IN USE
       *  WS-HOST-MAESTRA.HV-SALDO-CLI NOT IN USE
       *  WS-HOST-MAESTRA.HV-SALDO-CTA NOT IN USE
@@ -1505,7 +1520,6 @@
       *  WS-HOST-TARJETAS.HV-TARJ-ESTADO NOT IN USE
       *  WS-HOST-TARJETAS.HV-TARJ-ID-CLI NOT IN USE
       *  WS-HOST-TARJETAS.HV-TARJ-LIMITE NOT IN USE
-      *  WS-HOST-TARJETAS.HV-TARJ-LIQUID NOT IN USE
       *  WS-HOST-TARJETAS.HV-TARJ-NOMBRE NOT IN USE
       *  WS-HOST-TARJETAS.HV-TARJ-NRO NOT IN USE
       *  WS-PERIODO               IN USE CHAR(6)
