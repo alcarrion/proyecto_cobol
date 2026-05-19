@@ -52,6 +52,8 @@
        01  WS-PERIODO-DEF          PIC X(6).
        01  WS-ANIO-MES-LIKE        PIC X(9).
 
+      *    Schema v3: SALDO_TOTAL_VISTA, ESTADO_CLIENTE (CHAR).
+      *    AUDIT_MAESTRA no almacena COD_ULT_MOV / IMPORTE_MOV.
        01  WS-HOST-MAESTRA.
            05 HV-ID-CLIENTE        PIC 9(8).
            05 HV-NOMBRE            PIC X(25).
@@ -59,17 +61,16 @@
            05 HV-FECHA-ALTA        PIC X(10).
            05 HV-SALDO-CLI         PIC S9(10)V99.
            05 HV-SALDO-CTA         PIC S9(10)V99.
-           05 HV-COD-ULT-MOV       PIC 9(2).
-           05 HV-IMPORTE-MOV       PIC S9(10)V99.
-           05 HV-CTA-ACTIVA        PIC 9(1).
+           05 HV-ESTADO-CLI        PIC X(1).
 
+      *    Schema v3 (AUDIT_TARJETAS): CUPO_APROBADO, SALDO_UTILIZADO,
+      *    ESTADO_TARJETA. LIQUIDACION_MES fue eliminada.
        01  WS-HOST-TARJETAS.
            05 HV-TARJ-ID-CLI       PIC 9(8).
            05 HV-TARJ-NOMBRE       PIC X(25).
            05 HV-TARJ-NRO          PIC X(16).
            05 HV-TARJ-LIMITE       PIC S9(10)V99.
            05 HV-TARJ-ACUM         PIC S9(10)V99.
-           05 HV-TARJ-LIQUID       PIC S9(10)V99.
            05 HV-TARJ-ESTADO       PIC X(1).
 
        01  WS-HOST-HIPOTECAS.
@@ -106,7 +107,7 @@
                       NOMBRE_CLIENTE,
                       APELLIDOS_CLIENTE,
                       FECHA_ALTA,
-                      SALDO_CLIENTE
+                      SALDO_TOTAL_VISTA
                FROM   AUDIT_MAESTRA
                WHERE  PERIODO    = :WS-PERIODO
                AND    FECHA_ALTA LIKE :WS-ANIO-MES-LIKE
@@ -117,10 +118,10 @@
                SELECT H.ID_HIPOTECA,
                       H.ID_CLIENTE,
                       M.NOMBRE_CLIENTE,
-                      H.MONTO_ORIGINAL,
-                      H.SALDO_ACTUAL,
-                      H.TASA_INTERES,
-                      H.ESTADO
+                      H.MONTO_PRESTAMO,
+                      H.SALDO_DEUDA,
+                      H.TASA_ANUAL,
+                      H.ESTADO_PRESTAMO
                FROM   AUDIT_HIPOTECAS H
                INNER JOIN AUDIT_MAESTRA M
                       ON  H.ID_CLIENTE = M.ID_CLIENTE
@@ -133,10 +134,9 @@
                SELECT T.ID_CLIENTE,
                       M.NOMBRE_CLIENTE,
                       T.NRO_TARJETA,
-                      T.LIMITE_TARJETA,
-                      T.ACUM_MES,
-                      T.LIQUIDACION_MES,
-                      T.ESTADO
+                      T.CUPO_APROBADO,
+                      T.SALDO_UTILIZADO,
+                      T.ESTADO_TARJETA
                FROM   AUDIT_TARJETAS T
                INNER JOIN AUDIT_MAESTRA M
                       ON  T.ID_CLIENTE = M.ID_CLIENTE
@@ -149,12 +149,10 @@
                SELECT ID_CLIENTE,
                       NOMBRE_CLIENTE,
                       APELLIDOS_CLIENTE,
-                      SALDO_CTA,
-                      COD_ULT_MOV,
-                      IMPORTE_MOV
+                      SALDO_CTA
                FROM   AUDIT_MAESTRA
-               WHERE  PERIODO    = :WS-PERIODO
-               AND    CTA_ACTIVA = 1
+               WHERE  PERIODO        = :WS-PERIODO
+               AND    ESTADO_CLIENTE = 'A'
                ORDER BY ID_CLIENTE
            END-EXEC.
 
@@ -164,8 +162,8 @@
                       M.APELLIDOS_CLIENTE,
                       M.SALDO_CTA,
                       T.NRO_TARJETA,
-                      T.ACUM_MES,
-                      H.SALDO_ACTUAL
+                      T.SALDO_UTILIZADO,
+                      H.SALDO_DEUDA
                FROM   AUDIT_MAESTRA M
                LEFT JOIN AUDIT_TARJETAS T
                       ON  M.ID_CLIENTE = T.ID_CLIENTE
@@ -199,7 +197,7 @@
        01  WS-NOM-TARJETAS         PIC X(80).
        01  WS-NOM-CUENTAS          PIC X(80).
        01  WS-NOM-GENERAL          PIC X(80).
-       01  WS-PAUSA                PIC X(1).
+       01  WS-PAUSA                PIC X(20).
 
       *================================================================*
       *   CONTADORES                                                   *
@@ -283,6 +281,8 @@
            05 WS-DT-ESTADO         PIC X(1).
            05 FILLER               PIC X(17) VALUE SPACES.
 
+      *    Schema v3: AUDIT_MAESTRA no expone COD_ULT_MOV ni IMPORTE_MOV.
+      *    Esos campos se convierten en FILLER para preservar longitud.
        01  WS-DET-CUENTAS.
            05 WS-DCU-ID            PIC 9(8).
            05 FILLER               PIC X VALUE SPACE.
@@ -291,11 +291,7 @@
            05 WS-DCU-APELLIDO      PIC X(25).
            05 FILLER               PIC X VALUE SPACE.
            05 WS-DCU-SALDO         PIC ZZZ,ZZZ,ZZ9.99.
-           05 FILLER               PIC X VALUE SPACE.
-           05 WS-DCU-COD-MOV       PIC 99.
-           05 FILLER               PIC X VALUE SPACE.
-           05 WS-DCU-IMPORTE       PIC ZZZ,ZZZ,ZZ9.99.
-           05 FILLER               PIC X(22) VALUE SPACES.
+           05 FILLER               PIC X(40) VALUE SPACES.
 
        01  WS-DET-GENERAL.
            05 WS-DG-ID-CLI         PIC 9(8).
@@ -320,6 +316,57 @@
            COPY LKCIF.
 
       *================================================================*
+      *   SCREEN SECTION (estilo CI0000 / BANCSMENU - pdcurses)        *
+      *================================================================*
+       SCREEN SECTION.
+       01  SCR-MARCO.
+           05 BLANK SCREEN.
+           05 LINE 02 COL 02 VALUE
+              "+------------------------------------------+".
+           05 LINE 03 COL 02 VALUE
+              "|     RP0000 - REPORTES GERENCIALES v3.0   |".
+           05 LINE 04 COL 02 VALUE
+              "+------------------------------------------+".
+
+       01  SCR-PERIODO.
+           05 LINE 06 COL 04 VALUE "Ultimo periodo procesado: ".
+           05 LINE 06 COL 30 PIC X(6) FROM WS-PERIODO-DEF.
+           05 LINE 08 COL 04 VALUE
+              "Ingrese periodo (YYYYMM) o ENTER para default:".
+           05 LINE 09 COL 04 VALUE "[      ]".
+           05 SCR-PER-IN LINE 09 COL 05 PIC X(6)
+              USING WS-PERIODO.
+
+       01  SCR-MENU-RPT.
+           05 LINE 06 COL 04 VALUE "PERIODO ACTIVO: ".
+           05 LINE 06 COL 20 PIC X(6) FROM WS-PERIODO.
+           05 LINE 08 COL 05 VALUE "1. Reporte Clientes Nuevos".
+           05 LINE 09 COL 05 VALUE "2. Reporte Hipotecas".
+           05 LINE 10 COL 05 VALUE "3. Reporte Tarjetas".
+           05 LINE 11 COL 05 VALUE "4. Reporte Cuentas Corrientes".
+           05 LINE 12 COL 05 VALUE "5. Reporte General".
+           05 LINE 13 COL 05 VALUE "6. Volver al Menu Principal".
+           05 LINE 16 COL 05 VALUE "Opcion: [ ]".
+           05 SCR-RPT-OPC LINE 16 COL 14 PIC 9
+              USING WS-OPCION REQUIRED.
+
+       01  SCR-MSG-OK.
+           05 LINE 18 COL 05 VALUE "Reporte generado exitosamente.".
+           05 LINE 19 COL 05 VALUE "Archivo en: docs/reporteria/".
+           05 LINE 21 COL 05 VALUE "Presione ENTER para continuar.".
+
+       01  SCR-MSG-ERR.
+           05 LINE 18 COL 05 VALUE
+              "PERIODO NO EXISTE EN AUDITORIA.".
+           05 LINE 19 COL 05 VALUE
+              "Ejecute primero el CIERRE MENSUAL (opcion 5).".
+           05 LINE 21 COL 05 VALUE "Presione ENTER para regresar.".
+
+       01  SCR-MSG-INV.
+           05 LINE 18 COL 05 VALUE "Opcion no valida. Use 1-6.".
+           05 LINE 21 COL 05 VALUE "Presione ENTER para continuar.".
+
+      *================================================================*
       *   PROCEDURE DIVISION                                           *
       *================================================================*
        PROCEDURE DIVISION USING LK-DATOS-TRANSACCION.
@@ -340,7 +387,6 @@
       *   1000 - INICIALIZAR                                           *
       *================================================================*
        1000-INICIALIZAR.
-           PERFORM 9900-LIMPIAR-PANTALLA
            MOVE FUNCTION CURRENT-DATE TO WS-FECHA-SISTEMA
            EXEC SQL
                SELECT MAX(PERIODO)
@@ -350,13 +396,13 @@
            IF SQLCODE NOT = 0 OR WS-PERIODO-DEF = SPACES
                MOVE '000000' TO WS-PERIODO-DEF
            END-IF
-           DISPLAY ' ULTIMO PERIODO: ' WS-PERIODO-DEF
-           DISPLAY ' INGRESE PERIODO (YYYYMM) O ENTER PARA DEFAULT:'
-           ACCEPT WS-PERIODO
+           MOVE SPACES TO WS-PERIODO
+           DISPLAY SCR-MARCO
+           DISPLAY SCR-PERIODO
+           ACCEPT SCR-PER-IN
            IF WS-PERIODO = SPACES
                MOVE WS-PERIODO-DEF TO WS-PERIODO
            END-IF
-           DISPLAY ' PERIODO: ' WS-PERIODO
            PERFORM 1100-ARMAR-FILTRO-LIKE.
 
        1100-ARMAR-FILTRO-LIKE.
@@ -366,8 +412,7 @@
                   WS-PERIODO(5:2) DELIMITED SIZE
                   '-%'            DELIMITED SIZE
                   INTO WS-ANIO-MES-LIKE
-           END-STRING
-           DISPLAY ' FILTRO LIKE: [' WS-ANIO-MES-LIKE ']'.
+           END-STRING.
 
       *================================================================*
       *   2000 - VALIDAR PERIODO                                       *
@@ -389,9 +434,9 @@
                PERFORM 9200-LOG-WRITE
            ELSE
                IF HV-IND-COUNT = 0
-                   DISPLAY 'PERIODO ' WS-PERIODO
-                           ' NO EXISTE EN AUDITORIA.'
-                   DISPLAY 'EJECUTE PRIMERO EL CIERRE MENSUAL.'
+                   DISPLAY SCR-MARCO
+                   DISPLAY SCR-MSG-ERR
+                   ACCEPT WS-PAUSA LINE 22 COL 05
                    MOVE 11 TO LK-COD-RETORNO
                    MOVE 'PERIODO NO ENCONTRADO EN AUDITORIA'
                        TO LK-MENSAJE
@@ -419,27 +464,19 @@
       *================================================================*
        3000-MENU-REPORTES.
            PERFORM UNTIL WS-CONTINUAR = 'N'
-               PERFORM 9900-LIMPIAR-PANTALLA
-               DISPLAY '================================'
-               DISPLAY ' RP0000 - REPORTES GERENCIALES'
-               DISPLAY ' PERIODO: ' WS-PERIODO
-               DISPLAY '================================'
-               DISPLAY '1. Reporte Clientes Nuevos'
-               DISPLAY '2. Reporte Hipotecas'
-               DISPLAY '3. Reporte Tarjetas'
-               DISPLAY '4. Reporte Cuentas Corrientes'
-               DISPLAY '5. Reporte General'
-               DISPLAY '0. Volver al Menu Principal'
-               DISPLAY '================================'
-               ACCEPT WS-OPCION
+               DISPLAY SCR-MARCO
+               DISPLAY SCR-MENU-RPT
+               ACCEPT SCR-RPT-OPC
                EVALUATE WS-OPCION
                    WHEN 1  PERFORM 4000-RPT-CLIENTES
                    WHEN 2  PERFORM 5000-RPT-HIPOTECAS
                    WHEN 3  PERFORM 6000-RPT-TARJETAS
                    WHEN 4  PERFORM 7000-RPT-CUENTAS
                    WHEN 5  PERFORM 8000-RPT-GENERAL
-                   WHEN 0  MOVE 'N' TO WS-CONTINUAR
-                   WHEN OTHER DISPLAY 'OPCION INVALIDA.'
+                   WHEN 6  MOVE 'N' TO WS-CONTINUAR
+                   WHEN OTHER
+                       DISPLAY SCR-MSG-INV
+                       ACCEPT WS-PAUSA LINE 22 COL 05
                END-EVALUATE
            END-PERFORM.
 
@@ -532,9 +569,11 @@
                       DELIMITED BY SIZE
                INTO WS-LOG-LINE
            PERFORM 9200-LOG-WRITE
-           DISPLAY 'REPORTE CLIENTES GENERADO. PRESIONE ENTER.'
-           ACCEPT WS-PAUSA
-           PERFORM 9900-LIMPIAR-PANTALLA
+           DISPLAY SCR-MARCO
+           DISPLAY SCR-MSG-OK
+           DISPLAY "RPT_CLIENTES_" WS-PERIODO ".DAT"
+                   LINE 19 COL 33
+           ACCEPT WS-PAUSA LINE 22 COL 05
            MOVE 0 TO LK-COD-RETORNO
            MOVE 'REPORTE CLIENTES GENERADO EXITOSAMENTE' TO LK-MENSAJE.
 
@@ -623,9 +662,11 @@
                       DELIMITED BY SIZE
                INTO WS-LOG-LINE
            PERFORM 9200-LOG-WRITE
-           DISPLAY 'REPORTE HIPOTECAS GENERADO. PRESIONE ENTER.'
-           ACCEPT WS-PAUSA
-           PERFORM 9900-LIMPIAR-PANTALLA
+           DISPLAY SCR-MARCO
+           DISPLAY SCR-MSG-OK
+           DISPLAY "RPT_HIPOTECAS_" WS-PERIODO ".DAT"
+                   LINE 19 COL 33
+           ACCEPT WS-PAUSA LINE 22 COL 05
            MOVE 0 TO LK-COD-RETORNO
            MOVE 'REPORTE HIPOTECAS GENERADO EXITOSAMENTE'
                TO LK-MENSAJE.
@@ -674,7 +715,6 @@
                        :HV-TARJ-NRO,
                        :HV-TARJ-LIMITE,
                        :HV-TARJ-ACUM,
-                       :HV-TARJ-LIQUID,
                        :HV-TARJ-ESTADO
                END-EXEC
                EVALUATE SQLCODE
@@ -684,7 +724,7 @@
                        MOVE HV-TARJ-NRO     TO WS-DT-NRO
                        MOVE HV-TARJ-LIMITE  TO WS-DT-LIMITE
                        MOVE HV-TARJ-ACUM    TO WS-DT-ACUM
-                       MOVE HV-TARJ-LIQUID  TO WS-DT-LIQUID
+                       MOVE ZERO            TO WS-DT-LIQUID
                        MOVE HV-TARJ-ESTADO  TO WS-DT-ESTADO
                        WRITE FS-REG-TARJETAS FROM WS-DET-TARJETAS
                        ADD 1            TO WS-CTR-TARJETAS
@@ -715,9 +755,11 @@
                       DELIMITED BY SIZE
                INTO WS-LOG-LINE
            PERFORM 9200-LOG-WRITE
-           DISPLAY 'REPORTE TARJETAS GENERADO. PRESIONE ENTER.'
-           ACCEPT WS-PAUSA
-           PERFORM 9900-LIMPIAR-PANTALLA
+           DISPLAY SCR-MARCO
+           DISPLAY SCR-MSG-OK
+           DISPLAY "RPT_TARJETAS_" WS-PERIODO ".DAT"
+                   LINE 19 COL 33
+           ACCEPT WS-PAUSA LINE 22 COL 05
            MOVE 0 TO LK-COD-RETORNO
            MOVE 'REPORTE TARJETAS GENERADO EXITOSAMENTE'
                TO LK-MENSAJE.
@@ -748,7 +790,7 @@
            WRITE FS-REG-CUENTAS FROM RP-TITULO
            WRITE FS-REG-CUENTAS FROM RP-BLANK
            MOVE 'ID-CLI   NOMBRE                   APELLIDO'
-             & '                 SALDO-CTA    COD IMPORTE-MOV'
+             & '                 SALDO-CTA'
                TO RP-HEADER
            WRITE FS-REG-CUENTAS FROM RP-HEADER
            WRITE FS-REG-CUENTAS FROM RP-SEPAR
@@ -765,9 +807,7 @@
                        :HV-ID-CLIENTE,
                        :HV-NOMBRE,
                        :HV-APELLIDOS,
-                       :HV-SALDO-CTA,
-                       :HV-COD-ULT-MOV,
-                       :HV-IMPORTE-MOV
+                       :HV-SALDO-CTA
                END-EXEC
                EVALUATE SQLCODE
                    WHEN 0
@@ -775,8 +815,6 @@
                        MOVE HV-NOMBRE       TO WS-DCU-NOMBRE
                        MOVE HV-APELLIDOS    TO WS-DCU-APELLIDO
                        MOVE HV-SALDO-CTA    TO WS-DCU-SALDO
-                       MOVE HV-COD-ULT-MOV  TO WS-DCU-COD-MOV
-                       MOVE HV-IMPORTE-MOV  TO WS-DCU-IMPORTE
                        WRITE FS-REG-CUENTAS FROM WS-DET-CUENTAS
                        ADD 1            TO WS-CTR-CUENTAS
                        ADD HV-SALDO-CTA TO WS-SUM-SALDO-CTA
@@ -806,9 +844,11 @@
                       DELIMITED BY SIZE
                INTO WS-LOG-LINE
            PERFORM 9200-LOG-WRITE
-           DISPLAY 'REPORTE CUENTAS GENERADO. PRESIONE ENTER.'
-           ACCEPT WS-PAUSA
-           PERFORM 9900-LIMPIAR-PANTALLA
+           DISPLAY SCR-MARCO
+           DISPLAY SCR-MSG-OK
+           DISPLAY "RPT_CUENTAS_" WS-PERIODO ".DAT"
+                   LINE 19 COL 33
+           ACCEPT WS-PAUSA LINE 22 COL 05
            MOVE 0 TO LK-COD-RETORNO
            MOVE 'REPORTE CUENTAS GENERADO EXITOSAMENTE'
                TO LK-MENSAJE.
@@ -924,9 +964,11 @@
                       DELIMITED BY SIZE
                INTO WS-LOG-LINE
            PERFORM 9200-LOG-WRITE
-           DISPLAY 'REPORTE GENERAL GENERADO. PRESIONE ENTER.'
-           ACCEPT WS-PAUSA
-           PERFORM 9900-LIMPIAR-PANTALLA
+           DISPLAY SCR-MARCO
+           DISPLAY SCR-MSG-OK
+           DISPLAY "RPT_GENERAL_" WS-PERIODO ".DAT"
+                   LINE 19 COL 33
+           ACCEPT WS-PAUSA LINE 22 COL 05
            MOVE 0 TO LK-COD-RETORNO
            MOVE 'REPORTE GENERAL GENERADO EXITOSAMENTE'
                TO LK-MENSAJE.

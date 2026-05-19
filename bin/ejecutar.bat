@@ -16,8 +16,11 @@ copy "%COBOL_BIN%\pthreadGC-3.dll"     "%BIN_DIR%" >nul 2>&1
 copy "%COBOL_BIN%\libdb-6.2.dll"       "%BIN_DIR%" >nul 2>&1
 copy "%COBOL_LIBS_ESQL%\ocsql.dll"     "%BIN_DIR%" >nul 2>&1
 
-:: Suprimir logs internos del motor SQL (OCSQL_LOGLEVEL=0 silencia todo)
-set "OCSQL_LOGLEVEL=0"
+:: Suprimir logs internos del motor SQL (subir nivel = menos verbose)
+set "OCSQL_LOGLEVEL=9"
+set "OCSQL_LOG=OFF"
+set "OCSQL_TRACE=0"
+set "OCSQL_DEBUG=0"
 
 :: Configurar variables de entorno
 set "COB_LIBRARY_PATH=%BIN_DIR%"

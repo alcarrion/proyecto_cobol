@@ -27,6 +27,9 @@
        01  WS-PERIODO              PIC X(6).
 
       *    Variables host - AUDIT_MAESTRA / CLIENTES + CTACTES
+      *    Adaptado a schema v3: SALDO_TOTAL_VISTA, ESTADO_CLIENTE,
+      *    TIENE_TARJETA, TIENE_HIPOTECA. CTACTES solo expone
+      *    SALDO_ACTUAL (no hay COD/FECHA/IMPORTE de ultimo movimiento).
        01  WS-HOST-MAESTRA.
            05 HV-ID-CLIENTE        PIC 9(8).
            05 HV-TIPO-DOC          PIC X(3).
@@ -35,26 +38,20 @@
            05 HV-NOMBRE            PIC X(25).
            05 HV-APELLIDOS         PIC X(25).
            05 HV-SALDO-CLI         PIC S9(10)V99.
-           05 HV-CTA-ACTIVA        PIC 9(1).
+           05 HV-ESTADO-CLI        PIC X(1).
            05 HV-TIENE-TARJETA     PIC 9(1).
            05 HV-TIENE-HIPOTECA    PIC 9(1).
            05 HV-SALDO-CTA         PIC S9(10)V99.
-           05 HV-COD-ULT-MOV       PIC 9(2).
-           05 HV-FECHA-ULT-MOV     PIC X(10).
-           05 HV-IMPORTE-MOV       PIC S9(10)V99.
-      *    Indicadores de NULL para el LEFT JOIN con CTACTES
+      *    Indicador de NULL para el LEFT JOIN con CTACTES
            05 HV-IND-SALDO-CTA     PIC S9(4) COMP-5.
-           05 HV-IND-COD-MOV       PIC S9(4) COMP-5.
-           05 HV-IND-FECHA-MOV     PIC S9(4) COMP-5.
-           05 HV-IND-IMPORTE-MOV   PIC S9(4) COMP-5.
 
-      *    Variables host - AUDIT_TARJETAS
+      *    Variables host - AUDIT_TARJETAS (schema v3: CUPO_APROBADO,
+      *    SALDO_UTILIZADO, ESTADO_TARJETA. LIQUIDACION_MES eliminada.)
        01  WS-HOST-TARJETAS.
            05 HV-TARJ-ID-CLI       PIC 9(8).
            05 HV-TARJ-NRO          PIC X(16).
            05 HV-TARJ-LIMITE       PIC S9(10)V99.
            05 HV-TARJ-ACUM         PIC S9(10)V99.
-           05 HV-TARJ-LIQUID       PIC S9(10)V99.
            05 HV-TARJ-ESTADO       PIC X(1).
 
       *    Variables host - AUDIT_HIPOTECAS
@@ -103,14 +100,11 @@
                       C.FECHA_ALTA,
                       C.NOMBRE_CLIENTE,
                       C.APELLIDOS_CLIENTE,
-                      C.SALDO_CLIENTE,
-                      C.CTA_ACTIVA,
-                      C.TARJETA,
-                      C.HIPOTECA,
-                      I.SALDO_ACTUAL,
-                      I.COD_ULT_MOV,
-                      I.FECHA_ULT_MOV,
-                      I.IMPORTE_MOV
+                      C.SALDO_TOTAL_VISTA,
+                      C.ESTADO_CLIENTE,
+                      C.TIENE_TARJETA,
+                      C.TIENE_HIPOTECA,
+                      I.SALDO_ACTUAL
                FROM   CLIENTES C
                LEFT JOIN CTACTES I
                       ON C.ID_CLIENTE = I.ID_CLIENTE
@@ -120,10 +114,9 @@
            EXEC SQL DECLARE CUR-TARJETAS CURSOR FOR
                SELECT ID_CLIENTE,
                       NRO_TARJETA,
-                      LIMITE_TARJETA,
-                      ACUM_MES,
-                      LIQUIDACION_MES,
-                      ESTADO
+                      CUPO_APROBADO,
+                      SALDO_UTILIZADO,
+                      ESTADO_TARJETA
                FROM   TARJETAS
                ORDER BY ID_CLIENTE, NRO_TARJETA
            END-EXEC.
@@ -131,34 +124,34 @@
            EXEC SQL DECLARE CUR-HIPOTECAS CURSOR FOR
                SELECT ID_HIPOTECA,
                       ID_CLIENTE,
-                      MONTO_ORIGINAL,
-                      TASA_INTERES,
-                      SALDO_ACTUAL,
-                      FECHA_VENCTO,
-                      ESTADO
+                      MONTO_PRESTAMO,
+                      TASA_ANUAL,
+                      SALDO_DEUDA,
+                      FECHA_VENCIMIENTO,
+                      ESTADO_PRESTAMO
                FROM   HIPOTECAS
                ORDER BY ID_CLIENTE, ID_HIPOTECA
            END-EXEC.
 
       *    Cursor de mora: usa CUOTA_MENSUAL y MESES_MORA de la BD.
-      *    SALDO_ESPERADO = cuota * (meses_totales - meses_transcurridos)
+      *    SALDO_ESPERADO = cuota * meses_restantes_hasta_vencimiento.
+      *    Schema v3 no tiene FECHA_INICIO: calculamos meses restantes
+      *    directamente con TIMESTAMPDIFF(CURDATE, FECHA_VENCIMIENTO).
       *    GREATEST(...,0) evita saldos negativos para creditos vencidos.
            EXEC SQL DECLARE CUR-MORA CURSOR FOR
                SELECT H.ID_HIPOTECA,
                       H.ID_CLIENTE,
-                      H.SALDO_ACTUAL,
-                      H.MONTO_ORIGINAL,
-                      H.ESTADO,
+                      H.SALDO_DEUDA,
+                      H.MONTO_PRESTAMO,
+                      H.ESTADO_PRESTAMO,
                       H.CUOTA_MENSUAL,
                       H.CUOTA_MENSUAL * GREATEST(
                           TIMESTAMPDIFF(MONTH,
-                              H.FECHA_INICIO, H.FECHA_VENCTO) -
-                          TIMESTAMPDIFF(MONTH,
-                              H.FECHA_INICIO, CURDATE()),
+                              CURDATE(), H.FECHA_VENCIMIENTO),
                           0),
                       H.MESES_MORA
                FROM   HIPOTECAS H
-               WHERE  H.ESTADO IN ('ACTIVO', 'MOROSO')
+               WHERE  H.ESTADO_PRESTAMO IN ('ACTIVO', 'MOROSO')
                ORDER BY H.ID_CLIENTE, H.ID_HIPOTECA
            END-EXEC.
 
@@ -202,7 +195,7 @@
        01  WS-AUX-CTR              PIC 9(6).
        01  WS-AUX-MONTO13         PIC -9(13).99.
        01  WS-AUX-MONTO10         PIC -9(10).99.
-       01  WS-TECLA                PIC X.
+       01  WS-TECLA                PIC X(20).
 
       *================================================================*
       *   LINKAGE SECTION                                              *
@@ -380,28 +373,16 @@
                        :HV-NOMBRE,
                        :HV-APELLIDOS,
                        :HV-SALDO-CLI,
-                       :HV-CTA-ACTIVA,
+                       :HV-ESTADO-CLI,
                        :HV-TIENE-TARJETA,
                        :HV-TIENE-HIPOTECA,
-                       :HV-SALDO-CTA      :HV-IND-SALDO-CTA,
-                       :HV-COD-ULT-MOV    :HV-IND-COD-MOV,
-                       :HV-FECHA-ULT-MOV  :HV-IND-FECHA-MOV,
-                       :HV-IMPORTE-MOV    :HV-IND-IMPORTE-MOV
+                       :HV-SALDO-CTA      :HV-IND-SALDO-CTA
                END-EXEC
 
                EVALUATE SQLCODE
                    WHEN 0
                        IF HV-IND-SALDO-CTA   < 0
                            MOVE ZERO   TO HV-SALDO-CTA
-                       END-IF
-                       IF HV-IND-COD-MOV     < 0
-                           MOVE ZERO   TO HV-COD-ULT-MOV
-                       END-IF
-                       IF HV-IND-FECHA-MOV   < 0
-                           MOVE SPACES TO HV-FECHA-ULT-MOV
-                       END-IF
-                       IF HV-IND-IMPORTE-MOV < 0
-                           MOVE ZERO   TO HV-IMPORTE-MOV
                        END-IF
 
                        EXEC SQL
@@ -410,19 +391,17 @@
                                TIPO_DOC,          DOC_CLIENTE,
                                FECHA_ALTA,        NOMBRE_CLIENTE,
                                APELLIDOS_CLIENTE,
-                               SALDO_CLIENTE,     CTA_ACTIVA,
+                               SALDO_TOTAL_VISTA, ESTADO_CLIENTE,
                                TIENE_TARJETA,     TIENE_HIPOTECA,
-                               SALDO_CTA,         COD_ULT_MOV,
-                               FECHA_ULT_MOV,     IMPORTE_MOV
+                               SALDO_CTA
                            ) VALUES (
                                :WS-PERIODO,       :HV-ID-CLIENTE,
                                :HV-TIPO-DOC,      :HV-DOC-CLIENTE,
                                :HV-FECHA-ALTA,    :HV-NOMBRE,
                                :HV-APELLIDOS,
-                               :HV-SALDO-CLI,     :HV-CTA-ACTIVA,
+                               :HV-SALDO-CLI,     :HV-ESTADO-CLI,
                                :HV-TIENE-TARJETA, :HV-TIENE-HIPOTECA,
-                               :HV-SALDO-CTA,     :HV-COD-ULT-MOV,
-                               :HV-FECHA-ULT-MOV, :HV-IMPORTE-MOV
+                               :HV-SALDO-CTA
                            )
                        END-EXEC
 
@@ -521,7 +500,6 @@
                        :HV-TARJ-NRO,
                        :HV-TARJ-LIMITE,
                        :HV-TARJ-ACUM,
-                       :HV-TARJ-LIQUID,
                        :HV-TARJ-ESTADO
                END-EXEC
 
@@ -530,13 +508,13 @@
                        EXEC SQL
                            INSERT INTO AUDIT_TARJETAS (
                                PERIODO,       ID_CLIENTE,
-                               NRO_TARJETA,   LIMITE_TARJETA,
-                               ACUM_MES,      LIQUIDACION_MES,
-                               ESTADO
+                               NRO_TARJETA,   CUPO_APROBADO,
+                               SALDO_UTILIZADO,
+                               ESTADO_TARJETA
                            ) VALUES (
                                :WS-PERIODO,   :HV-TARJ-ID-CLI,
                                :HV-TARJ-NRO,  :HV-TARJ-LIMITE,
-                               :HV-TARJ-ACUM, :HV-TARJ-LIQUID,
+                               :HV-TARJ-ACUM,
                                :HV-TARJ-ESTADO
                            )
                        END-EXEC
@@ -645,9 +623,9 @@
                        EXEC SQL
                            INSERT INTO AUDIT_HIPOTECAS (
                                PERIODO,             ID_HIPOTECA,
-                               ID_CLIENTE,          MONTO_ORIGINAL,
-                               TASA_INTERES,        SALDO_ACTUAL,
-                               FECHA_VENCTO,        ESTADO
+                               ID_CLIENTE,          MONTO_PRESTAMO,
+                               TASA_ANUAL,          SALDO_DEUDA,
+                               FECHA_VENCIMIENTO,   ESTADO_PRESTAMO
                            ) VALUES (
                                :WS-PERIODO,         :HV-HIPO-ID-HIPO,
                                :HV-HIPO-ID-CLI,     :HV-HIPO-MONTO-ORIG,
@@ -800,7 +778,8 @@
       *                    Actualizar estado e incrementar MESES_MORA
                            EXEC SQL
                                UPDATE HIPOTECAS
-                               SET    ESTADO = :HV-MORA-NUEVO-ESTADO,
+                               SET    ESTADO_PRESTAMO =
+                                          :HV-MORA-NUEVO-ESTADO,
                                       MESES_MORA = MESES_MORA + 1
                                WHERE  ID_HIPOTECA = :HV-MORA-ID-HIPO
                            END-EXEC
@@ -826,7 +805,7 @@
 
       *                    Consultar saldo actual del cliente
                            EXEC SQL
-                               SELECT SALDO_CLIENTE
+                               SELECT SALDO_TOTAL_VISTA
                                INTO   :HV-MORA-CLI-SALDO
                                FROM   CLIENTES
                                WHERE  ID_CLIENTE = :HV-MORA-ID-CLI
@@ -838,8 +817,8 @@
                                   HV-MORA-PAGO-MENS
                                    EXEC SQL
                                        UPDATE CLIENTES
-                                       SET    SALDO_CLIENTE =
-                                              SALDO_CLIENTE -
+                                       SET    SALDO_TOTAL_VISTA =
+                                              SALDO_TOTAL_VISTA -
                                               :HV-MORA-PAGO-MENS
                                        WHERE  ID_CLIENTE =
                                               :HV-MORA-ID-CLI
@@ -865,14 +844,15 @@
                                        MOVE 'S' TO WS-FIN-MORA
                                    ELSE
       *                                Descontar cuota tambien del
-      *                                SALDO_ACTUAL de la hipoteca.
+      *                                SALDO_DEUDA de la hipoteca.
+      *                                FECHA_HORA_ALT se actualiza
+      *                                automaticamente (no hay
+      *                                FECHA_ULT_PAGO en schema v3).
                                        EXEC SQL
                                            UPDATE HIPOTECAS
-                                           SET    SALDO_ACTUAL =
-                                                  SALDO_ACTUAL -
-                                                  :HV-MORA-PAGO-MENS,
-                                                  FECHA_ULT_PAGO =
-                                                  CURDATE()
+                                           SET    SALDO_DEUDA =
+                                                  SALDO_DEUDA -
+                                                  :HV-MORA-PAGO-MENS
                                            WHERE  ID_HIPOTECA =
                                                   :HV-MORA-ID-HIPO
                                        END-EXEC
@@ -930,13 +910,13 @@
 
                        ELSE
       *                    Saldo correcto - si estaba MOROSO, regularizar.
-      *                    Resetea MESES_MORA y marca FECHA_ULT_PAGO.
+      *                    Resetea MESES_MORA. FECHA_HORA_ALT se
+      *                    actualiza automaticamente en schema v3.
                            IF HV-MORA-ESTADO = 'MOROSO'
                                EXEC SQL
                                    UPDATE HIPOTECAS
-                                   SET    ESTADO = 'ACTIVO',
-                                          MESES_MORA = 0,
-                                          FECHA_ULT_PAGO = CURDATE()
+                                   SET    ESTADO_PRESTAMO = 'ACTIVO',
+                                          MESES_MORA = 0
                                    WHERE  ID_HIPOTECA =
                                           :HV-MORA-ID-HIPO
                                END-EXEC
@@ -1033,9 +1013,9 @@
 
            EXEC SQL
                UPDATE TARJETAS
-               SET    ESTADO = :HV-ESTADO-INACTIVO
-               WHERE  FECHA_VENCIMIENTO < CURDATE()
-               AND    ESTADO = :HV-ESTADO-ACTIVO
+               SET    ESTADO_TARJETA = :HV-ESTADO-INACTIVO
+               WHERE  FECHA_VENCTO   < CURDATE()
+               AND    ESTADO_TARJETA = :HV-ESTADO-ACTIVO
            END-EXEC
 
            IF SQLCODE = 0
@@ -1066,8 +1046,8 @@
 
       *================================================================*
       *   6000 - RESET OPERATIVO: CIERRE DE TARJETAS                  *
-      *   Mueve ACUM_MES a LIQUIDACION_MES y resetea ACUM_MES a 0    *
-      *   Solo aplica a tarjetas ACTIVAS (ESTADO = 'A')               *
+      *   Schema v3: resetea SALDO_UTILIZADO a 0 en tarjetas ACTIVAS  *
+      *   (el saldo del periodo ya quedo en AUDIT_TARJETAS).          *
       *================================================================*
        6000-RESET-OPERATIVO.
            MOVE '>>> RESET OPERATIVO TARJETAS...'
@@ -1076,13 +1056,18 @@
 
            EXEC SQL
                UPDATE TARJETAS
-               SET    LIQUIDACION_MES = ACUM_MES,
-                      ACUM_MES        = 0
-               WHERE  ESTADO = :HV-ESTADO-ACTIVO
+               SET    SALDO_UTILIZADO = 0
+               WHERE  ESTADO_TARJETA = :HV-ESTADO-ACTIVO
            END-EXEC
 
            IF SQLCODE = 0
-               MOVE ' RESET TARJETAS: OK' TO WS-LOG-LINE
+               MOVE SQLERRD(3)        TO WS-AUX-CTR
+               MOVE SPACES TO WS-LOG-LINE
+               STRING ' RESET TARJETAS OK - SALDO_UTILIZADO=0: '
+                          DELIMITED BY SIZE
+                      WS-AUX-CTR
+                          DELIMITED BY SIZE
+                   INTO WS-LOG-LINE
                PERFORM 9100-LOG-WRITE
            ELSE
                MOVE SQLCODE TO WS-AUX-SQLCODE
@@ -1214,17 +1199,26 @@
            DISPLAY ' BAT000 - PROCESO DE CIERRE MENSUAL'
            DISPLAY ' PERIODO: ' WS-PERIODO
            DISPLAY '================================================'
-           DISPLAY ' '
            IF WS-ABORT = 'N' AND WS-CTR-ERRORES = 0
                DISPLAY '>>> EXITO EN EJECUCION DE CIERRE MENSUAL'
            ELSE
                DISPLAY '>>> FALLO EN EJECUCION DE CIERRE MENSUAL'
            END-IF
-           DISPLAY ' '
-           DISPLAY ' Consulte el detalle en: '
-           DISPLAY '   docs/logs/BAT_LOGS_' WS-PERIODO '.txt'
-           DISPLAY ' '
+           DISPLAY '------------------------------------------------'
+           DISPLAY ' RESUMEN DE PROCESO:'
+           DISPLAY '   CLIENTES PROCESADOS    : ' WS-CTR-CLIENTES
+           DISPLAY '   TARJETAS PROCESADAS    : ' WS-CTR-TARJETAS
+           DISPLAY '   HIPOTECAS PROCESADAS   : ' WS-CTR-HIPOTECAS
+           DISPLAY '   HIPOTECAS MOROSAS      : ' WS-CTR-MOROSAS
+           DISPLAY '   HIPOTECAS CASTIGADAS   : ' WS-CTR-CASTIGADAS
+           DISPLAY '   HIPOTECAS REGULARIZADAS: ' WS-CTR-REGULARIZADAS
+           DISPLAY '   TARJETAS DADAS DE BAJA : ' WS-CTR-TARJ-BAJA
+           DISPLAY '   ERRORES DETECTADOS     : ' WS-CTR-ERRORES
+           DISPLAY '------------------------------------------------'
+           DISPLAY ' Detalle: docs/logs/BAT_LOGS_' WS-PERIODO '.txt'
+           DISPLAY '================================================'
            DISPLAY 'Presione ENTER para regresar al menu...'
+           ACCEPT WS-TECLA
            ACCEPT WS-TECLA.
 
       *================================================================*
