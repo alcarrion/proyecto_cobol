@@ -2,7 +2,7 @@
       * DBIOTARJ.SQB - CAPA DE ACCESO A DATOS TARJETAS v3.0
       * TABLAS   : tarjetas, tarjetas_diferidos, clientes
       * ACCIONES : C=Consultar  A=Insert-Tarjeta  I=Insert-Diferido
-      *            B=Cancelar
+      *            B=Cancelar  P=Pagar
       ******************************************************************
        IDENTIFICATION DIVISION.
        PROGRAM-ID. DBIOTARJ.
@@ -99,6 +99,16 @@
            05 SQL-STMT   PIC X(58) VALUE 'UPDATE clientes SET TIENE_TARJ
       -    'ETA = 0 WHERE ID_CLIENTE = ?'.
       **********************************************************************
+       01 SQL-STMT-8.
+           05 SQL-IPTR   POINTER VALUE NULL.
+           05 SQL-PREP   PIC X VALUE 'N'.
+           05 SQL-OPT    PIC X VALUE SPACE.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 3.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 98.
+           05 SQL-STMT   PIC X(98) VALUE 'UPDATE tarjetas SET SALDO_UTIL
+      -    'IZADO = SALDO_UTILIZADO - ? WHERE NRO_TARJETA = ? AND ID_CLI
+      -    'ENTE = ?'.
+      **********************************************************************
       *******          PRECOMPILER-GENERATED VARIABLES               *******
        01 SQLV-GEN-VARS.
            05 SQL-VAR-0001  PIC S9(9) COMP-3.
@@ -111,6 +121,7 @@
            05 SQL-VAR-0008  PIC S9(3) COMP-3.
            05 SQL-VAR-0009  PIC S9(11)V9(2) COMP-3.
            05 SQL-VAR-0010  PIC S9(9) COMP-3.
+           05 SQL-VAR-0011  PIC S9(11)V9(2) COMP-3.
       *******       END OF PRECOMPILER-GENERATED VARIABLES           *******
       **********************************************************************
 
@@ -151,6 +162,7 @@
        01  DB-DIFD-VALOR-CUOTA     PIC S9(10)V99 COMP-3.
        01  DB-DIFD-TASA-INTERES    PIC S9(03)V99 COMP-3.
        01  DB-DIFD-ID-DIFERIDO     PIC 9(08).
+       01  DB-TARJ-MONTO-PAGO      PIC S9(10)V99 COMP-3.
       *    EXEC SQL END DECLARE SECTION END-EXEC.
 
       *    EXEC SQL DECLARE CUR-DIFD CURSOR FOR
@@ -189,6 +201,8 @@
                    PERFORM 6000-FETCH-DIFERIDO
                WHEN 'Z'
                    PERFORM 7000-CERRAR-CURSOR-DIFD
+               WHEN 'P'
+                   PERFORM 8000-PAGAR-TARJETA
                WHEN OTHER
                    MOVE 'E999' TO LK-COD-RETORNO
                    MOVE 'Accion no reconocida en DBIOTARJ'
@@ -675,6 +689,56 @@
                                            .
            MOVE '00  ' TO LK-COD-RETORNO.
 
+      ************************************************************
+      * P - Pagar tarjeta: resta el monto de SALDO_UTILIZADO
+      *     TC0000 pasa el monto a pagar en TARJ-SALDO-UTILIZADO
+      ************************************************************
+       8000-PAGAR-TARJETA.
+           MOVE TARJ-NRO-TARJETA      TO DB-TARJ-NRO-TARJETA.
+           MOVE TARJ-ID-CLIENTE       TO DB-TARJ-ID-CLIENTE.
+           MOVE TARJ-SALDO-UTILIZADO  TO DB-TARJ-MONTO-PAGO.
+
+      *    EXEC SQL
+      *        UPDATE tarjetas
+      *        SET    SALDO_UTILIZADO = SALDO_UTILIZADO
+      *                               - :DB-TARJ-MONTO-PAGO
+      *        WHERE  NRO_TARJETA = :DB-TARJ-NRO-TARJETA
+      *        AND    ID_CLIENTE  = :DB-TARJ-ID-CLIENTE
+      *    END-EXEC.
+           IF SQL-PREP OF SQL-STMT-8 = 'N'
+               SET SQL-ADDR(1) TO ADDRESS OF
+                 SQL-VAR-0011
+               MOVE '3' TO SQL-TYPE(1)
+               MOVE 7 TO SQL-LEN(1)
+               MOVE X'02' TO SQL-PREC(1)
+               SET SQL-ADDR(2) TO ADDRESS OF
+                 DB-TARJ-NRO-TARJETA
+               MOVE 'X' TO SQL-TYPE(2)
+               MOVE 16 TO SQL-LEN(2)
+               SET SQL-ADDR(3) TO ADDRESS OF
+                 SQL-VAR-0001
+               MOVE '3' TO SQL-TYPE(3)
+               MOVE 5 TO SQL-LEN(3)
+               MOVE X'00' TO SQL-PREC(3)
+               MOVE 3 TO SQL-COUNT
+               CALL 'OCSQLPRE' USING SQLV
+                                   SQL-STMT-8
+                                   SQLCA
+               SET SQL-HCONN OF SQLCA TO NULL
+           END-IF
+           MOVE DB-TARJ-MONTO-PAGO
+             TO SQL-VAR-0011
+           MOVE DB-TARJ-ID-CLIENTE
+             TO SQL-VAR-0001
+           CALL 'OCSQLEXE' USING SQL-STMT-8
+                               SQLCA
+                   .
+           PERFORM 9000-EVALUAR-SQLSTATE.
+
+           IF LK-EXITO
+               MOVE 'Pago registrado correctamente' TO LK-MENSAJE
+           END-IF.
+
        END PROGRAM DBIOTARJ.
       **********************************************************************
       *  : ESQL for GnuCOBOL/OpenCOBOL Version 3 (2024.04.30) Build May 10 2024
@@ -694,6 +758,7 @@
       *  DB-TARJ-FECHA-EMISION     IN USE CHAR(10)
       *  DB-TARJ-FECHA-VENCTO     IN USE CHAR(10)
       *  DB-TARJ-ID-CLIENTE       IN USE THROUGH TEMP VAR SQL-VAR-0001 DECIMAL(9,0)
+      *  DB-TARJ-MONTO-PAGO       IN USE THROUGH TEMP VAR SQL-VAR-0011 DECIMAL(13,2)
       *  DB-TARJ-NRO-TARJETA      IN USE CHAR(16)
       *  DB-TARJ-SALDO-INC        IN USE THROUGH TEMP VAR SQL-VAR-0005 DECIMAL(13,2)
       *  DB-TARJ-SALDO-UTILIZADO     IN USE THROUGH TEMP VAR SQL-VAR-0004 DECIMAL(13,2)
