@@ -104,6 +104,14 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b 1
 )
 
+
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo ERROR: Fallo al precompilar DBIOTARJ.sqb
+    pause
+    exit /b 1
+)
+
 echo.
 echo Precompilacion SQL finalizada.
 
@@ -147,6 +155,7 @@ echo [DLL 8/8] TC0000
 "%COBC%" -m -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql -o "%BIN_DIR%\TC0000.dll" "%MAINLINE_DIR%\TC0000.cbl"
 if %ERRORLEVEL% NEQ 0 goto :ERROR_COBOL
 
+
 echo [EXE] BANCSMENU
 "%COBC%" -x -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql -o "%BIN_DIR%\BANCSMENU.exe" "%MAINLINE_DIR%\BANCSMENU.cob"
 if %ERRORLEVEL% NEQ 0 goto :ERROR_COBOL
@@ -171,4 +180,4 @@ echo ============================================
 :FIN_COBOL
 
 pause
-
+

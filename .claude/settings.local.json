@@ -5,7 +5,8 @@
       "Read(//mnt/c/Users/dell/Desktop/proyecto_cobol/**)",
       "Bash(Get-Content \"C:\\\\Users\\\\Alison\\\\Desktop\\\\proyecto_cobol\\\\src\\\\mainline\\\\TC0000.cbl\")",
       "Bash(Measure-Object -Line)",
-      "PowerShell(\\(Get-Content \"C:\\\\Users\\\\Alison\\\\Desktop\\\\proyecto_cobol\\\\src\\\\mainline\\\\TC0000.cbl\" | Measure-Object -Line\\).Lines)"
+      "PowerShell(\\(Get-Content \"C:\\\\Users\\\\Alison\\\\Desktop\\\\proyecto_cobol\\\\src\\\\mainline\\\\TC0000.cbl\" | Measure-Object -Line\\).Lines)",
+      "PowerShell($env:COBOL_MAIN=\"C:\\\\Program Files \\(x86\\)\\\\OpenCobolIDE\\\\GnuCOBOL\"; $env:COBOL_BIN=\"$env:COBOL_MAIN\\\\bin\"; $env:COBOL_LIBS_ESQL=\"$env:COBOL_MAIN\\\\binaries3\\\\win32\\\\release\"; $env:COB_MAIN_DIR=$env:COBOL_MAIN; $env:COB_CONFIG_DIR=\"$env:COBOL_MAIN\\\\config\"; $env:PATH=\"$env:COBOL_BIN;$env:COBOL_LIBS_ESQL;$env:PATH\"; & \"$env:COBOL_BIN\\\\cobc.exe\" -fsyntax-only -I \"C:\\\\Users\\\\Alison\\\\Desktop\\\\proyecto_cobol\\\\src\\\\copies\" \"C:\\\\Users\\\\Alison\\\\Desktop\\\\proyecto_cobol\\\\src\\\\mainline\\\\TC0000.cbl\")"
     ]
   }
 }
