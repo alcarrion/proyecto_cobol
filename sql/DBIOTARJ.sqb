@@ -2,7 +2,7 @@
       * DBIOTARJ.SQB - CAPA DE ACCESO A DATOS TARJETAS v3.0
       * TABLAS   : tarjetas, tarjetas_diferidos, clientes
       * ACCIONES : C=Consultar  A=Insert-Tarjeta  I=Insert-Diferido
-      *            B=Cancelar
+      *            B=Cancelar  P=Pagar
       ******************************************************************
        IDENTIFICATION DIVISION.
        PROGRAM-ID. DBIOTARJ.
@@ -30,6 +30,7 @@
        01  DB-DIFD-VALOR-CUOTA     PIC S9(10)V99 COMP-3.
        01  DB-DIFD-TASA-INTERES    PIC S9(03)V99 COMP-3.
        01  DB-DIFD-ID-DIFERIDO     PIC 9(08).
+       01  DB-TARJ-MONTO-PAGO      PIC S9(10)V99 COMP-3.
            EXEC SQL END DECLARE SECTION END-EXEC.
 
            EXEC SQL DECLARE CUR-DIFD CURSOR FOR
@@ -68,6 +69,8 @@
                    PERFORM 6000-FETCH-DIFERIDO
                WHEN 'Z'
                    PERFORM 7000-CERRAR-CURSOR-DIFD
+               WHEN 'P'
+                   PERFORM 8000-PAGAR-TARJETA
                WHEN OTHER
                    MOVE 'E999' TO LK-COD-RETORNO
                    MOVE 'Accion no reconocida en DBIOTARJ'
@@ -269,5 +272,27 @@
        7000-CERRAR-CURSOR-DIFD.
            EXEC SQL CLOSE CUR-DIFD END-EXEC.
            MOVE '00  ' TO LK-COD-RETORNO.
+
+      ************************************************************
+      * P - Pagar tarjeta: resta el monto de SALDO_UTILIZADO
+      *     TC0000 pasa el monto a pagar en TARJ-SALDO-UTILIZADO
+      ************************************************************
+       8000-PAGAR-TARJETA.
+           MOVE TARJ-NRO-TARJETA      TO DB-TARJ-NRO-TARJETA.
+           MOVE TARJ-ID-CLIENTE       TO DB-TARJ-ID-CLIENTE.
+           MOVE TARJ-SALDO-UTILIZADO  TO DB-TARJ-MONTO-PAGO.
+
+           EXEC SQL
+               UPDATE tarjetas
+               SET    SALDO_UTILIZADO = SALDO_UTILIZADO
+                                      - :DB-TARJ-MONTO-PAGO
+               WHERE  NRO_TARJETA = :DB-TARJ-NRO-TARJETA
+               AND    ID_CLIENTE  = :DB-TARJ-ID-CLIENTE
+           END-EXEC.
+           PERFORM 9000-EVALUAR-SQLSTATE.
+
+           IF LK-EXITO
+               MOVE 'Pago registrado correctamente' TO LK-MENSAJE
+           END-IF.
 
        END PROGRAM DBIOTARJ.

@@ -96,7 +96,8 @@
            05 LINE 09 COL 05 VALUE "2. Consultar Tarjeta".
            05 LINE 10 COL 05 VALUE "3. Diferir Consumo".
            05 LINE 11 COL 05 VALUE "4. Cancelar Tarjeta".
-           05 LINE 12 COL 05 VALUE "5. Volver al menu principal".
+           05 LINE 12 COL 05 VALUE "5. Pagar Tarjeta".
+           05 LINE 13 COL 05 VALUE "6. Volver al menu principal".
            05 LINE 14 COL 05 VALUE
               "---------------------------------------------".
            05 LINE 16 COL 05 VALUE "Opcion: [ ]".
@@ -130,6 +131,8 @@
                WHEN 4
                    PERFORM 5000-CANCELAR-TARJETA
                WHEN 5
+                   PERFORM 6000-PAGAR-TARJETA
+               WHEN 6
                    MOVE 'N' TO WS-CONTINUAR-TARJ
                WHEN OTHER
                    DISPLAY "Opcion no valida." LINE 18 COL 05
@@ -608,6 +611,140 @@
                MOVE 'R' TO WS-ACCION-TRANS
                CALL WS-PGM-DBIOTRAN USING WS-ACCION-TRANS
                DISPLAY LK-MENSAJE LINE 19 COL 05
+           END-IF.
+
+           DISPLAY "Presione ENTER para continuar." LINE 23 COL 05.
+           ACCEPT WS-PAUSA LINE 23 COL 36.
+
+      ************************************************************
+      * OPCION 5 - PAGAR TARJETA DE CREDITO
+      ************************************************************
+       6000-PAGAR-TARJETA.
+           DISPLAY SCR-MARCO-TARJ.
+           DISPLAY "PAGO DE TARJETA DE CREDITO" LINE 07 COL 13.
+
+           PERFORM 9100-BUSCAR-CLIENTE.
+           IF WS-DOC-OK = 'N' EXIT PARAGRAPH END-IF.
+
+           IF CLIENTE-INACTIVO
+               DISPLAY "Cliente inactivo. No se puede operar."
+                  LINE 13 COL 05
+               DISPLAY "Presione ENTER para continuar."
+                  LINE 23 COL 05
+               ACCEPT WS-PAUSA LINE 23 COL 36
+               EXIT PARAGRAPH
+           END-IF.
+
+           MOVE CUSM-ID-CLIENTE TO TARJ-ID-CLIENTE.
+
+           MOVE 'C' TO LK-ACCION-DB.
+           CALL WS-PGM-DBIOTARJ USING REG-TARJ,
+                                      REG-DIFD,
+                                      LK-DATOS-SESION,
+                                      LK-DATOS-TRANSACCION.
+
+           IF LK-ERROR-NODATA
+               DISPLAY "El cliente no tiene tarjeta registrada."
+                  LINE 13 COL 05
+               DISPLAY "Presione ENTER para continuar."
+                  LINE 23 COL 05
+               ACCEPT WS-PAUSA LINE 23 COL 36
+               EXIT PARAGRAPH
+           END-IF.
+
+           IF NOT LK-EXITO
+               DISPLAY LK-MENSAJE LINE 13 COL 05
+               DISPLAY "Presione ENTER para continuar."
+                  LINE 23 COL 05
+               ACCEPT WS-PAUSA LINE 23 COL 36
+               EXIT PARAGRAPH
+           END-IF.
+
+           IF TARJ-SALDO-UTILIZADO <= ZEROS
+               DISPLAY "La tarjeta no tiene saldo pendiente."
+                  LINE 13 COL 05
+               DISPLAY "Presione ENTER para continuar."
+                  LINE 23 COL 05
+               ACCEPT WS-PAUSA LINE 23 COL 36
+               EXIT PARAGRAPH
+           END-IF.
+
+           DISPLAY "Tarjeta      : " LINE 13 COL 05.
+           DISPLAY TARJ-NRO-TARJETA    LINE 13 COL 21.
+           MOVE TARJ-SALDO-UTILIZADO TO WS-SALDO-EDIT.
+           DISPLAY "Deuda actual : " LINE 14 COL 05.
+           DISPLAY WS-SALDO-EDIT       LINE 14 COL 21.
+           COMPUTE WS-CUPO-DISPONIBLE =
+               TARJ-CUPO-APROBADO - TARJ-SALDO-UTILIZADO.
+           MOVE WS-CUPO-DISPONIBLE TO WS-SALDO-EDIT.
+           DISPLAY "Cupo libre   : " LINE 15 COL 05.
+           DISPLAY WS-SALDO-EDIT       LINE 15 COL 21.
+
+           DISPLAY "Monto a pagar: " LINE 17 COL 05.
+           ACCEPT WS-ENTRADA-MONTO LINE 17 COL 21.
+
+           IF WS-ENTRADA-MONTO = SPACES
+               DISPLAY "Operacion cancelada." LINE 19 COL 05
+               DISPLAY "Presione ENTER para continuar."
+                  LINE 23 COL 05
+               ACCEPT WS-PAUSA LINE 23 COL 36
+               EXIT PARAGRAPH
+           END-IF.
+
+           COMPUTE WS-MONTO-TX = FUNCTION NUMVAL(WS-ENTRADA-MONTO).
+
+           IF WS-MONTO-TX <= ZEROS
+               DISPLAY "El monto debe ser mayor a cero." LINE 19 COL 05
+               DISPLAY "Presione ENTER para continuar."
+                  LINE 23 COL 05
+               ACCEPT WS-PAUSA LINE 23 COL 36
+               EXIT PARAGRAPH
+           END-IF.
+
+           IF WS-MONTO-TX > TARJ-SALDO-UTILIZADO
+               MOVE TARJ-SALDO-UTILIZADO TO WS-SALDO-EDIT
+               DISPLAY "Monto supera la deuda actual."
+                  LINE 19 COL 05
+               DISPLAY "Deuda: " LINE 20 COL 05
+               DISPLAY WS-SALDO-EDIT LINE 20 COL 13
+               DISPLAY "Presione ENTER para continuar."
+                  LINE 23 COL 05
+               ACCEPT WS-PAUSA LINE 23 COL 36
+               EXIT PARAGRAPH
+           END-IF.
+
+           DISPLAY "Confirmar pago (S/N): " LINE 19 COL 05.
+           ACCEPT WS-CONFIRMAR LINE 19 COL 28.
+
+           IF WS-CONFIRMAR NOT = 'S' AND WS-CONFIRMAR NOT = 's'
+               DISPLAY "Operacion cancelada." LINE 21 COL 05
+               DISPLAY "Presione ENTER para continuar."
+                  LINE 23 COL 05
+               ACCEPT WS-PAUSA LINE 23 COL 36
+               EXIT PARAGRAPH
+           END-IF.
+
+      *> Pasa el monto en TARJ-SALDO-UTILIZADO para la accion P
+           MOVE WS-MONTO-TX TO TARJ-SALDO-UTILIZADO.
+
+           MOVE 'P' TO LK-ACCION-DB.
+           CALL WS-PGM-DBIOTARJ USING REG-TARJ,
+                                      REG-DIFD,
+                                      LK-DATOS-SESION,
+                                      LK-DATOS-TRANSACCION.
+
+           IF LK-EXITO
+               MOVE 'C' TO WS-ACCION-TRANS
+               CALL WS-PGM-DBIOTRAN USING WS-ACCION-TRANS
+               MOVE WS-MONTO-TX TO WS-SALDO-EDIT
+               DISPLAY ">>> Pago registrado exitosamente <<<"
+                  LINE 21 COL 05
+               DISPLAY "Monto pagado : " LINE 22 COL 05
+               DISPLAY WS-SALDO-EDIT     LINE 22 COL 21
+           ELSE
+               MOVE 'R' TO WS-ACCION-TRANS
+               CALL WS-PGM-DBIOTRAN USING WS-ACCION-TRANS
+               DISPLAY LK-MENSAJE LINE 21 COL 05
            END-IF.
 
            DISPLAY "Presione ENTER para continuar." LINE 23 COL 05.
