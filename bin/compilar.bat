@@ -1,23 +1,19 @@
 @echo off
 setlocal
 color 0B
-title Compilador - BANCO LAF v3.0 - Clientes, Cuentas y Tarjetas
+title Compilador - Sistema Bancario COBOL (EPN Core 2026)
 
-:: ============================================================
-:: 1. Configurar rutas de GnuCOBOL y ESQL
-:: ============================================================
+:: 1. Configurar las rutas del compilador GnuCOBOL
 set "COBOL_MAIN=C:\Program Files (x86)\OpenCobolIDE\GnuCOBOL"
 set "COBOL_BIN=%COBOL_MAIN%\bin"
-set "COBOL_LIBS_ESQL=%COBOL_MAIN%\binaries3\win32\release"
+set "COBOL_LIBS_ESQL=%COBOL_MAIN%\binaries\win32\release"
 
-:: Variables de entorno necesarias
+:: Variables de entorno del sistema operativo
 set "COB_MAIN_DIR=%COBOL_MAIN%"
 set "COB_CONFIG_DIR=%COBOL_MAIN%\config"
 set "PATH=%COBOL_BIN%;%COBOL_LIBS_ESQL%;%PATH%"
 
-:: ============================================================
-:: 2. Rutas del proyecto
-:: ============================================================
+:: 2. Definir rutas del proyecto (Estructura EPN Core)
 set "ROOT=%~dp0.."
 set "SQL_DIR=%ROOT%\sql"
 set "MAINLINE_DIR=%ROOT%\src\mainline"
@@ -28,156 +24,92 @@ set "COBCPY=%COPIES_DIR%"
 set "COBC=%COBOL_BIN%\cobc.exe"
 set "PRECOMPILADOR=%COBOL_LIBS_ESQL%\esqlOC.exe"
 
+:: Variable de control para detectar fallos intermedios
+set "COMPILATION_FAILED=0"
+
 echo ============================================
-echo  BANCO LAF v3.0 - COMPILACION FASE CLIENTES + CUENTAS
+echo  1. Pre-compilando archivos SQL (.sqb)
 echo ============================================
-echo ROOT       : %ROOT%
-echo SQL_DIR    : %SQL_DIR%
-echo MAINLINE   : %MAINLINE_DIR%
-echo COPIES     : %COPIES_DIR%
-echo BIN        : %BIN_DIR%
-echo ============================================
+
+for %%f in ("%SQL_DIR%\*.sqb") do (
+    echo Procesando precompilacion: %%~nxf ...
+    "%PRECOMPILADOR%" -I "%COPIES_DIR%" -static -o "%MAINLINE_DIR%\%%~nf.cob" "%%f"
+    if errorlevel 1 set "COMPILATION_FAILED=1"
+)
+
+if %COMPILATION_FAILED% == 1 goto finalizar
 
 echo.
 echo ============================================
-echo  0. Limpiando COB generados de esta fase
+echo  2. Generando Modulos Objeto Individuales (.o)
 echo ============================================
+cd /d "%MAINLINE_DIR%"
 
-if exist "%MAINLINE_DIR%\BANCSMENU.cob" del /f /q "%MAINLINE_DIR%\BANCSMENU.cob"
-if exist "%MAINLINE_DIR%\DBIOCUSM.cob" del /f /q "%MAINLINE_DIR%\DBIOCUSM.cob"
-if exist "%MAINLINE_DIR%\DBIOTRAN.cob" del /f /q "%MAINLINE_DIR%\DBIOTRAN.cob"
-rem DBIOINVM.cob se preserva (esqlOC tiene SIGSEGV en su SQB con cursor DECLARE)
-if exist "%MAINLINE_DIR%\DBIOTARJ.cob" del /f /q "%MAINLINE_DIR%\DBIOTARJ.cob"
+for %%g in (*.cob *.cbl) do (
+    echo Compilando modulo aislado: %%g ...
+    "%COBC%" -c -I "%COPIES_DIR%" "%%g"
+    if errorlevel 1 set "COMPILATION_FAILED=1"
+)
 
-echo Archivos generados anteriores eliminados.
-echo Tus .SQB y .CBL editables estan a salvo.
+if %COMPILATION_FAILED% == 1 goto finalizar
 
 echo.
 echo ============================================
-echo  1. Pre-compilando SQL embebido
+echo  3. Enlazando Componentes Contables Masivos
 echo ============================================
 
-echo [1/2] BANCSMENU.sqb  -> BANCSMENU.cob
-"%PRECOMPILADOR%" -I "%COPIES_DIR%" -static -o "%MAINLINE_DIR%\BANCSMENU.cob" "%SQL_DIR%\BANCSMENU.sqb"
+echo Enlazando TFDRMAIN.exe (Stage 2: Orchestrator Engine)...
+:: CORRECCIÓN CRÍTICA: Se añade tkin_tarj.o para soportar transacciones 004
+"%COBC%" -x -v -o "%BIN_DIR%\TFDRMAIN.exe" ^
+    TFDRMAIN.cob ^
+    TFFILE.o BNCR004.o TFMX.o RRD000.o XXXREP.o ^
+    TFTRCT.o TFBATFIN.o tkin01.o tkin_dda.o tkin_hip.o tkin_tarj.o ^
+    DBIOCUSM.o DBIOINVM.o DBIOTARJ.o ^
+    IN0000.o BR0000.o DBIOBORM.o DBIOTRAN.o DF0000.o ^
+    -L "%COBOL_LIBS_ESQL%" -locsql
+if errorlevel 1 set "COMPILATION_FAILED=1"
 
-if %ERRORLEVEL% NEQ 0 (
+echo.
+echo Enlazando TFDRFILE.exe (Stage 1: Ingestion Engine)...
+"%COBC%" -x -v -o "%BIN_DIR%\TFDRFILE.exe" ^
+    TFDRFILE.cob ^
+    TFFILE.o BNCR004.o ^
+    -L "%COBOL_LIBS_ESQL%" -locsql
+if errorlevel 1 set "COMPILATION_FAILED=1"
+
+echo.
+echo Enlazando Menu de Interfaz Online BANCSMENU.exe...
+"%COBC%" -x -v -o "%BIN_DIR%\BANCSMENU.exe" ^
+    BANCSMENU.cob ^
+    CI0000.o IN0000.o TC0000.o BR0000.o ^
+    BAT000.o RP0000.o LOGFILE.o ^
+    DBIOCUSM.o DBIOINVM.o DBIOTARJ.o DBIOBORM.o DBIOTRAN.o ^
+    -L "%COBOL_LIBS_ESQL%" -locsql
+if errorlevel 1 set "COMPILATION_FAILED=1"
+
+echo.
+echo Limpiando archivos objeto temporales de la compilacion...
+del *.o > nul 2>&1
+
+:finalizar
+echo.
+echo ============================================
+echo  VERIFICACION FINAL DEL ENTRAMADO BATCH
+echo ============================================
+
+if %COMPILATION_FAILED% == 0 (
     echo.
-    echo ERROR: Fallo al precompilar BANCSMENU.sqb
-    pause
-    exit /b 1
-)
-
-echo [2/2] DBIOCUSM.sqb   -> DBIOCUSM.cob
-"%PRECOMPILADOR%" -I "%COPIES_DIR%" -static -o "%MAINLINE_DIR%\DBIOCUSM.cob" "%SQL_DIR%\DBIOCUSM.sqb"
-
-if %ERRORLEVEL% NEQ 0 (
+    echo [OK] EXITO: Todos los ejecutables financieros generados en /bin
+    echo       - BANCSMENU.exe (Online Menu Core)
+    echo       - TFDRMAIN.exe  (Stage 2: Orchestrator Engine)
+    echo       - TFDRFILE.exe  (Stage 1: Ingestion Engine)
     echo.
-    echo ERROR: Fallo al precompilar DBIOCUSM.sqb
-    pause
-    exit /b 1
-)
-
-echo [3/3] DBIOTRAN.sqb   -> DBIOTRAN.cob
-"%PRECOMPILADOR%" -I "%COPIES_DIR%" -static -o "%MAINLINE_DIR%\DBIOTRAN.cob" "%SQL_DIR%\DBIOTRAN.sqb"
-
-if %ERRORLEVEL% NEQ 0 (
+) else (
     echo.
-    echo ERROR: Fallo al precompilar DBIOTRAN.sqb
-    pause
-    exit /b 1
-)
-
-echo [4/4] DBIOINVM.cob   -> se usa version preservada (sin re-precompilar)
-if not exist "%MAINLINE_DIR%\DBIOINVM.cob" (
-    echo ERROR: DBIOINVM.cob no existe. Ejecuta una vez el precompilador manualmente.
-    pause
-    exit /b 1
-)
-
-echo [5/5] DBIOTARJ.sqb   -> DBIOTARJ.cob
-"%PRECOMPILADOR%" -I "%COPIES_DIR%" -static -o "%MAINLINE_DIR%\DBIOTARJ.cob" "%SQL_DIR%\DBIOTARJ.sqb"
-
-if %ERRORLEVEL% NEQ 0 (
+    echo [X] ERROR CRITICO: Fallo la compilacion de uno o mas modulos bancarios.
+    echo     Por favor, revise las lineas de error impresas en la consola.
     echo.
-    echo ERROR: Fallo al precompilar DBIOTARJ.sqb
-    pause
-    exit /b 1
 )
-
-
-if %ERRORLEVEL% NEQ 0 (
-    echo.
-    echo ERROR: Fallo al precompilar DBIOTARJ.sqb
-    pause
-    exit /b 1
-)
-
-echo.
-echo Precompilacion SQL finalizada.
-
-echo.
-echo ============================================
-echo  2. Compilando todos los modulos
-echo ============================================
-
-:: Workaround bug cobc 3.x: compilar subprogramas como DLL y solo el main como EXE
-:: (al combinarlos en un unico -x el traductor de cobc hace SIGSEGV en TC0000)
-
-echo [DLL 1/8] DBIOCUSM
-"%COBC%" -m -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql -o "%BIN_DIR%\DBIOCUSM.dll" "%MAINLINE_DIR%\DBIOCUSM.cob"
-if %ERRORLEVEL% NEQ 0 goto :ERROR_COBOL
-
-echo [DLL 2/8] DBIOTRAN
-"%COBC%" -m -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql -o "%BIN_DIR%\DBIOTRAN.dll" "%MAINLINE_DIR%\DBIOTRAN.cob"
-if %ERRORLEVEL% NEQ 0 goto :ERROR_COBOL
-
-echo [DLL 3/8] DBIOINVM
-"%COBC%" -m -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql -o "%BIN_DIR%\DBIOINVM.dll" "%MAINLINE_DIR%\DBIOINVM.cob"
-if %ERRORLEVEL% NEQ 0 goto :ERROR_COBOL
-
-echo [DLL 4/8] DBIOTARJ
-"%COBC%" -m -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql -o "%BIN_DIR%\DBIOTARJ.dll" "%MAINLINE_DIR%\DBIOTARJ.cob"
-if %ERRORLEVEL% NEQ 0 goto :ERROR_COBOL
-
-echo [DLL 5/8] CI0000
-"%COBC%" -m -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql -o "%BIN_DIR%\CI0000.dll" "%MAINLINE_DIR%\CI0000.cbl"
-if %ERRORLEVEL% NEQ 0 goto :ERROR_COBOL
-
-echo [DLL 6/8] IN0000
-"%COBC%" -m -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql -o "%BIN_DIR%\IN0000.dll" "%MAINLINE_DIR%\IN0000.cbl"
-if %ERRORLEVEL% NEQ 0 goto :ERROR_COBOL
-
-echo [DLL 7/8] DF0000
-"%COBC%" -m -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql -o "%BIN_DIR%\DF0000.dll" "%MAINLINE_DIR%\DF0000.cbl"
-if %ERRORLEVEL% NEQ 0 goto :ERROR_COBOL
-
-echo [DLL 8/8] TC0000
-"%COBC%" -m -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql -o "%BIN_DIR%\TC0000.dll" "%MAINLINE_DIR%\TC0000.cbl"
-if %ERRORLEVEL% NEQ 0 goto :ERROR_COBOL
-
-
-echo [EXE] BANCSMENU
-"%COBC%" -x -fno-static-call -I "%COPIES_DIR%" -L "%COBOL_LIBS_ESQL%" -locsql -o "%BIN_DIR%\BANCSMENU.exe" "%MAINLINE_DIR%\BANCSMENU.cob"
-if %ERRORLEVEL% NEQ 0 goto :ERROR_COBOL
-
-echo.
-echo ============================================
-echo  EXITO: COMPILACION COMPLETA
-echo ============================================
-echo Ejecutable: %BIN_DIR%\BANCSMENU.exe
-echo DLLs      : %BIN_DIR%\*.dll
-echo ============================================
-goto :FIN_COBOL
-
-:ERROR_COBOL
-echo.
-echo ============================================
-echo  ERROR: FALLO LA COMPILACION COBOL
-echo ============================================
-echo Revisa los errores mostrados arriba.
-echo ============================================
-
-:FIN_COBOL
 
 pause
-
+exit /b %COMPILATION_FAILED%

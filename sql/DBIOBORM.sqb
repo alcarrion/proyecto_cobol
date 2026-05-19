@@ -272,3 +272,4 @@
                    MOVE 'E999' TO LK-COD-RETORNO
                    MOVE "ERROR TECNICO EN BD HIPOTECAS" TO LK-MENSAJE
            END-EVALUATE.
+

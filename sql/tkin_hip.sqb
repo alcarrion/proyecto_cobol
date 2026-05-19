@@ -1,0 +1,131 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. tkin_hip.
+      *==========================================================
+      * SUBPROGRAMA PRECOMPILABLE: tkin_hip.sqb
+      * RESPONSABILIDAD: Especialista de Amortización de Hipotecas
+      * INTERFAZ: Canal Maestro PAG - Código de Operación 005
+      *==========================================================
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SPECIAL-NAMES.
+           DECIMAL-POINT IS COMMA.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+           EXEC SQL INCLUDE SQLCA END-EXEC.
+
+           EXEC SQL BEGIN DECLARE SECTION END-EXEC.
+      * Variables de host para interactuar con MySQL
+       01  DB-VARS-HIP.
+           05 DB-HIP-ID-TARGET    PIC 9(10).
+           05 DB-CTA-DEBITO       PIC 9(10).
+           05 DB-PAGO-MONTO       PIC S9(13)V99.
+           05 DB-SALDO-DEUDA      PIC S9(13)V99.
+           05 DB-CUOTA-MENSUAL    PIC S9(13)V99.
+           05 DB-MESES-MORA       PIC 9(02).
+           05 DB-ESTADO-PRESTAMO  PIC X(10).
+           05 DB-SALDO-CTA        PIC S9(13)V99.
+           05 DB-SALDO-RES-LEDG   PIC S9(13)V99.
+           EXEC SQL END DECLARE SECTION END-EXEC.
+
+       LINKAGE SECTION.
+      * Argumentos atómicos desacoplados heredados desde el orquestador
+       01  LK-HIPOTECA-ID          PIC 9(10).
+       01  LK-NUM-CREDITO          PIC X(20).
+       01  LK-MONTO-PAGO           PIC S9(13)V99.
+           COPY LKTF.
+
+       PROCEDURE DIVISION USING LK-HIPOTECA-ID, LK-NUM-CREDITO,
+                                LK-MONTO-PAGO, 
+                                LK-TRICKLE-FEED-INTERFACE.
+       0000-PRINCIPAL.
+           MOVE 00 TO LK-TF-COD-RETORNO
+           MOVE "OK TKIN_HIP" TO LK-TF-MENSAJE
+           
+           MOVE LK-HIPOTECA-ID TO DB-HIP-ID-TARGET
+           MOVE LK-MONTO-PAGO   TO DB-PAGO-MONTO.
+
+      * 1. VALIDACIÓN PREVIA DEL ACTIVO (Existencia del Préstamo)
+           EXEC SQL
+               SELECT CUENTA_DEBITO, SALDO_DEUDA, CUOTA_MENSUAL,
+                      MESES_MORA, ESTADO_PRESTAMO
+               INTO :DB-CTA-DEBITO, :DB-SALDO-DEUDA, :DB-CUOTA-MENSUAL,
+                    :DB-MESES-MORA, :DB-ESTADO-PRESTAMO
+               FROM hipotecas
+               WHERE ID_HIPOTECA = :DB-HIP-ID-TARGET
+           END-EXEC.
+
+           IF SQLCODE NOT = 0
+               MOVE 01 TO LK-TF-COD-RETORNO
+               MOVE "PRESTAMO HIPOTECARIO NO EXISTE" TO LK-TF-MENSAJE
+               GOBACK
+           END-IF.
+
+           IF DB-ESTADO-PRESTAMO NOT = "ACTIVO"
+               MOVE 01 TO LK-TF-COD-RETORNO
+               MOVE "CREDITO EN PROCESO JUDICIAL O INACTIVO" 
+                 TO LK-TF-MENSAJE
+               GOBACK
+           END-IF.
+
+      * 2. VALIDACIÓN DE COBERTURA DE FONDOS EN PASIVOS (Cuenta Monetaria)
+           EXEC SQL
+               SELECT SALDO_ACTUAL
+               INTO :DB-SALDO-CTA
+               FROM ctactes
+               WHERE ID_CUENTA = :DB-CTA-DEBITO
+           END-EXEC.
+
+           IF SQLCODE NOT = 0
+               MOVE 01 TO LK-TF-COD-RETORNO
+               MOVE "CUENTA MONETARIA DE DEBITO NO EXISTE" 
+                 TO LK-TF-MENSAJE
+               GOBACK
+           END-IF.
+
+           IF DB-SALDO-CTA < DB-PAGO-MONTO
+               MOVE 07 TO LK-TF-COD-RETORNO
+               MOVE "FONDO INSUFICIENTE EN CUENTA VISTA" 
+                 TO LK-TF-MENSAJE
+               GOBACK
+           END-IF.
+
+      * 3. APLICACIÓN CONTABLE DUAL CRUCIAL
+      * 3.1 Carga al Pasivo (Restar dinero de la Cuenta Corriente)
+           EXEC SQL
+               UPDATE ctactes
+               SET SALDO_ACTUAL = SALDO_ACTUAL - :DB-PAGO-MONTO
+               WHERE ID_CUENTA = :DB-CTA-DEBITO
+           END-EXEC.
+
+      * 3.2 Abono al Activo (Disminuir la deuda de la Hipoteca)
+           EXEC SQL
+               UPDATE hipotecas
+               SET SALDO_DEUDA = SALDO_DEUDA - :DB-PAGO-MONTO
+               WHERE ID_HIPOTECA = :DB-HIP-ID-TARGET
+           END-EXEC.
+
+      * 3.3 Mitigación de Riesgos: Si el pago cubre la cuota, bajamos mora
+           IF DB-PAGO-MONTO >= DB-CUOTA-MENSUAL AND DB-MESES-MORA > 0
+               EXEC SQL
+                   UPDATE hipotecas
+                   SET MESES_MORA = MESES_MORA - 1
+                   WHERE ID_HIPOTECA = :DB-HIP-ID-TARGET
+               END-EXEC
+           END-IF.
+
+      * 3.4 Inyección del Asiento en el Libro Mayor (Ledger)
+      * Código de movimiento 6 = Cobro de interfaces Batch asíncronas
+           COMPUTE DB-SALDO-RES-LEDG = DB-SALDO-CTA - DB-PAGO-MONTO.
+           
+           EXEC SQL
+               INSERT INTO movimientos (ID_CUENTA, TIPO_MOV, IMPORTE,
+                                        SALDO_RESULTANTE, TERMINAL_ID)
+               VALUES (:DB-CTA-DEBITO, 6, :DB-PAGO-MONTO,
+                       :DB-SALDO-RES-LEDG, 'BTCH')
+           END-EXEC.
+
+      * 4. CIERRE CON EXITO EN BASE DE DATOS
+           EXEC SQL COMMIT END-EXEC.
+           MOVE 00 TO LK-TF-COD-RETORNO.
+           GOBACK.

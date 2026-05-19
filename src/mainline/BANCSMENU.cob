@@ -1,3 +1,7 @@
+******************************************************************
+      * Author: EQUIPO (LUIS. ALISON. FRANKLIN.)
+      * INTEGRACIÓN: TRICKLE FEED (FASE 00-40)
+      ******************************************************************
        IDENTIFICATION DIVISION.
        PROGRAM-ID. BANCSMENU.
 
@@ -75,13 +79,11 @@
            05 LINE 12 COL 04 VALUE
               "3. Tarjetas de Credito".
            05 LINE 13 COL 04 VALUE
-              "4. Hipotecas - pendiente".
+              "4. Hipotecas             ".
            05 LINE 14 COL 04 VALUE
-              "5. Cierre Mensual - pendiente".
+              "5. Cierre Mensual".
            05 LINE 15 COL 04 VALUE
-              "6. Reportes - pendiente".
-           05 LINE 16 COL 04 VALUE
-              "7. Procesos Batch - pendiente".
+              "6. Reportes Gerenciales".
            05 LINE 17 COL 04 VALUE
               "8. Salir".
            05 LINE 19 COL 02 VALUE
@@ -144,11 +146,15 @@
                                      LK-DATOS-SESION,
                                      LK-DATOS-TRANSACCION
               WHEN 4
-                 PERFORM 2000-PENDIENTE
+                 DISPLAY SCR-CLEAR
+                 CALL 'BR0000' USING LK-DATOS-SESION,
+                                     LK-DATOS-TRANSACCION
               WHEN 5
-                 PERFORM 2000-PENDIENTE
+                 DISPLAY SCR-CLEAR
+                 CALL 'BAT000' USING LK-DATOS-TRANSACCION
               WHEN 6
-                 PERFORM 2000-PENDIENTE
+                 DISPLAY SCR-CLEAR
+                 CALL 'RP0000' USING LK-DATOS-TRANSACCION
               WHEN 7
                  PERFORM 2000-PENDIENTE
               WHEN 8
@@ -165,12 +171,13 @@
            ACCEPT WS-PAUSA.
 
        8000-CARGAR-CONFIG.
+      * Mantiene tu logica de conexion ODBC a MySQL...
            MOVE SPACES TO DB-CONN-STR.
            STRING
               "DRIVER={MySQL ODBC 8.0 ANSI Driver};"
               "SERVER=localhost;"
               "DATABASE=proyecto_cobol;"
-              "UID=root;PWD=12345;"
+              "UID=root;PWD=tata;"
               DELIMITED BY SIZE
               INTO DB-CONN-STR
            END-STRING.

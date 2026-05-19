@@ -1,0 +1,11 @@
+     REPORTE GENERAL - PERIODO:
+
+ID-CLI   NOMBRE                   APELLIDO                 SALDO-CTA    NRO-TARJETA     ACUM-MES    SALDO-HIPOT
+NOTA: una fila por producto (tarjeta/hipoteca)
+------------------------------------------------------------------------------------------------------------------------------------
+22345679 CARLOS                    MENDOZA                        15,498.00 SIN TARJETA                0.00              0.00
+22345680 MARIA                     GARCIA                          5,447.25 SIN TARJETA                0.00              0.00
+22345681 PEDRO                     TORRES                          1,647.00 SIN TARJETA                0.00              0.00
+22345682 ANA                       LOPEZ                          12,695.00 SIN TARJETA                0.00              0.00
+------------------------------------------------------------------------------------------------------------------------------------
+  CLIENTES: 000004  TARJETAS: 000000  HIPOTECAS: 000000

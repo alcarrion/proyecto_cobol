@@ -29,7 +29,7 @@
            05 ST-CRITICO           PIC 9(01) VALUE 8.
 
        LINKAGE SECTION.
-      * El COPY LKCIF debe estar aquí para que LK-DATOS-TRANSACCION sea válido
+      * El COPY LKCIF debe estar aquï¿½ para que LK-DATOS-TRANSACCION sea vï¿½lido
            COPY LKCIF.
 
        01  WS-TFFM-VARS.
@@ -72,7 +72,7 @@
       * A. Marcar como "Procesando" (Estado 3)
                PERFORM 2000-CAMBIAR-ESTADO-PROCESANDO
 
-      * B. Invocar lógica del Core (Módulos Online)
+      * B. Invocar lï¿½gica del Core (Mï¿½dulos Online)
                PERFORM 3000-LLAMAR-NEGOCIO
 
       * C. Actualizar con resultado final (4 o 7)
@@ -95,7 +95,7 @@
 
        3000-LLAMAR-NEGOCIO.
            INITIALIZE LK-DATOS-TRANSACCION.
-      * Invocación a lógica de negocio según el tipo de programa
+      * Invocaciï¿½n a lï¿½gica de negocio segï¿½n el tipo de programa
            EVALUATE WS-TIPO-PROG
                WHEN "EPG"
                    CALL "IN0000" USING WS-DATOS-TX-SQL,
@@ -106,7 +106,7 @@
            END-EVALUATE.
 
        4000-ACTUALIZAR-RESULTADO.
-      * Sincronizar código de retorno con variable de host para SQL
+      * Sincronizar cï¿½digo de retorno con variable de host para SQL
            MOVE LK-COD-RETORNO TO WS-RETORNO-CORE.
 
       * Definir estado final basado en el retorno del Core

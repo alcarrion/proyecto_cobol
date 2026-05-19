@@ -613,6 +613,7 @@
                    MOVE 'E999' TO LK-COD-RETORNO
                    MOVE "ERROR TECNICO EN BD HIPOTECAS" TO LK-MENSAJE
            END-EVALUATE.
+
       **********************************************************************
       *  : ESQL for GnuCOBOL/OpenCOBOL Version 3 (2024.04.30) Build May 10 2024
 
