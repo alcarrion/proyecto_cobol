@@ -30,13 +30,13 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE 'C'.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 0.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 268.
-           05 SQL-STMT   PIC X(268) VALUE 'SELECT C.ID_CLIENTE,C.TIPO_DO
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 286.
+           05 SQL-STMT   PIC X(286) VALUE 'SELECT C.ID_CLIENTE,C.TIPO_DO
       -    'C,C.DOC_CLIENTE,C.FECHA_ALTA,C.NOMBRE_CLIENTE,C.APELLIDOS_CL
       -    'IENTE,C.SALDO_TOTAL_VISTA,C.ESTADO_CLIENTE,C.TIENE_TARJETA,C
-      -    '.TIENE_HIPOTECA,I.SALDO_ACTUAL FROM CLIENTES C LEFT JOIN CTA
-      -    'CTES I ON C.ID_CLIENTE = I.ID_CLIENTE ORDER BY C.ID_CLIENTE'
-           .
+      -    '.TIENE_HIPOTECA,COALESCE((SELECT SUM(SALDO_ACTUAL) FROM CTAC
+      -    'TES WHERE ID_CLIENTE = C.ID_CLIENTE),0) FROM CLIENTES C ORDE
+      -    'R BY C.ID_CLIENTE'.
            05 SQL-CNAME  PIC X(11) VALUE 'CUR-MAESTRA'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
@@ -70,13 +70,13 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE 'C'.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 0.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 292.
-           05 SQL-STMT   PIC X(292) VALUE 'SELECT H.ID_HIPOTECA,H.ID_CLI
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 308.
+           05 SQL-STMT   PIC X(308) VALUE 'SELECT H.ID_HIPOTECA,H.ID_CLI
       -    'ENTE,H.SALDO_DEUDA,H.MONTO_PRESTAMO,H.ESTADO_PRESTAMO,H.CUOT
       -    'A_MENSUAL,H.CUOTA_MENSUAL * GREATEST(TIMESTAMPDIFF(MONTH,CUR
-      -    'DATE(),H.FECHA_VENCIMIENTO),0),H.MESES_MORA FROM HIPOTECAS H
-      -    ' WHERE H.ESTADO_PRESTAMO IN (''ACTIVO'',''MOROSO'') ORDER BY
-      -    ' H.ID_CLIENTE,H.ID_HIPOTECA'.
+      -    'DATE(),H.FECHA_VENCIMIENTO),0),H.MESES_MORA,H.CUENTA_DEBITO 
+      -    'FROM HIPOTECAS H WHERE H.ESTADO_PRESTAMO IN (''ACTIVO'',''MO
+      -    'ROSO'') ORDER BY H.ID_CLIENTE,H.ID_HIPOTECA'.
            05 SQL-CNAME  PIC X(8) VALUE 'CUR-MORA'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
@@ -137,18 +137,18 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 59.
-           05 SQL-STMT   PIC X(59) VALUE 'SELECT SALDO_TOTAL_VISTA FROM 
-      -    'CLIENTES WHERE ID_CLIENTE = ?'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 76.
+           05 SQL-STMT   PIC X(76) VALUE 'SELECT SALDO_ACTUAL FROM CTACT
+      -    'ES WHERE ID_CUENTA = ? AND ESTADO_CUENTA = ''A'''.
       **********************************************************************
        01 SQL-STMT-10.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 2.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 82.
-           05 SQL-STMT   PIC X(82) VALUE 'UPDATE CLIENTES SET SALDO_TOTA
-      -    'L_VISTA = SALDO_TOTAL_VISTA - ? WHERE ID_CLIENTE = ?'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 70.
+           05 SQL-STMT   PIC X(70) VALUE 'UPDATE CTACTES SET SALDO_ACTUA
+      -    'L = SALDO_ACTUAL - ? WHERE ID_CUENTA = ?'.
       **********************************************************************
        01 SQL-STMT-11.
            05 SQL-IPTR   POINTER VALUE NULL.
@@ -209,8 +209,9 @@
            05 SQL-VAR-0018  PIC S9(13)V9(2) COMP-3.
            05 SQL-VAR-0019  PIC S9(13)V9(2) COMP-3.
            05 SQL-VAR-0020  PIC S9(5) COMP-3.
-           05 SQL-VAR-0021  PIC S9(11)V9(2) COMP-3.
-           05 SQL-VAR-0022  PIC S9(7) COMP-3.
+           05 SQL-VAR-0022  PIC S9(9) COMP-3.
+           05 SQL-VAR-0023  PIC S9(13)V9(2) COMP-3.
+           05 SQL-VAR-0024  PIC S9(7) COMP-3.
       *******       END OF PRECOMPILER-GENERATED VARIABLES           *******
       **********************************************************************
 
@@ -294,6 +295,11 @@
       *    Variables host para UPDATE de estado hipoteca y descuento
            05 HV-MORA-NUEVO-ESTADO PIC X(20).
            05 HV-MORA-CLI-SALDO    PIC S9(10)V99.
+      *    Cuenta de debito (FK a ctactes) y saldo de esa cuenta.
+      *    El debito mensual se aplica sobre CTACTES, no sobre el
+      *    agregado CLIENTES.SALDO_TOTAL_VISTA.
+           05 HV-MORA-CUENTA-DEB   PIC 9(8).
+           05 HV-MORA-CTA-SALDO    PIC S9(13)V99.
 
       *    Variables host para estados de tarjeta (evita literales SQL)
        01  WS-HOST-ESTADOS.
@@ -309,6 +315,13 @@
       *   DECLARACION DE CURSORES                                      *
       *================================================================*
 
+      *    NOTA: CTACTES es 1:N (multi-cuenta). Un LEFT JOIN
+      *    plano produce filas duplicadas por cliente y rompe la
+      *    UNIQUE (PERIODO, ID_CLIENTE) de AUDIT_MAESTRA con
+      *    SQLCODE -1062. Sumamos los saldos via subquery para
+      *    obtener EXACTAMENTE una fila por cliente. COALESCE
+      *    cubre clientes sin cuenta (antes LEFT JOIN devolvia
+      *    NULL).
       *    EXEC SQL DECLARE CUR-MAESTRA CURSOR FOR
       *        SELECT C.ID_CLIENTE,
       *               C.TIPO_DOC,
@@ -320,10 +333,10 @@
       *               C.ESTADO_CLIENTE,
       *               C.TIENE_TARJETA,
       *               C.TIENE_HIPOTECA,
-      *               I.SALDO_ACTUAL
+      *               COALESCE((SELECT SUM(SALDO_ACTUAL)
+      *                         FROM   CTACTES
+      *                         WHERE  ID_CLIENTE = C.ID_CLIENTE), 0)
       *        FROM   CLIENTES C
-      *        LEFT JOIN CTACTES I
-      *               ON C.ID_CLIENTE = I.ID_CLIENTE
       *        ORDER BY C.ID_CLIENTE
       *    END-EXEC.
 
@@ -365,7 +378,8 @@
       *                   TIMESTAMPDIFF(MONTH,
       *                       CURDATE(), H.FECHA_VENCIMIENTO),
       *                   0),
-      *               H.MESES_MORA
+      *               H.MESES_MORA,
+      *               H.CUENTA_DEBITO
       *        FROM   HIPOTECAS H
       *        WHERE  H.ESTADO_PRESTAMO IN ('ACTIVO', 'MOROSO')
       *        ORDER BY H.ID_CLIENTE, H.ID_HIPOTECA
@@ -567,7 +581,7 @@
       *    END-EXEC
            IF SQL-PREP OF SQL-STMT-4 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
-                 SQL-VAR-0022
+                 SQL-VAR-0024
                MOVE '3' TO SQL-TYPE(1)
                MOVE 4 TO SQL-LEN(1)
                MOVE X'00' TO SQL-PREC(1)
@@ -583,7 +597,7 @@
            END-IF
            CALL 'OCSQLEXE' USING SQL-STMT-4
                                SQLCA
-           MOVE SQL-VAR-0022 TO HV-COUNT-PERIODO
+           MOVE SQL-VAR-0024 TO HV-COUNT-PERIODO
 
            PERFORM 9000-EVALUAR-SQL
 
@@ -1369,7 +1383,8 @@
       *                :HV-MORA-ESTADO,
       *                :HV-MORA-PAGO-MENS,
       *                :HV-MORA-SALDO-ESP,
-      *                :HV-MORA-MESES-MORA
+      *                :HV-MORA-MESES-MORA,
+      *                :HV-MORA-CUENTA-DEB
       *        END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
              SQL-VAR-0014
@@ -1410,7 +1425,12 @@
            MOVE '3' TO SQL-TYPE(8)
            MOVE 3 TO SQL-LEN(8)
                MOVE X'00' TO SQL-PREC(8)
-           MOVE 8 TO SQL-COUNT
+           SET SQL-ADDR(9) TO ADDRESS OF
+             SQL-VAR-0022
+           MOVE '3' TO SQL-TYPE(9)
+           MOVE 5 TO SQL-LEN(9)
+               MOVE X'00' TO SQL-PREC(9)
+           MOVE 9 TO SQL-COUNT
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-3
                                SQLCA
@@ -1421,6 +1441,7 @@
            MOVE SQL-VAR-0018 TO HV-MORA-PAGO-MENS
            MOVE SQL-VAR-0019 TO HV-MORA-SALDO-ESP
            MOVE SQL-VAR-0020 TO HV-MORA-MESES-MORA
+           MOVE SQL-VAR-0022 TO HV-MORA-CUENTA-DEB
 
                EVALUATE SQLCODE
                    WHEN 0
@@ -1510,21 +1531,26 @@
                                MOVE 'S' TO WS-FIN-MORA
                            END-IF
 
-      *                    Consultar saldo actual del cliente
+      *                    Consultar saldo de la cuenta debito de
+      *                    la hipoteca. Solo cuentas ACTIVAS: si la
+      *                    cuenta fue bloqueada/cerrada, SQLCODE=100
+      *                    y caera al ELSE general.
       *                    EXEC SQL
-      *                        SELECT SALDO_TOTAL_VISTA
-      *                        INTO   :HV-MORA-CLI-SALDO
-      *                        FROM   CLIENTES
-      *                        WHERE  ID_CLIENTE = :HV-MORA-ID-CLI
+      *                        SELECT SALDO_ACTUAL
+      *                        INTO   :HV-MORA-CTA-SALDO
+      *                        FROM   CTACTES
+      *                        WHERE  ID_CUENTA =
+      *                               :HV-MORA-CUENTA-DEB
+      *                        AND    ESTADO_CUENTA = 'A'
       *                    END-EXEC
            IF SQL-PREP OF SQL-STMT-9 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
-                 SQL-VAR-0021
+                 SQL-VAR-0023
                MOVE '3' TO SQL-TYPE(1)
-               MOVE 7 TO SQL-LEN(1)
+               MOVE 8 TO SQL-LEN(1)
                MOVE X'02' TO SQL-PREC(1)
                SET SQL-ADDR(2) TO ADDRESS OF
-                 SQL-VAR-0015
+                 SQL-VAR-0022
                MOVE '3' TO SQL-TYPE(2)
                MOVE 5 TO SQL-LEN(2)
                MOVE X'00' TO SQL-PREC(2)
@@ -1534,22 +1560,22 @@
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
-           MOVE HV-MORA-ID-CLI TO SQL-VAR-0015
+           MOVE HV-MORA-CUENTA-DEB TO SQL-VAR-0022
            CALL 'OCSQLEXE' USING SQL-STMT-9
                                SQLCA
-           MOVE SQL-VAR-0021 TO HV-MORA-CLI-SALDO
+           MOVE SQL-VAR-0023 TO HV-MORA-CTA-SALDO
 
                            IF SQLCODE = 0
-      *                        Si el cliente tiene fondos descontar
-                               IF HV-MORA-CLI-SALDO >=
+      *                        Si la cuenta tiene fondos, debitar.
+                               IF HV-MORA-CTA-SALDO >=
                                   HV-MORA-PAGO-MENS
       *                            EXEC SQL
-      *                                UPDATE CLIENTES
-      *                                SET    SALDO_TOTAL_VISTA =
-      *                                       SALDO_TOTAL_VISTA -
+      *                                UPDATE CTACTES
+      *                                SET    SALDO_ACTUAL =
+      *                                       SALDO_ACTUAL -
       *                                       :HV-MORA-PAGO-MENS
-      *                                WHERE  ID_CLIENTE =
-      *                                       :HV-MORA-ID-CLI
+      *                                WHERE  ID_CUENTA =
+      *                                       :HV-MORA-CUENTA-DEB
       *                            END-EXEC
            IF SQL-PREP OF SQL-STMT-10 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -1558,7 +1584,7 @@
                MOVE 8 TO SQL-LEN(1)
                MOVE X'02' TO SQL-PREC(1)
                SET SQL-ADDR(2) TO ADDRESS OF
-                 SQL-VAR-0015
+                 SQL-VAR-0022
                MOVE '3' TO SQL-TYPE(2)
                MOVE 5 TO SQL-LEN(2)
                MOVE X'00' TO SQL-PREC(2)
@@ -1570,17 +1596,17 @@
            END-IF
            MOVE HV-MORA-PAGO-MENS
              TO SQL-VAR-0018
-           MOVE HV-MORA-ID-CLI
-             TO SQL-VAR-0015
+           MOVE HV-MORA-CUENTA-DEB
+             TO SQL-VAR-0022
            CALL 'OCSQLEXE' USING SQL-STMT-10
                                SQLCA
                                    IF SQLCODE NOT = 0
-                                       MOVE SQLCODE      TO
+                                       MOVE SQLCODE        TO
                                             WS-AUX-SQLCODE
-                                       MOVE HV-MORA-ID-CLI TO
+                                       MOVE HV-MORA-CUENTA-DEB TO
                                             WS-AUX-ID8
                                        MOVE SPACES TO WS-LOG-LINE
-                                       STRING 'ERROR DESCUENTO CLI: '
+                                       STRING 'ERROR DEBITO CUENTA: '
                                                   DELIMITED BY SIZE
                                               WS-AUX-ID8
                                                   DELIMITED BY SIZE
@@ -1596,9 +1622,6 @@
                                    ELSE
       *                                Descontar cuota tambien del
       *                                SALDO_DEUDA de la hipoteca.
-      *                                FECHA_HORA_ALT se actualiza
-      *                                automaticamente (no hay
-      *                                FECHA_ULT_PAGO en schema v3).
       *                                EXEC SQL
       *                                    UPDATE HIPOTECAS
       *                                    SET    SALDO_DEUDA =
@@ -1631,14 +1654,14 @@
            CALL 'OCSQLEXE' USING SQL-STMT-11
                                SQLCA
 
-                                       MOVE HV-MORA-ID-CLI  TO
+                                       MOVE HV-MORA-CUENTA-DEB TO
                                             WS-AUX-ID8
                                        MOVE HV-MORA-PAGO-MENS TO
                                             WS-AUX-MONTO13
                                        MOVE SPACES TO WS-LOG-LINE
-                                       STRING ' DESCUENTO APLICADO'
+                                       STRING ' DEBITO APLICADO'
                                                   DELIMITED BY SIZE
-                                              ' CLI: '
+                                              ' CTA: '
                                                   DELIMITED BY SIZE
                                               WS-AUX-ID8
                                                   DELIMITED BY SIZE
@@ -1650,26 +1673,27 @@
                                        PERFORM 9100-LOG-WRITE
                                    END-IF
                                ELSE
-                                   MOVE HV-MORA-ID-CLI    TO WS-AUX-ID8
-                                   MOVE HV-MORA-CLI-SALDO TO
-                                        WS-AUX-MONTO10
+                                   MOVE HV-MORA-CUENTA-DEB TO
+                                        WS-AUX-ID8
+                                   MOVE HV-MORA-CTA-SALDO  TO
+                                        WS-AUX-MONTO13
                                    MOVE SPACES TO WS-LOG-LINE
-                                   STRING ' SIN FONDOS CLI: '
+                                   STRING ' SIN FONDOS CTA: '
                                               DELIMITED BY SIZE
                                           WS-AUX-ID8
                                               DELIMITED BY SIZE
                                           ' SALDO: '
                                               DELIMITED BY SIZE
-                                          WS-AUX-MONTO10
+                                          WS-AUX-MONTO13
                                               DELIMITED BY SIZE
                                        INTO WS-LOG-LINE
                                    PERFORM 9100-LOG-WRITE
                                END-IF
                            ELSE
-                               MOVE SQLCODE      TO WS-AUX-SQLCODE
-                               MOVE HV-MORA-ID-CLI TO WS-AUX-ID8
+                               MOVE SQLCODE        TO WS-AUX-SQLCODE
+                               MOVE HV-MORA-CUENTA-DEB TO WS-AUX-ID8
                                MOVE SPACES TO WS-LOG-LINE
-                               STRING 'ERROR CONSULTA SALDO CLI: '
+                               STRING 'CTA NO DISPONIBLE: '
                                           DELIMITED BY SIZE
                                       WS-AUX-ID8
                                           DELIMITED BY SIZE
@@ -1679,7 +1703,6 @@
                                           DELIMITED BY SIZE
                                    INTO WS-LOG-LINE
                                PERFORM 9100-LOG-WRITE
-                               ADD 1 TO WS-CTR-ERRORES
                            END-IF
 
                        ELSE
@@ -2071,7 +2094,7 @@
       *  CUR-MORA                 IN USE CURSOR
       *  CUR-TARJETAS             IN USE CURSOR
       *  HV-APELLIDOS             IN USE CHAR(25)
-      *  HV-COUNT-PERIODO         IN USE THROUGH TEMP VAR SQL-VAR-0022 DECIMAL(7,0)
+      *  HV-COUNT-PERIODO         IN USE THROUGH TEMP VAR SQL-VAR-0024 DECIMAL(7,0)
       *  HV-DOC-CLIENTE           IN USE CHAR(12)
       *  HV-ESTADO-ACTIVO         IN USE CHAR(1)
       *  HV-ESTADO-CLI            IN USE CHAR(1)
@@ -2086,7 +2109,9 @@
       *  HV-HIPO-TASA             IN USE THROUGH TEMP VAR SQL-VAR-0012 DECIMAL(7,4)
       *  HV-ID-CLIENTE            IN USE THROUGH TEMP VAR SQL-VAR-0001 DECIMAL(9,0)
       *  HV-IND-SALDO-CTA         IN USE INTEGER(2 BYTES)
-      *  HV-MORA-CLI-SALDO        IN USE THROUGH TEMP VAR SQL-VAR-0021 DECIMAL(13,2)
+      *  HV-MORA-CLI-SALDO    NOT IN USE
+      *  HV-MORA-CTA-SALDO        IN USE THROUGH TEMP VAR SQL-VAR-0023 DECIMAL(15,2)
+      *  HV-MORA-CUENTA-DEB       IN USE THROUGH TEMP VAR SQL-VAR-0022 DECIMAL(9,0)
       *  HV-MORA-ESTADO           IN USE CHAR(20)
       *  HV-MORA-ID-CLI           IN USE THROUGH TEMP VAR SQL-VAR-0015 DECIMAL(9,0)
       *  HV-MORA-ID-HIPO          IN USE THROUGH TEMP VAR SQL-VAR-0014 DECIMAL(9,0)
@@ -2133,6 +2158,8 @@
       *  WS-HOST-MAESTRA.HV-TIPO-DOC NOT IN USE
       *  WS-HOST-MORA         NOT IN USE
       *  WS-HOST-MORA.HV-MORA-CLI-SALDO NOT IN USE
+      *  WS-HOST-MORA.HV-MORA-CTA-SALDO NOT IN USE
+      *  WS-HOST-MORA.HV-MORA-CUENTA-DEB NOT IN USE
       *  WS-HOST-MORA.HV-MORA-ESTADO NOT IN USE
       *  WS-HOST-MORA.HV-MORA-ID-CLI NOT IN USE
       *  WS-HOST-MORA.HV-MORA-ID-HIPO NOT IN USE

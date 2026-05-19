@@ -780,7 +780,7 @@
 
            IF WS-PUEDE-CONTINUAR = 'S'
                MOVE SPACES TO WS-ENTRADA-TXT
-               DISPLAY "Nro hipoteca (ej: 17): " LINE 13 COL 05
+               DISPLAY "Nro hipoteca: " LINE 13 COL 05
                ACCEPT WS-ENTRADA-TXT LINE 13 COL 28
                MOVE FUNCTION TRIM(WS-ENTRADA-TXT)
                    TO WS-ENTRADA-TXT
