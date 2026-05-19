@@ -203,6 +203,63 @@
        LINKAGE SECTION.
            COPY LKCIF.
 
+      *================================================================*
+      *   SCREEN SECTION - UI estilo BANCSMENU (pdcurses)              *
+      *================================================================*
+       SCREEN SECTION.
+       01  SCR-MARCO.
+           05 BLANK SCREEN.
+           05 LINE 02 COL 02 VALUE
+              "+------------------------------------------+".
+           05 LINE 03 COL 02 VALUE
+              "|     BAT000 - CIERRE MENSUAL v3.0         |".
+           05 LINE 04 COL 02 VALUE
+              "+------------------------------------------+".
+
+       01  SCR-RESUMEN.
+           05 LINE 06 COL 05 VALUE "Periodo procesado:".
+           05 LINE 06 COL 25 PIC X(6) FROM WS-PERIODO.
+           05 LINE 07 COL 05 VALUE "Fecha sistema    :".
+           05 LINE 07 COL 25 PIC X(10) FROM WS-FECHA-HOY.
+           05 LINE 09 COL 05 VALUE
+              "-------- CONTADORES DE PROCESO --------".
+           05 LINE 10 COL 05 VALUE "Clientes procesados      :".
+           05 LINE 10 COL 35 PIC ZZZ,ZZ9 FROM WS-CTR-CLIENTES.
+           05 LINE 11 COL 05 VALUE "Tarjetas procesadas      :".
+           05 LINE 11 COL 35 PIC ZZZ,ZZ9 FROM WS-CTR-TARJETAS.
+           05 LINE 12 COL 05 VALUE "Hipotecas procesadas     :".
+           05 LINE 12 COL 35 PIC ZZZ,ZZ9 FROM WS-CTR-HIPOTECAS.
+           05 LINE 13 COL 05 VALUE "Hipotecas en MORA        :".
+           05 LINE 13 COL 35 PIC ZZZ,ZZ9 FROM WS-CTR-MOROSAS.
+           05 LINE 14 COL 05 VALUE "Hipotecas CASTIGADAS     :".
+           05 LINE 14 COL 35 PIC ZZZ,ZZ9 FROM WS-CTR-CASTIGADAS.
+           05 LINE 15 COL 05 VALUE "Hipotecas regularizadas  :".
+           05 LINE 15 COL 35 PIC ZZZ,ZZ9 FROM WS-CTR-REGULARIZADAS.
+           05 LINE 16 COL 05 VALUE "Tarjetas dadas de BAJA   :".
+           05 LINE 16 COL 35 PIC ZZZ,ZZ9 FROM WS-CTR-TARJ-BAJA.
+           05 LINE 17 COL 05 VALUE "Errores detectados       :".
+           05 LINE 17 COL 35 PIC ZZZ,ZZ9 FROM WS-CTR-ERRORES.
+
+       01  SCR-MSG-OK.
+           05 LINE 19 COL 05 VALUE
+              ">>> CIERRE MENSUAL COMPLETADO EXITOSAMENTE".
+           05 LINE 20 COL 05 VALUE
+              "    COMMIT aplicado en base de datos.".
+
+       01  SCR-MSG-ERR.
+           05 LINE 19 COL 05 VALUE
+              ">>> CIERRE MENSUAL FALLO".
+           05 LINE 20 COL 05 VALUE
+              "    ROLLBACK ejecutado - datos revertidos.".
+
+       01  SCR-LOG-INFO.
+           05 LINE 22 COL 05 VALUE
+              "Detalle completo en:".
+           05 LINE 23 COL 05 VALUE
+              "  docs/logs/BAT_LOGS_".
+           05 LINE 23 COL 26 PIC X(6) FROM WS-PERIODO.
+           05 LINE 23 COL 32 VALUE ".txt".
+
        PROCEDURE DIVISION USING LK-DATOS-TRANSACCION.
 
        0000-PRINCIPAL.
@@ -1194,32 +1251,17 @@
       *   8000 - PAUSA FINAL: MUESTRA RESULTADO Y ESPERA TECLA       *
       *================================================================*
        8000-PAUSA-RESULTADO.
-           PERFORM 9900-LIMPIAR-PANTALLA
-           DISPLAY '================================================'
-           DISPLAY ' BAT000 - PROCESO DE CIERRE MENSUAL'
-           DISPLAY ' PERIODO: ' WS-PERIODO
-           DISPLAY '================================================'
+           DISPLAY SCR-MARCO.
+           DISPLAY SCR-RESUMEN.
            IF WS-ABORT = 'N' AND WS-CTR-ERRORES = 0
-               DISPLAY '>>> EXITO EN EJECUCION DE CIERRE MENSUAL'
+               DISPLAY SCR-MSG-OK
            ELSE
-               DISPLAY '>>> FALLO EN EJECUCION DE CIERRE MENSUAL'
-           END-IF
-           DISPLAY '------------------------------------------------'
-           DISPLAY ' RESUMEN DE PROCESO:'
-           DISPLAY '   CLIENTES PROCESADOS    : ' WS-CTR-CLIENTES
-           DISPLAY '   TARJETAS PROCESADAS    : ' WS-CTR-TARJETAS
-           DISPLAY '   HIPOTECAS PROCESADAS   : ' WS-CTR-HIPOTECAS
-           DISPLAY '   HIPOTECAS MOROSAS      : ' WS-CTR-MOROSAS
-           DISPLAY '   HIPOTECAS CASTIGADAS   : ' WS-CTR-CASTIGADAS
-           DISPLAY '   HIPOTECAS REGULARIZADAS: ' WS-CTR-REGULARIZADAS
-           DISPLAY '   TARJETAS DADAS DE BAJA : ' WS-CTR-TARJ-BAJA
-           DISPLAY '   ERRORES DETECTADOS     : ' WS-CTR-ERRORES
-           DISPLAY '------------------------------------------------'
-           DISPLAY ' Detalle: docs/logs/BAT_LOGS_' WS-PERIODO '.txt'
-           DISPLAY '================================================'
-           DISPLAY 'Presione ENTER para regresar al menu...'
-           ACCEPT WS-TECLA
-           ACCEPT WS-TECLA.
+               DISPLAY SCR-MSG-ERR
+           END-IF.
+           DISPLAY SCR-LOG-INFO.
+           DISPLAY "Presione ENTER para regresar al menu."
+              LINE 24 COL 05.
+           ACCEPT WS-TECLA LINE 24 COL 41.
 
       *================================================================*
       *   9900 - LIMPIAR PANTALLA (Windows: cls)                       *

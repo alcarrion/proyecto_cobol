@@ -23,13 +23,13 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 2.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 275.
-           05 SQL-STMT   PIC X(275) VALUE 'SELECT ID_CLIENTE,FECHA_ALTA,
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 289.
+           05 SQL-STMT   PIC X(289) VALUE 'SELECT ID_CLIENTE,FECHA_ALTA,
       -    'NOMBRE_CLIENTE,APELLIDOS_CLIENTE,FECHA_NACIMIENTO,DIRECCION_
       -    'CLIENTE,TELEF_CLIENTE,EMAIL_CLIENTE,SCORE_CREDITICIO,INGRESO
       -    'S_MENSUALES,TIENE_TARJETA,TIENE_HIPOTECA,ESTADO_CLIENTE,SALD
-      -    'O_TOTAL_VISTA FROM clientes WHERE TIPO_DOC = ? AND DOC_CLIEN
-      -    'TE = ?'.
+      -    'O_TOTAL_VISTA FROM clientes WHERE TIPO_DOC = RTRIM(?) AND DO
+      -    'C_CLIENTE = RTRIM(?)'.
       **********************************************************************
        01 SQL-STMT-1.
            05 SQL-IPTR   POINTER VALUE NULL.
@@ -183,8 +183,8 @@
       *              :DB-ESTADO-CLIENTE,
       *              :DB-SALDO-TOTAL-VISTA
       *         FROM clientes
-      *        WHERE TIPO_DOC = :DB-TIPO-DOC
-      *          AND DOC_CLIENTE = :DB-DOC-CLIENTE
+      *        WHERE TIPO_DOC    = RTRIM(:DB-TIPO-DOC)
+      *          AND DOC_CLIENTE = RTRIM(:DB-DOC-CLIENTE)
       *    END-EXEC.
            IF SQL-PREP OF SQL-STMT-0 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF

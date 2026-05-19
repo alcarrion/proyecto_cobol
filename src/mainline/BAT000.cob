@@ -18,25 +18,25 @@
       **********************************************************************
       *******                EMBEDDED SQL VARIABLES                  *******
        01 SQLV.
-           05 SQL-ARRSZ  PIC S9(9) COMP-5 VALUE 18.
+           05 SQL-ARRSZ  PIC S9(9) COMP-5 VALUE 12.
            05 SQL-COUNT  PIC S9(9) COMP-5 VALUE ZERO.
-           05 SQL-ADDR   POINTER OCCURS 18 TIMES VALUE NULL.
-           05 SQL-LEN    PIC S9(9) COMP-5 OCCURS 18 TIMES VALUE ZERO.
-           05 SQL-TYPE   PIC X OCCURS 18 TIMES.
-           05 SQL-PREC   PIC X OCCURS 18 TIMES.
+           05 SQL-ADDR   POINTER OCCURS 12 TIMES VALUE NULL.
+           05 SQL-LEN    PIC S9(9) COMP-5 OCCURS 12 TIMES VALUE ZERO.
+           05 SQL-TYPE   PIC X OCCURS 12 TIMES.
+           05 SQL-PREC   PIC X OCCURS 12 TIMES.
       **********************************************************************
        01 SQL-STMT-0.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE 'C'.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 0.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 292.
-           05 SQL-STMT   PIC X(292) VALUE 'SELECT C.ID_CLIENTE,C.TIPO_DO
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 268.
+           05 SQL-STMT   PIC X(268) VALUE 'SELECT C.ID_CLIENTE,C.TIPO_DO
       -    'C,C.DOC_CLIENTE,C.FECHA_ALTA,C.NOMBRE_CLIENTE,C.APELLIDOS_CL
-      -    'IENTE,C.SALDO_CLIENTE,C.CTA_ACTIVA,C.TARJETA,C.HIPOTECA,I.SA
-      -    'LDO_ACTUAL,I.COD_ULT_MOV,I.FECHA_ULT_MOV,I.IMPORTE_MOV FROM 
-      -    'CLIENTES C LEFT JOIN CTACTES I ON C.ID_CLIENTE = I.ID_CLIENT
-      -    'E ORDER BY C.ID_CLIENTE'.
+      -    'IENTE,C.SALDO_TOTAL_VISTA,C.ESTADO_CLIENTE,C.TIENE_TARJETA,C
+      -    '.TIENE_HIPOTECA,I.SALDO_ACTUAL FROM CLIENTES C LEFT JOIN CTA
+      -    'CTES I ON C.ID_CLIENTE = I.ID_CLIENTE ORDER BY C.ID_CLIENTE'
+           .
            05 SQL-CNAME  PIC X(11) VALUE 'CUR-MAESTRA'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
@@ -45,10 +45,10 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE 'C'.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 0.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 122.
-           05 SQL-STMT   PIC X(122) VALUE 'SELECT ID_CLIENTE,NRO_TARJETA
-      -    ',LIMITE_TARJETA,ACUM_MES,LIQUIDACION_MES,ESTADO FROM TARJETA
-      -    'S ORDER BY ID_CLIENTE,NRO_TARJETA'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 120.
+           05 SQL-STMT   PIC X(120) VALUE 'SELECT ID_CLIENTE,NRO_TARJETA
+      -    ',CUPO_APROBADO,SALDO_UTILIZADO,ESTADO_TARJETA FROM TARJETAS 
+      -    'ORDER BY ID_CLIENTE,NRO_TARJETA'.
            05 SQL-CNAME  PIC X(12) VALUE 'CUR-TARJETAS'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
@@ -57,10 +57,11 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE 'C'.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 0.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 137.
-           05 SQL-STMT   PIC X(137) VALUE 'SELECT ID_HIPOTECA,ID_CLIENTE
-      -    ',MONTO_ORIGINAL,TASA_INTERES,SALDO_ACTUAL,FECHA_VENCTO,ESTAD
-      -    'O FROM HIPOTECAS ORDER BY ID_CLIENTE,ID_HIPOTECA'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 148.
+           05 SQL-STMT   PIC X(148) VALUE 'SELECT ID_HIPOTECA,ID_CLIENTE
+      -    ',MONTO_PRESTAMO,TASA_ANUAL,SALDO_DEUDA,FECHA_VENCIMIENTO,EST
+      -    'ADO_PRESTAMO FROM HIPOTECAS ORDER BY ID_CLIENTE,ID_HIPOTECA'
+           .
            05 SQL-CNAME  PIC X(13) VALUE 'CUR-HIPOTECAS'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
@@ -69,13 +70,13 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE 'C'.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 0.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 323.
-           05 SQL-STMT   PIC X(323) VALUE 'SELECT H.ID_HIPOTECA,H.ID_CLI
-      -    'ENTE,H.SALDO_ACTUAL,H.MONTO_ORIGINAL,H.ESTADO,H.CUOTA_MENSUA
-      -    'L,H.CUOTA_MENSUAL * GREATEST(TIMESTAMPDIFF(MONTH,H.FECHA_INI
-      -    'CIO,H.FECHA_VENCTO) - TIMESTAMPDIFF(MONTH,H.FECHA_INICIO,CUR
-      -    'DATE()),0),H.MESES_MORA FROM HIPOTECAS H WHERE H.ESTADO IN (
-      -    '''ACTIVO'',''MOROSO'') ORDER BY H.ID_CLIENTE,H.ID_HIPOTECA'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 292.
+           05 SQL-STMT   PIC X(292) VALUE 'SELECT H.ID_HIPOTECA,H.ID_CLI
+      -    'ENTE,H.SALDO_DEUDA,H.MONTO_PRESTAMO,H.ESTADO_PRESTAMO,H.CUOT
+      -    'A_MENSUAL,H.CUOTA_MENSUAL * GREATEST(TIMESTAMPDIFF(MONTH,CUR
+      -    'DATE(),H.FECHA_VENCIMIENTO),0),H.MESES_MORA FROM HIPOTECAS H
+      -    ' WHERE H.ESTADO_PRESTAMO IN (''ACTIVO'',''MOROSO'') ORDER BY
+      -    ' H.ID_CLIENTE,H.ID_HIPOTECA'.
            05 SQL-CNAME  PIC X(8) VALUE 'CUR-MORA'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
@@ -92,98 +93,99 @@
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
-           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 15.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 252.
-           05 SQL-STMT   PIC X(252) VALUE 'INSERT INTO AUDIT_MAESTRA (PE
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 12.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 216.
+           05 SQL-STMT   PIC X(216) VALUE 'INSERT INTO AUDIT_MAESTRA (PE
       -    'RIODO,ID_CLIENTE,TIPO_DOC,DOC_CLIENTE,FECHA_ALTA,NOMBRE_CLIE
-      -    'NTE,APELLIDOS_CLIENTE,SALDO_CLIENTE,CTA_ACTIVA,TIENE_TARJETA
-      -    ',TIENE_HIPOTECA,SALDO_CTA,COD_ULT_MOV,FECHA_ULT_MOV,IMPORTE_
-      -    'MOV) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'.
+      -    'NTE,APELLIDOS_CLIENTE,SALDO_TOTAL_VISTA,ESTADO_CLIENTE,TIENE
+      -    '_TARJETA,TIENE_HIPOTECA,SALDO_CTA) VALUES (?,?,?,?,?,?,?,?,?
+      -    ',?,?,?)'.
       **********************************************************************
        01 SQL-STMT-6.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
-           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 7.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 129.
-           05 SQL-STMT   PIC X(129) VALUE 'INSERT INTO AUDIT_TARJETAS (P
-      -    'ERIODO,ID_CLIENTE,NRO_TARJETA,LIMITE_TARJETA,ACUM_MES,LIQUID
-      -    'ACION_MES,ESTADO) VALUES (?,?,?,?,?,?,?)'.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 6.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 125.
+           05 SQL-STMT   PIC X(125) VALUE 'INSERT INTO AUDIT_TARJETAS (P
+      -    'ERIODO,ID_CLIENTE,NRO_TARJETA,CUPO_APROBADO,SALDO_UTILIZADO,
+      -    'ESTADO_TARJETA) VALUES (?,?,?,?,?,?)'.
       **********************************************************************
        01 SQL-STMT-7.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 8.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 146.
-           05 SQL-STMT   PIC X(146) VALUE 'INSERT INTO AUDIT_HIPOTECAS (
-      -    'PERIODO,ID_HIPOTECA,ID_CLIENTE,MONTO_ORIGINAL,TASA_INTERES,S
-      -    'ALDO_ACTUAL,FECHA_VENCTO,ESTADO) VALUES (?,?,?,?,?,?,?,?)'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 157.
+           05 SQL-STMT   PIC X(157) VALUE 'INSERT INTO AUDIT_HIPOTECAS (
+      -    'PERIODO,ID_HIPOTECA,ID_CLIENTE,MONTO_PRESTAMO,TASA_ANUAL,SAL
+      -    'DO_DEUDA,FECHA_VENCIMIENTO,ESTADO_PRESTAMO) VALUES (?,?,?,?,
+      -    '?,?,?,?)'.
       **********************************************************************
        01 SQL-STMT-8.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 2.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 81.
-           05 SQL-STMT   PIC X(81) VALUE 'UPDATE HIPOTECAS SET ESTADO = 
-      -    '?,MESES_MORA = MESES_MORA + 1 WHERE ID_HIPOTECA = ?'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 90.
+           05 SQL-STMT   PIC X(90) VALUE 'UPDATE HIPOTECAS SET ESTADO_PR
+      -    'ESTAMO = ?,MESES_MORA = MESES_MORA + 1 WHERE ID_HIPOTECA = ?
+      -    ''.
       **********************************************************************
        01 SQL-STMT-9.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 55.
-           05 SQL-STMT   PIC X(55) VALUE 'SELECT SALDO_CLIENTE FROM CLIE
-      -    'NTES WHERE ID_CLIENTE = ?'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 59.
+           05 SQL-STMT   PIC X(59) VALUE 'SELECT SALDO_TOTAL_VISTA FROM 
+      -    'CLIENTES WHERE ID_CLIENTE = ?'.
       **********************************************************************
        01 SQL-STMT-10.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 2.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 74.
-           05 SQL-STMT   PIC X(74) VALUE 'UPDATE CLIENTES SET SALDO_CLIE
-      -    'NTE = SALDO_CLIENTE - ? WHERE ID_CLIENTE = ?'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 82.
+           05 SQL-STMT   PIC X(82) VALUE 'UPDATE CLIENTES SET SALDO_TOTA
+      -    'L_VISTA = SALDO_TOTAL_VISTA - ? WHERE ID_CLIENTE = ?'.
       **********************************************************************
        01 SQL-STMT-11.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 2.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 101.
-           05 SQL-STMT   PIC X(101) VALUE 'UPDATE HIPOTECAS SET SALDO_AC
-      -    'TUAL = SALDO_ACTUAL - ?,FECHA_ULT_PAGO = CURDATE() WHERE ID_
-      -    'HIPOTECA = ?'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 72.
+           05 SQL-STMT   PIC X(72) VALUE 'UPDATE HIPOTECAS SET SALDO_DEU
+      -    'DA = SALDO_DEUDA - ? WHERE ID_HIPOTECA = ?'.
       **********************************************************************
        01 SQL-STMT-12.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 102.
-           05 SQL-STMT   PIC X(102) VALUE 'UPDATE HIPOTECAS SET ESTADO =
-      -    ' ''ACTIVO'',MESES_MORA = 0,FECHA_ULT_PAGO = CURDATE() WHERE 
-      -    'ID_HIPOTECA = ?'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 84.
+           05 SQL-STMT   PIC X(84) VALUE 'UPDATE HIPOTECAS SET ESTADO_PR
+      -    'ESTAMO = ''ACTIVO'',MESES_MORA = 0 WHERE ID_HIPOTECA = ?'.
       **********************************************************************
        01 SQL-STMT-13.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 2.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 81.
-           05 SQL-STMT   PIC X(81) VALUE 'UPDATE TARJETAS SET ESTADO = ?
-      -    ' WHERE FECHA_VENCIMIENTO < CURDATE() AND ESTADO = ?'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 92.
+           05 SQL-STMT   PIC X(92) VALUE 'UPDATE TARJETAS SET ESTADO_TAR
+      -    'JETA = ? WHERE FECHA_VENCTO < CURDATE() AND ESTADO_TARJETA =
+      -    ' ?'.
       **********************************************************************
        01 SQL-STMT-14.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 76.
-           05 SQL-STMT   PIC X(76) VALUE 'UPDATE TARJETAS SET LIQUIDACIO
-      -    'N_MES = ACUM_MES,ACUM_MES = 0 WHERE ESTADO = ?'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 64.
+           05 SQL-STMT   PIC X(64) VALUE 'UPDATE TARJETAS SET SALDO_UTIL
+      -    'IZADO = 0 WHERE ESTADO_TARJETA = ?'.
       **********************************************************************
       *******          PRECOMPILER-GENERATED VARIABLES               *******
        01 SQLV-GEN-VARS.
@@ -191,28 +193,24 @@
            05 SQL-VAR-0002  PIC S9(11)V9(2) COMP-3.
            05 SQL-VAR-0003  PIC S9(1) COMP-3.
            05 SQL-VAR-0004  PIC S9(1) COMP-3.
-           05 SQL-VAR-0005  PIC S9(1) COMP-3.
-           05 SQL-VAR-0006  PIC S9(11)V9(2) COMP-3.
-           05 SQL-VAR-0007  PIC S9(3) COMP-3.
+           05 SQL-VAR-0005  PIC S9(11)V9(2) COMP-3.
+           05 SQL-VAR-0006  PIC S9(9) COMP-3.
+           05 SQL-VAR-0007  PIC S9(11)V9(2) COMP-3.
            05 SQL-VAR-0008  PIC S9(11)V9(2) COMP-3.
            05 SQL-VAR-0009  PIC S9(9) COMP-3.
-           05 SQL-VAR-0010  PIC S9(11)V9(2) COMP-3.
-           05 SQL-VAR-0011  PIC S9(11)V9(2) COMP-3.
-           05 SQL-VAR-0012  PIC S9(11)V9(2) COMP-3.
-           05 SQL-VAR-0013  PIC S9(9) COMP-3.
+           05 SQL-VAR-0010  PIC S9(9) COMP-3.
+           05 SQL-VAR-0011  PIC S9(13)V9(2) COMP-3.
+           05 SQL-VAR-0012  PIC S9(3)V9(4) COMP-3.
+           05 SQL-VAR-0013  PIC S9(13)V9(2) COMP-3.
            05 SQL-VAR-0014  PIC S9(9) COMP-3.
-           05 SQL-VAR-0015  PIC S9(13)V9(2) COMP-3.
-           05 SQL-VAR-0016  PIC S9(3)V9(4) COMP-3.
+           05 SQL-VAR-0015  PIC S9(9) COMP-3.
+           05 SQL-VAR-0016  PIC S9(13)V9(2) COMP-3.
            05 SQL-VAR-0017  PIC S9(13)V9(2) COMP-3.
-           05 SQL-VAR-0018  PIC S9(9) COMP-3.
-           05 SQL-VAR-0019  PIC S9(9) COMP-3.
-           05 SQL-VAR-0020  PIC S9(13)V9(2) COMP-3.
-           05 SQL-VAR-0021  PIC S9(13)V9(2) COMP-3.
-           05 SQL-VAR-0022  PIC S9(13)V9(2) COMP-3.
-           05 SQL-VAR-0023  PIC S9(13)V9(2) COMP-3.
-           05 SQL-VAR-0024  PIC S9(5) COMP-3.
-           05 SQL-VAR-0025  PIC S9(11)V9(2) COMP-3.
-           05 SQL-VAR-0026  PIC S9(7) COMP-3.
+           05 SQL-VAR-0018  PIC S9(13)V9(2) COMP-3.
+           05 SQL-VAR-0019  PIC S9(13)V9(2) COMP-3.
+           05 SQL-VAR-0020  PIC S9(5) COMP-3.
+           05 SQL-VAR-0021  PIC S9(11)V9(2) COMP-3.
+           05 SQL-VAR-0022  PIC S9(7) COMP-3.
       *******       END OF PRECOMPILER-GENERATED VARIABLES           *******
       **********************************************************************
 
@@ -245,6 +243,9 @@
        01  WS-PERIODO              PIC X(6).
 
       *    Variables host - AUDIT_MAESTRA / CLIENTES + CTACTES
+      *    Adaptado a schema v3: SALDO_TOTAL_VISTA, ESTADO_CLIENTE,
+      *    TIENE_TARJETA, TIENE_HIPOTECA. CTACTES solo expone
+      *    SALDO_ACTUAL (no hay COD/FECHA/IMPORTE de ultimo movimiento).
        01  WS-HOST-MAESTRA.
            05 HV-ID-CLIENTE        PIC 9(8).
            05 HV-TIPO-DOC          PIC X(3).
@@ -253,26 +254,20 @@
            05 HV-NOMBRE            PIC X(25).
            05 HV-APELLIDOS         PIC X(25).
            05 HV-SALDO-CLI         PIC S9(10)V99.
-           05 HV-CTA-ACTIVA        PIC 9(1).
+           05 HV-ESTADO-CLI        PIC X(1).
            05 HV-TIENE-TARJETA     PIC 9(1).
            05 HV-TIENE-HIPOTECA    PIC 9(1).
            05 HV-SALDO-CTA         PIC S9(10)V99.
-           05 HV-COD-ULT-MOV       PIC 9(2).
-           05 HV-FECHA-ULT-MOV     PIC X(10).
-           05 HV-IMPORTE-MOV       PIC S9(10)V99.
-      *    Indicadores de NULL para el LEFT JOIN con CTACTES
+      *    Indicador de NULL para el LEFT JOIN con CTACTES
            05 HV-IND-SALDO-CTA     PIC S9(4) COMP-5.
-           05 HV-IND-COD-MOV       PIC S9(4) COMP-5.
-           05 HV-IND-FECHA-MOV     PIC S9(4) COMP-5.
-           05 HV-IND-IMPORTE-MOV   PIC S9(4) COMP-5.
 
-      *    Variables host - AUDIT_TARJETAS
+      *    Variables host - AUDIT_TARJETAS (schema v3: CUPO_APROBADO,
+      *    SALDO_UTILIZADO, ESTADO_TARJETA. LIQUIDACION_MES eliminada.)
        01  WS-HOST-TARJETAS.
            05 HV-TARJ-ID-CLI       PIC 9(8).
            05 HV-TARJ-NRO          PIC X(16).
            05 HV-TARJ-LIMITE       PIC S9(10)V99.
            05 HV-TARJ-ACUM         PIC S9(10)V99.
-           05 HV-TARJ-LIQUID       PIC S9(10)V99.
            05 HV-TARJ-ESTADO       PIC X(1).
 
       *    Variables host - AUDIT_HIPOTECAS
@@ -321,14 +316,11 @@
       *               C.FECHA_ALTA,
       *               C.NOMBRE_CLIENTE,
       *               C.APELLIDOS_CLIENTE,
-      *               C.SALDO_CLIENTE,
-      *               C.CTA_ACTIVA,
-      *               C.TARJETA,
-      *               C.HIPOTECA,
-      *               I.SALDO_ACTUAL,
-      *               I.COD_ULT_MOV,
-      *               I.FECHA_ULT_MOV,
-      *               I.IMPORTE_MOV
+      *               C.SALDO_TOTAL_VISTA,
+      *               C.ESTADO_CLIENTE,
+      *               C.TIENE_TARJETA,
+      *               C.TIENE_HIPOTECA,
+      *               I.SALDO_ACTUAL
       *        FROM   CLIENTES C
       *        LEFT JOIN CTACTES I
       *               ON C.ID_CLIENTE = I.ID_CLIENTE
@@ -338,10 +330,9 @@
       *    EXEC SQL DECLARE CUR-TARJETAS CURSOR FOR
       *        SELECT ID_CLIENTE,
       *               NRO_TARJETA,
-      *               LIMITE_TARJETA,
-      *               ACUM_MES,
-      *               LIQUIDACION_MES,
-      *               ESTADO
+      *               CUPO_APROBADO,
+      *               SALDO_UTILIZADO,
+      *               ESTADO_TARJETA
       *        FROM   TARJETAS
       *        ORDER BY ID_CLIENTE, NRO_TARJETA
       *    END-EXEC.
@@ -349,34 +340,34 @@
       *    EXEC SQL DECLARE CUR-HIPOTECAS CURSOR FOR
       *        SELECT ID_HIPOTECA,
       *               ID_CLIENTE,
-      *               MONTO_ORIGINAL,
-      *               TASA_INTERES,
-      *               SALDO_ACTUAL,
-      *               FECHA_VENCTO,
-      *               ESTADO
+      *               MONTO_PRESTAMO,
+      *               TASA_ANUAL,
+      *               SALDO_DEUDA,
+      *               FECHA_VENCIMIENTO,
+      *               ESTADO_PRESTAMO
       *        FROM   HIPOTECAS
       *        ORDER BY ID_CLIENTE, ID_HIPOTECA
       *    END-EXEC.
 
       *    Cursor de mora: usa CUOTA_MENSUAL y MESES_MORA de la BD.
-      *    SALDO_ESPERADO = cuota * (meses_totales - meses_transcurridos
+      *    SALDO_ESPERADO = cuota * meses_restantes_hasta_vencimiento.
+      *    Schema v3 no tiene FECHA_INICIO: calculamos meses restantes
+      *    directamente con TIMESTAMPDIFF(CURDATE, FECHA_VENCIMIENTO).
       *    GREATEST(...,0) evita saldos negativos para creditos vencidos
       *    EXEC SQL DECLARE CUR-MORA CURSOR FOR
       *        SELECT H.ID_HIPOTECA,
       *               H.ID_CLIENTE,
-      *               H.SALDO_ACTUAL,
-      *               H.MONTO_ORIGINAL,
-      *               H.ESTADO,
+      *               H.SALDO_DEUDA,
+      *               H.MONTO_PRESTAMO,
+      *               H.ESTADO_PRESTAMO,
       *               H.CUOTA_MENSUAL,
       *               H.CUOTA_MENSUAL * GREATEST(
       *                   TIMESTAMPDIFF(MONTH,
-      *                       H.FECHA_INICIO, H.FECHA_VENCTO) -
-      *                   TIMESTAMPDIFF(MONTH,
-      *                       H.FECHA_INICIO, CURDATE()),
+      *                       CURDATE(), H.FECHA_VENCIMIENTO),
       *                   0),
       *               H.MESES_MORA
       *        FROM   HIPOTECAS H
-      *        WHERE  H.ESTADO IN ('ACTIVO', 'MOROSO')
+      *        WHERE  H.ESTADO_PRESTAMO IN ('ACTIVO', 'MOROSO')
       *        ORDER BY H.ID_CLIENTE, H.ID_HIPOTECA
       *    END-EXEC.
 
@@ -420,13 +411,70 @@
        01  WS-AUX-CTR              PIC 9(6).
        01  WS-AUX-MONTO13         PIC -9(13).99.
        01  WS-AUX-MONTO10         PIC -9(10).99.
-       01  WS-TECLA                PIC X.
+       01  WS-TECLA                PIC X(20).
 
       *================================================================*
       *   LINKAGE SECTION                                              *
       *================================================================*
        LINKAGE SECTION.
            COPY LKCIF.
+
+      *================================================================*
+      *   SCREEN SECTION - UI estilo BANCSMENU (pdcurses)              *
+      *================================================================*
+       SCREEN SECTION.
+       01  SCR-MARCO.
+           05 BLANK SCREEN.
+           05 LINE 02 COL 02 VALUE
+              "+------------------------------------------+".
+           05 LINE 03 COL 02 VALUE
+              "|     BAT000 - CIERRE MENSUAL v3.0         |".
+           05 LINE 04 COL 02 VALUE
+              "+------------------------------------------+".
+
+       01  SCR-RESUMEN.
+           05 LINE 06 COL 05 VALUE "Periodo procesado:".
+           05 LINE 06 COL 25 PIC X(6) FROM WS-PERIODO.
+           05 LINE 07 COL 05 VALUE "Fecha sistema    :".
+           05 LINE 07 COL 25 PIC X(10) FROM WS-FECHA-HOY.
+           05 LINE 09 COL 05 VALUE
+              "-------- CONTADORES DE PROCESO --------".
+           05 LINE 10 COL 05 VALUE "Clientes procesados      :".
+           05 LINE 10 COL 35 PIC ZZZ,ZZ9 FROM WS-CTR-CLIENTES.
+           05 LINE 11 COL 05 VALUE "Tarjetas procesadas      :".
+           05 LINE 11 COL 35 PIC ZZZ,ZZ9 FROM WS-CTR-TARJETAS.
+           05 LINE 12 COL 05 VALUE "Hipotecas procesadas     :".
+           05 LINE 12 COL 35 PIC ZZZ,ZZ9 FROM WS-CTR-HIPOTECAS.
+           05 LINE 13 COL 05 VALUE "Hipotecas en MORA        :".
+           05 LINE 13 COL 35 PIC ZZZ,ZZ9 FROM WS-CTR-MOROSAS.
+           05 LINE 14 COL 05 VALUE "Hipotecas CASTIGADAS     :".
+           05 LINE 14 COL 35 PIC ZZZ,ZZ9 FROM WS-CTR-CASTIGADAS.
+           05 LINE 15 COL 05 VALUE "Hipotecas regularizadas  :".
+           05 LINE 15 COL 35 PIC ZZZ,ZZ9 FROM WS-CTR-REGULARIZADAS.
+           05 LINE 16 COL 05 VALUE "Tarjetas dadas de BAJA   :".
+           05 LINE 16 COL 35 PIC ZZZ,ZZ9 FROM WS-CTR-TARJ-BAJA.
+           05 LINE 17 COL 05 VALUE "Errores detectados       :".
+           05 LINE 17 COL 35 PIC ZZZ,ZZ9 FROM WS-CTR-ERRORES.
+
+       01  SCR-MSG-OK.
+           05 LINE 19 COL 05 VALUE
+              ">>> CIERRE MENSUAL COMPLETADO EXITOSAMENTE".
+           05 LINE 20 COL 05 VALUE
+              "    COMMIT aplicado en base de datos.".
+
+       01  SCR-MSG-ERR.
+           05 LINE 19 COL 05 VALUE
+              ">>> CIERRE MENSUAL FALLO".
+           05 LINE 20 COL 05 VALUE
+              "    ROLLBACK ejecutado - datos revertidos.".
+
+       01  SCR-LOG-INFO.
+           05 LINE 22 COL 05 VALUE
+              "Detalle completo en:".
+           05 LINE 23 COL 05 VALUE
+              "  docs/logs/BAT_LOGS_".
+           05 LINE 23 COL 26 PIC X(6) FROM WS-PERIODO.
+           05 LINE 23 COL 32 VALUE ".txt".
 
        PROCEDURE DIVISION USING LK-DATOS-TRANSACCION.
 
@@ -519,7 +567,7 @@
       *    END-EXEC
            IF SQL-PREP OF SQL-STMT-4 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
-                 SQL-VAR-0026
+                 SQL-VAR-0022
                MOVE '3' TO SQL-TYPE(1)
                MOVE 4 TO SQL-LEN(1)
                MOVE X'00' TO SQL-PREC(1)
@@ -535,7 +583,7 @@
            END-IF
            CALL 'OCSQLEXE' USING SQL-STMT-4
                                SQLCA
-           MOVE SQL-VAR-0026 TO HV-COUNT-PERIODO
+           MOVE SQL-VAR-0022 TO HV-COUNT-PERIODO
 
            PERFORM 9000-EVALUAR-SQL
 
@@ -626,13 +674,10 @@
       *                :HV-NOMBRE,
       *                :HV-APELLIDOS,
       *                :HV-SALDO-CLI,
-      *                :HV-CTA-ACTIVA,
+      *                :HV-ESTADO-CLI,
       *                :HV-TIENE-TARJETA,
       *                :HV-TIENE-HIPOTECA,
-      *                :HV-SALDO-CTA      :HV-IND-SALDO-CTA,
-      *                :HV-COD-ULT-MOV    :HV-IND-COD-MOV,
-      *                :HV-FECHA-ULT-MOV  :HV-IND-FECHA-MOV,
-      *                :HV-IMPORTE-MOV    :HV-IND-IMPORTE-MOV
+      *                :HV-SALDO-CTA      :HV-IND-SALDO-CTA
       *        END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
              SQL-VAR-0001
@@ -665,77 +710,41 @@
            MOVE 7 TO SQL-LEN(7)
                MOVE X'02' TO SQL-PREC(7)
            SET SQL-ADDR(8) TO ADDRESS OF
-             SQL-VAR-0003
-           MOVE '3' TO SQL-TYPE(8)
+             HV-ESTADO-CLI
+           MOVE 'X' TO SQL-TYPE(8)
            MOVE 1 TO SQL-LEN(8)
-               MOVE X'00' TO SQL-PREC(8)
            SET SQL-ADDR(9) TO ADDRESS OF
-             SQL-VAR-0004
+             SQL-VAR-0003
            MOVE '3' TO SQL-TYPE(9)
            MOVE 1 TO SQL-LEN(9)
                MOVE X'00' TO SQL-PREC(9)
            SET SQL-ADDR(10) TO ADDRESS OF
-             SQL-VAR-0005
+             SQL-VAR-0004
            MOVE '3' TO SQL-TYPE(10)
            MOVE 1 TO SQL-LEN(10)
                MOVE X'00' TO SQL-PREC(10)
            SET SQL-ADDR(11) TO ADDRESS OF
-             SQL-VAR-0006
+             SQL-VAR-0005
            MOVE '3' TO SQL-TYPE(11)
            MOVE 7 TO SQL-LEN(11)
                MOVE X'02' TO SQL-PREC(11)
            SET SQL-ADDR(12) TO ADDRESS OF
              HV-IND-SALDO-CTA
            MOVE 'i' TO SQL-TYPE(12)
-           SET SQL-ADDR(13) TO ADDRESS OF
-             SQL-VAR-0007
-           MOVE '3' TO SQL-TYPE(13)
-           MOVE 2 TO SQL-LEN(13)
-               MOVE X'00' TO SQL-PREC(13)
-           SET SQL-ADDR(14) TO ADDRESS OF
-             HV-IND-COD-MOV
-           MOVE 'i' TO SQL-TYPE(14)
-           SET SQL-ADDR(15) TO ADDRESS OF
-             HV-FECHA-ULT-MOV
-           MOVE 'X' TO SQL-TYPE(15)
-           MOVE 10 TO SQL-LEN(15)
-           SET SQL-ADDR(16) TO ADDRESS OF
-             HV-IND-FECHA-MOV
-           MOVE 'i' TO SQL-TYPE(16)
-           SET SQL-ADDR(17) TO ADDRESS OF
-             SQL-VAR-0008
-           MOVE '3' TO SQL-TYPE(17)
-           MOVE 7 TO SQL-LEN(17)
-               MOVE X'02' TO SQL-PREC(17)
-           SET SQL-ADDR(18) TO ADDRESS OF
-             HV-IND-IMPORTE-MOV
-           MOVE 'i' TO SQL-TYPE(18)
-           MOVE 18 TO SQL-COUNT
+           MOVE 12 TO SQL-COUNT
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-0
                                SQLCA
            MOVE SQL-VAR-0001 TO HV-ID-CLIENTE
            MOVE SQL-VAR-0002 TO HV-SALDO-CLI
-           MOVE SQL-VAR-0003 TO HV-CTA-ACTIVA
-           MOVE SQL-VAR-0004 TO HV-TIENE-TARJETA
-           MOVE SQL-VAR-0005 TO HV-TIENE-HIPOTECA
-           MOVE SQL-VAR-0006 TO HV-SALDO-CTA
-           MOVE SQL-VAR-0007 TO HV-COD-ULT-MOV
-           MOVE SQL-VAR-0008 TO HV-IMPORTE-MOV
+           MOVE SQL-VAR-0003 TO HV-TIENE-TARJETA
+           MOVE SQL-VAR-0004 TO HV-TIENE-HIPOTECA
+           MOVE SQL-VAR-0005 TO HV-SALDO-CTA
 
                EVALUATE SQLCODE
                    WHEN 0
                        IF HV-IND-SALDO-CTA   < 0
                            MOVE ZERO   TO HV-SALDO-CTA
-                       END-IF
-                       IF HV-IND-COD-MOV     < 0
-                           MOVE ZERO   TO HV-COD-ULT-MOV
-                       END-IF
-                       IF HV-IND-FECHA-MOV   < 0
-                           MOVE SPACES TO HV-FECHA-ULT-MOV
-                       END-IF
-                       IF HV-IND-IMPORTE-MOV < 0
-                           MOVE ZERO   TO HV-IMPORTE-MOV
                        END-IF
 
       *                EXEC SQL
@@ -744,19 +753,17 @@
       *                        TIPO_DOC,          DOC_CLIENTE,
       *                        FECHA_ALTA,        NOMBRE_CLIENTE,
       *                        APELLIDOS_CLIENTE,
-      *                        SALDO_CLIENTE,     CTA_ACTIVA,
+      *                        SALDO_TOTAL_VISTA, ESTADO_CLIENTE,
       *                        TIENE_TARJETA,     TIENE_HIPOTECA,
-      *                        SALDO_CTA,         COD_ULT_MOV,
-      *                        FECHA_ULT_MOV,     IMPORTE_MOV
+      *                        SALDO_CTA
       *                    ) VALUES (
       *                        :WS-PERIODO,       :HV-ID-CLIENTE,
       *                        :HV-TIPO-DOC,      :HV-DOC-CLIENTE,
       *                        :HV-FECHA-ALTA,    :HV-NOMBRE,
       *                        :HV-APELLIDOS,
-      *                        :HV-SALDO-CLI,     :HV-CTA-ACTIVA,
+      *                        :HV-SALDO-CLI,     :HV-ESTADO-CLI,
       *                        :HV-TIENE-TARJETA, :HV-TIENE-HIPOTECA,
-      *                        :HV-SALDO-CTA,     :HV-COD-ULT-MOV,
-      *                        :HV-FECHA-ULT-MOV, :HV-IMPORTE-MOV
+      *                        :HV-SALDO-CTA
       *                    )
       *                END-EXEC
            IF SQL-PREP OF SQL-STMT-5 = 'N'
@@ -795,40 +802,25 @@
                MOVE 7 TO SQL-LEN(8)
                MOVE X'02' TO SQL-PREC(8)
                SET SQL-ADDR(9) TO ADDRESS OF
-                 SQL-VAR-0003
-               MOVE '3' TO SQL-TYPE(9)
+                 HV-ESTADO-CLI
+               MOVE 'X' TO SQL-TYPE(9)
                MOVE 1 TO SQL-LEN(9)
-               MOVE X'00' TO SQL-PREC(9)
                SET SQL-ADDR(10) TO ADDRESS OF
-                 SQL-VAR-0004
+                 SQL-VAR-0003
                MOVE '3' TO SQL-TYPE(10)
                MOVE 1 TO SQL-LEN(10)
                MOVE X'00' TO SQL-PREC(10)
                SET SQL-ADDR(11) TO ADDRESS OF
-                 SQL-VAR-0005
+                 SQL-VAR-0004
                MOVE '3' TO SQL-TYPE(11)
                MOVE 1 TO SQL-LEN(11)
                MOVE X'00' TO SQL-PREC(11)
                SET SQL-ADDR(12) TO ADDRESS OF
-                 SQL-VAR-0006
+                 SQL-VAR-0005
                MOVE '3' TO SQL-TYPE(12)
                MOVE 7 TO SQL-LEN(12)
                MOVE X'02' TO SQL-PREC(12)
-               SET SQL-ADDR(13) TO ADDRESS OF
-                 SQL-VAR-0007
-               MOVE '3' TO SQL-TYPE(13)
-               MOVE 2 TO SQL-LEN(13)
-               MOVE X'00' TO SQL-PREC(13)
-               SET SQL-ADDR(14) TO ADDRESS OF
-                 HV-FECHA-ULT-MOV
-               MOVE 'X' TO SQL-TYPE(14)
-               MOVE 10 TO SQL-LEN(14)
-               SET SQL-ADDR(15) TO ADDRESS OF
-                 SQL-VAR-0008
-               MOVE '3' TO SQL-TYPE(15)
-               MOVE 7 TO SQL-LEN(15)
-               MOVE X'02' TO SQL-PREC(15)
-               MOVE 15 TO SQL-COUNT
+               MOVE 12 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
                                    SQL-STMT-5
                                    SQLCA
@@ -838,18 +830,12 @@
              TO SQL-VAR-0001
            MOVE HV-SALDO-CLI
              TO SQL-VAR-0002
-           MOVE HV-CTA-ACTIVA
-             TO SQL-VAR-0003
            MOVE HV-TIENE-TARJETA
-             TO SQL-VAR-0004
+             TO SQL-VAR-0003
            MOVE HV-TIENE-HIPOTECA
-             TO SQL-VAR-0005
+             TO SQL-VAR-0004
            MOVE HV-SALDO-CTA
-             TO SQL-VAR-0006
-           MOVE HV-COD-ULT-MOV
-             TO SQL-VAR-0007
-           MOVE HV-IMPORTE-MOV
-             TO SQL-VAR-0008
+             TO SQL-VAR-0005
            CALL 'OCSQLEXE' USING SQL-STMT-5
                                SQLCA
 
@@ -959,11 +945,10 @@
       *                :HV-TARJ-NRO,
       *                :HV-TARJ-LIMITE,
       *                :HV-TARJ-ACUM,
-      *                :HV-TARJ-LIQUID,
       *                :HV-TARJ-ESTADO
       *        END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
-             SQL-VAR-0009
+             SQL-VAR-0006
            MOVE '3' TO SQL-TYPE(1)
            MOVE 5 TO SQL-LEN(1)
                MOVE X'00' TO SQL-PREC(1)
@@ -972,45 +957,39 @@
            MOVE 'X' TO SQL-TYPE(2)
            MOVE 16 TO SQL-LEN(2)
            SET SQL-ADDR(3) TO ADDRESS OF
-             SQL-VAR-0010
+             SQL-VAR-0007
            MOVE '3' TO SQL-TYPE(3)
            MOVE 7 TO SQL-LEN(3)
                MOVE X'02' TO SQL-PREC(3)
            SET SQL-ADDR(4) TO ADDRESS OF
-             SQL-VAR-0011
+             SQL-VAR-0008
            MOVE '3' TO SQL-TYPE(4)
            MOVE 7 TO SQL-LEN(4)
                MOVE X'02' TO SQL-PREC(4)
            SET SQL-ADDR(5) TO ADDRESS OF
-             SQL-VAR-0012
-           MOVE '3' TO SQL-TYPE(5)
-           MOVE 7 TO SQL-LEN(5)
-               MOVE X'02' TO SQL-PREC(5)
-           SET SQL-ADDR(6) TO ADDRESS OF
              HV-TARJ-ESTADO
-           MOVE 'X' TO SQL-TYPE(6)
-           MOVE 1 TO SQL-LEN(6)
-           MOVE 6 TO SQL-COUNT
+           MOVE 'X' TO SQL-TYPE(5)
+           MOVE 1 TO SQL-LEN(5)
+           MOVE 5 TO SQL-COUNT
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-1
                                SQLCA
-           MOVE SQL-VAR-0009 TO HV-TARJ-ID-CLI
-           MOVE SQL-VAR-0010 TO HV-TARJ-LIMITE
-           MOVE SQL-VAR-0011 TO HV-TARJ-ACUM
-           MOVE SQL-VAR-0012 TO HV-TARJ-LIQUID
+           MOVE SQL-VAR-0006 TO HV-TARJ-ID-CLI
+           MOVE SQL-VAR-0007 TO HV-TARJ-LIMITE
+           MOVE SQL-VAR-0008 TO HV-TARJ-ACUM
 
                EVALUATE SQLCODE
                    WHEN 0
       *                EXEC SQL
       *                    INSERT INTO AUDIT_TARJETAS (
       *                        PERIODO,       ID_CLIENTE,
-      *                        NRO_TARJETA,   LIMITE_TARJETA,
-      *                        ACUM_MES,      LIQUIDACION_MES,
-      *                        ESTADO
+      *                        NRO_TARJETA,   CUPO_APROBADO,
+      *                        SALDO_UTILIZADO,
+      *                        ESTADO_TARJETA
       *                    ) VALUES (
       *                        :WS-PERIODO,   :HV-TARJ-ID-CLI,
       *                        :HV-TARJ-NRO,  :HV-TARJ-LIMITE,
-      *                        :HV-TARJ-ACUM, :HV-TARJ-LIQUID,
+      *                        :HV-TARJ-ACUM,
       *                        :HV-TARJ-ESTADO
       *                    )
       *                END-EXEC
@@ -1020,7 +999,7 @@
                MOVE 'X' TO SQL-TYPE(1)
                MOVE 6 TO SQL-LEN(1)
                SET SQL-ADDR(2) TO ADDRESS OF
-                 SQL-VAR-0009
+                 SQL-VAR-0006
                MOVE '3' TO SQL-TYPE(2)
                MOVE 5 TO SQL-LEN(2)
                MOVE X'00' TO SQL-PREC(2)
@@ -1029,38 +1008,31 @@
                MOVE 'X' TO SQL-TYPE(3)
                MOVE 16 TO SQL-LEN(3)
                SET SQL-ADDR(4) TO ADDRESS OF
-                 SQL-VAR-0010
+                 SQL-VAR-0007
                MOVE '3' TO SQL-TYPE(4)
                MOVE 7 TO SQL-LEN(4)
                MOVE X'02' TO SQL-PREC(4)
                SET SQL-ADDR(5) TO ADDRESS OF
-                 SQL-VAR-0011
+                 SQL-VAR-0008
                MOVE '3' TO SQL-TYPE(5)
                MOVE 7 TO SQL-LEN(5)
                MOVE X'02' TO SQL-PREC(5)
                SET SQL-ADDR(6) TO ADDRESS OF
-                 SQL-VAR-0012
-               MOVE '3' TO SQL-TYPE(6)
-               MOVE 7 TO SQL-LEN(6)
-               MOVE X'02' TO SQL-PREC(6)
-               SET SQL-ADDR(7) TO ADDRESS OF
                  HV-TARJ-ESTADO
-               MOVE 'X' TO SQL-TYPE(7)
-               MOVE 1 TO SQL-LEN(7)
-               MOVE 7 TO SQL-COUNT
+               MOVE 'X' TO SQL-TYPE(6)
+               MOVE 1 TO SQL-LEN(6)
+               MOVE 6 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
                                    SQL-STMT-6
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
            MOVE HV-TARJ-ID-CLI
-             TO SQL-VAR-0009
+             TO SQL-VAR-0006
            MOVE HV-TARJ-LIMITE
-             TO SQL-VAR-0010
+             TO SQL-VAR-0007
            MOVE HV-TARJ-ACUM
-             TO SQL-VAR-0011
-           MOVE HV-TARJ-LIQUID
-             TO SQL-VAR-0012
+             TO SQL-VAR-0008
            CALL 'OCSQLEXE' USING SQL-STMT-6
                                SQLCA
 
@@ -1174,27 +1146,27 @@
       *                :HV-HIPO-ESTADO
       *        END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
-             SQL-VAR-0013
+             SQL-VAR-0009
            MOVE '3' TO SQL-TYPE(1)
            MOVE 5 TO SQL-LEN(1)
                MOVE X'00' TO SQL-PREC(1)
            SET SQL-ADDR(2) TO ADDRESS OF
-             SQL-VAR-0014
+             SQL-VAR-0010
            MOVE '3' TO SQL-TYPE(2)
            MOVE 5 TO SQL-LEN(2)
                MOVE X'00' TO SQL-PREC(2)
            SET SQL-ADDR(3) TO ADDRESS OF
-             SQL-VAR-0015
+             SQL-VAR-0011
            MOVE '3' TO SQL-TYPE(3)
            MOVE 8 TO SQL-LEN(3)
                MOVE X'02' TO SQL-PREC(3)
            SET SQL-ADDR(4) TO ADDRESS OF
-             SQL-VAR-0016
+             SQL-VAR-0012
            MOVE '3' TO SQL-TYPE(4)
            MOVE 4 TO SQL-LEN(4)
                MOVE X'04' TO SQL-PREC(4)
            SET SQL-ADDR(5) TO ADDRESS OF
-             SQL-VAR-0017
+             SQL-VAR-0013
            MOVE '3' TO SQL-TYPE(5)
            MOVE 8 TO SQL-LEN(5)
                MOVE X'02' TO SQL-PREC(5)
@@ -1210,20 +1182,20 @@
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-2
                                SQLCA
-           MOVE SQL-VAR-0013 TO HV-HIPO-ID-HIPO
-           MOVE SQL-VAR-0014 TO HV-HIPO-ID-CLI
-           MOVE SQL-VAR-0015 TO HV-HIPO-MONTO-ORIG
-           MOVE SQL-VAR-0016 TO HV-HIPO-TASA
-           MOVE SQL-VAR-0017 TO HV-HIPO-SALDO
+           MOVE SQL-VAR-0009 TO HV-HIPO-ID-HIPO
+           MOVE SQL-VAR-0010 TO HV-HIPO-ID-CLI
+           MOVE SQL-VAR-0011 TO HV-HIPO-MONTO-ORIG
+           MOVE SQL-VAR-0012 TO HV-HIPO-TASA
+           MOVE SQL-VAR-0013 TO HV-HIPO-SALDO
 
                EVALUATE SQLCODE
                    WHEN 0
       *                EXEC SQL
       *                    INSERT INTO AUDIT_HIPOTECAS (
       *                        PERIODO,             ID_HIPOTECA,
-      *                        ID_CLIENTE,          MONTO_ORIGINAL,
-      *                        TASA_INTERES,        SALDO_ACTUAL,
-      *                        FECHA_VENCTO,        ESTADO
+      *                        ID_CLIENTE,          MONTO_PRESTAMO,
+      *                        TASA_ANUAL,          SALDO_DEUDA,
+      *                        FECHA_VENCIMIENTO,   ESTADO_PRESTAMO
       *                    ) VALUES (
       *                        :WS-PERIODO,         :HV-HIPO-ID-HIPO,
       *                        :HV-HIPO-ID-CLI,     :HV-HIPO-MONTO-ORIG,
@@ -1237,27 +1209,27 @@
                MOVE 'X' TO SQL-TYPE(1)
                MOVE 6 TO SQL-LEN(1)
                SET SQL-ADDR(2) TO ADDRESS OF
-                 SQL-VAR-0013
+                 SQL-VAR-0009
                MOVE '3' TO SQL-TYPE(2)
                MOVE 5 TO SQL-LEN(2)
                MOVE X'00' TO SQL-PREC(2)
                SET SQL-ADDR(3) TO ADDRESS OF
-                 SQL-VAR-0014
+                 SQL-VAR-0010
                MOVE '3' TO SQL-TYPE(3)
                MOVE 5 TO SQL-LEN(3)
                MOVE X'00' TO SQL-PREC(3)
                SET SQL-ADDR(4) TO ADDRESS OF
-                 SQL-VAR-0015
+                 SQL-VAR-0011
                MOVE '3' TO SQL-TYPE(4)
                MOVE 8 TO SQL-LEN(4)
                MOVE X'02' TO SQL-PREC(4)
                SET SQL-ADDR(5) TO ADDRESS OF
-                 SQL-VAR-0016
+                 SQL-VAR-0012
                MOVE '3' TO SQL-TYPE(5)
                MOVE 4 TO SQL-LEN(5)
                MOVE X'04' TO SQL-PREC(5)
                SET SQL-ADDR(6) TO ADDRESS OF
-                 SQL-VAR-0017
+                 SQL-VAR-0013
                MOVE '3' TO SQL-TYPE(6)
                MOVE 8 TO SQL-LEN(6)
                MOVE X'02' TO SQL-PREC(6)
@@ -1276,15 +1248,15 @@
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
            MOVE HV-HIPO-ID-HIPO
-             TO SQL-VAR-0013
+             TO SQL-VAR-0009
            MOVE HV-HIPO-ID-CLI
-             TO SQL-VAR-0014
+             TO SQL-VAR-0010
            MOVE HV-HIPO-MONTO-ORIG
-             TO SQL-VAR-0015
+             TO SQL-VAR-0011
            MOVE HV-HIPO-TASA
-             TO SQL-VAR-0016
+             TO SQL-VAR-0012
            MOVE HV-HIPO-SALDO
-             TO SQL-VAR-0017
+             TO SQL-VAR-0013
            CALL 'OCSQLEXE' USING SQL-STMT-7
                                SQLCA
 
@@ -1400,22 +1372,22 @@
       *                :HV-MORA-MESES-MORA
       *        END-EXEC
            SET SQL-ADDR(1) TO ADDRESS OF
-             SQL-VAR-0018
+             SQL-VAR-0014
            MOVE '3' TO SQL-TYPE(1)
            MOVE 5 TO SQL-LEN(1)
                MOVE X'00' TO SQL-PREC(1)
            SET SQL-ADDR(2) TO ADDRESS OF
-             SQL-VAR-0019
+             SQL-VAR-0015
            MOVE '3' TO SQL-TYPE(2)
            MOVE 5 TO SQL-LEN(2)
                MOVE X'00' TO SQL-PREC(2)
            SET SQL-ADDR(3) TO ADDRESS OF
-             SQL-VAR-0020
+             SQL-VAR-0016
            MOVE '3' TO SQL-TYPE(3)
            MOVE 8 TO SQL-LEN(3)
                MOVE X'02' TO SQL-PREC(3)
            SET SQL-ADDR(4) TO ADDRESS OF
-             SQL-VAR-0021
+             SQL-VAR-0017
            MOVE '3' TO SQL-TYPE(4)
            MOVE 8 TO SQL-LEN(4)
                MOVE X'02' TO SQL-PREC(4)
@@ -1424,17 +1396,17 @@
            MOVE 'X' TO SQL-TYPE(5)
            MOVE 20 TO SQL-LEN(5)
            SET SQL-ADDR(6) TO ADDRESS OF
-             SQL-VAR-0022
+             SQL-VAR-0018
            MOVE '3' TO SQL-TYPE(6)
            MOVE 8 TO SQL-LEN(6)
                MOVE X'02' TO SQL-PREC(6)
            SET SQL-ADDR(7) TO ADDRESS OF
-             SQL-VAR-0023
+             SQL-VAR-0019
            MOVE '3' TO SQL-TYPE(7)
            MOVE 8 TO SQL-LEN(7)
                MOVE X'02' TO SQL-PREC(7)
            SET SQL-ADDR(8) TO ADDRESS OF
-             SQL-VAR-0024
+             SQL-VAR-0020
            MOVE '3' TO SQL-TYPE(8)
            MOVE 3 TO SQL-LEN(8)
                MOVE X'00' TO SQL-PREC(8)
@@ -1442,13 +1414,13 @@
            CALL 'OCSQLFTC' USING SQLV
                                SQL-STMT-3
                                SQLCA
-           MOVE SQL-VAR-0018 TO HV-MORA-ID-HIPO
-           MOVE SQL-VAR-0019 TO HV-MORA-ID-CLI
-           MOVE SQL-VAR-0020 TO HV-MORA-SALDO-ACT
-           MOVE SQL-VAR-0021 TO HV-MORA-MONTO-ORIG
-           MOVE SQL-VAR-0022 TO HV-MORA-PAGO-MENS
-           MOVE SQL-VAR-0023 TO HV-MORA-SALDO-ESP
-           MOVE SQL-VAR-0024 TO HV-MORA-MESES-MORA
+           MOVE SQL-VAR-0014 TO HV-MORA-ID-HIPO
+           MOVE SQL-VAR-0015 TO HV-MORA-ID-CLI
+           MOVE SQL-VAR-0016 TO HV-MORA-SALDO-ACT
+           MOVE SQL-VAR-0017 TO HV-MORA-MONTO-ORIG
+           MOVE SQL-VAR-0018 TO HV-MORA-PAGO-MENS
+           MOVE SQL-VAR-0019 TO HV-MORA-SALDO-ESP
+           MOVE SQL-VAR-0020 TO HV-MORA-MESES-MORA
 
                EVALUATE SQLCODE
                    WHEN 0
@@ -1493,7 +1465,8 @@
       *                    Actualizar estado e incrementar MESES_MORA
       *                    EXEC SQL
       *                        UPDATE HIPOTECAS
-      *                        SET    ESTADO = :HV-MORA-NUEVO-ESTADO,
+      *                        SET    ESTADO_PRESTAMO =
+      *                                   :HV-MORA-NUEVO-ESTADO,
       *                               MESES_MORA = MESES_MORA + 1
       *                        WHERE  ID_HIPOTECA = :HV-MORA-ID-HIPO
       *                    END-EXEC
@@ -1503,7 +1476,7 @@
                MOVE 'X' TO SQL-TYPE(1)
                MOVE 20 TO SQL-LEN(1)
                SET SQL-ADDR(2) TO ADDRESS OF
-                 SQL-VAR-0018
+                 SQL-VAR-0014
                MOVE '3' TO SQL-TYPE(2)
                MOVE 5 TO SQL-LEN(2)
                MOVE X'00' TO SQL-PREC(2)
@@ -1514,7 +1487,7 @@
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
            MOVE HV-MORA-ID-HIPO
-             TO SQL-VAR-0018
+             TO SQL-VAR-0014
            CALL 'OCSQLEXE' USING SQL-STMT-8
                                SQLCA
 
@@ -1539,19 +1512,19 @@
 
       *                    Consultar saldo actual del cliente
       *                    EXEC SQL
-      *                        SELECT SALDO_CLIENTE
+      *                        SELECT SALDO_TOTAL_VISTA
       *                        INTO   :HV-MORA-CLI-SALDO
       *                        FROM   CLIENTES
       *                        WHERE  ID_CLIENTE = :HV-MORA-ID-CLI
       *                    END-EXEC
            IF SQL-PREP OF SQL-STMT-9 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
-                 SQL-VAR-0025
+                 SQL-VAR-0021
                MOVE '3' TO SQL-TYPE(1)
                MOVE 7 TO SQL-LEN(1)
                MOVE X'02' TO SQL-PREC(1)
                SET SQL-ADDR(2) TO ADDRESS OF
-                 SQL-VAR-0019
+                 SQL-VAR-0015
                MOVE '3' TO SQL-TYPE(2)
                MOVE 5 TO SQL-LEN(2)
                MOVE X'00' TO SQL-PREC(2)
@@ -1561,10 +1534,10 @@
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
-           MOVE HV-MORA-ID-CLI TO SQL-VAR-0019
+           MOVE HV-MORA-ID-CLI TO SQL-VAR-0015
            CALL 'OCSQLEXE' USING SQL-STMT-9
                                SQLCA
-           MOVE SQL-VAR-0025 TO HV-MORA-CLI-SALDO
+           MOVE SQL-VAR-0021 TO HV-MORA-CLI-SALDO
 
                            IF SQLCODE = 0
       *                        Si el cliente tiene fondos descontar
@@ -1572,20 +1545,20 @@
                                   HV-MORA-PAGO-MENS
       *                            EXEC SQL
       *                                UPDATE CLIENTES
-      *                                SET    SALDO_CLIENTE =
-      *                                       SALDO_CLIENTE -
+      *                                SET    SALDO_TOTAL_VISTA =
+      *                                       SALDO_TOTAL_VISTA -
       *                                       :HV-MORA-PAGO-MENS
       *                                WHERE  ID_CLIENTE =
       *                                       :HV-MORA-ID-CLI
       *                            END-EXEC
            IF SQL-PREP OF SQL-STMT-10 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
-                 SQL-VAR-0022
+                 SQL-VAR-0018
                MOVE '3' TO SQL-TYPE(1)
                MOVE 8 TO SQL-LEN(1)
                MOVE X'02' TO SQL-PREC(1)
                SET SQL-ADDR(2) TO ADDRESS OF
-                 SQL-VAR-0019
+                 SQL-VAR-0015
                MOVE '3' TO SQL-TYPE(2)
                MOVE 5 TO SQL-LEN(2)
                MOVE X'00' TO SQL-PREC(2)
@@ -1596,9 +1569,9 @@
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
            MOVE HV-MORA-PAGO-MENS
-             TO SQL-VAR-0022
+             TO SQL-VAR-0018
            MOVE HV-MORA-ID-CLI
-             TO SQL-VAR-0019
+             TO SQL-VAR-0015
            CALL 'OCSQLEXE' USING SQL-STMT-10
                                SQLCA
                                    IF SQLCODE NOT = 0
@@ -1622,25 +1595,26 @@
                                        MOVE 'S' TO WS-FIN-MORA
                                    ELSE
       *                                Descontar cuota tambien del
-      *                                SALDO_ACTUAL de la hipoteca.
+      *                                SALDO_DEUDA de la hipoteca.
+      *                                FECHA_HORA_ALT se actualiza
+      *                                automaticamente (no hay
+      *                                FECHA_ULT_PAGO en schema v3).
       *                                EXEC SQL
       *                                    UPDATE HIPOTECAS
-      *                                    SET    SALDO_ACTUAL =
-      *                                           SALDO_ACTUAL -
-      *                                           :HV-MORA-PAGO-MENS,
-      *                                           FECHA_ULT_PAGO =
-      *                                           CURDATE()
+      *                                    SET    SALDO_DEUDA =
+      *                                           SALDO_DEUDA -
+      *                                           :HV-MORA-PAGO-MENS
       *                                    WHERE  ID_HIPOTECA =
       *                                           :HV-MORA-ID-HIPO
       *                                END-EXEC
            IF SQL-PREP OF SQL-STMT-11 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
-                 SQL-VAR-0022
+                 SQL-VAR-0018
                MOVE '3' TO SQL-TYPE(1)
                MOVE 8 TO SQL-LEN(1)
                MOVE X'02' TO SQL-PREC(1)
                SET SQL-ADDR(2) TO ADDRESS OF
-                 SQL-VAR-0018
+                 SQL-VAR-0014
                MOVE '3' TO SQL-TYPE(2)
                MOVE 5 TO SQL-LEN(2)
                MOVE X'00' TO SQL-PREC(2)
@@ -1651,9 +1625,9 @@
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
            MOVE HV-MORA-PAGO-MENS
-             TO SQL-VAR-0022
-           MOVE HV-MORA-ID-HIPO
              TO SQL-VAR-0018
+           MOVE HV-MORA-ID-HIPO
+             TO SQL-VAR-0014
            CALL 'OCSQLEXE' USING SQL-STMT-11
                                SQLCA
 
@@ -1710,19 +1684,19 @@
 
                        ELSE
       *                    Saldo correcto - si estaba MOROSO, regulariza
-      *                    Resetea MESES_MORA y marca FECHA_ULT_PAGO.
+      *                    Resetea MESES_MORA. FECHA_HORA_ALT se
+      *                    actualiza automaticamente en schema v3.
                            IF HV-MORA-ESTADO = 'MOROSO'
       *                        EXEC SQL
       *                            UPDATE HIPOTECAS
-      *                            SET    ESTADO = 'ACTIVO',
-      *                                   MESES_MORA = 0,
-      *                                   FECHA_ULT_PAGO = CURDATE()
+      *                            SET    ESTADO_PRESTAMO = 'ACTIVO',
+      *                                   MESES_MORA = 0
       *                            WHERE  ID_HIPOTECA =
       *                                   :HV-MORA-ID-HIPO
       *                        END-EXEC
            IF SQL-PREP OF SQL-STMT-12 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
-                 SQL-VAR-0018
+                 SQL-VAR-0014
                MOVE '3' TO SQL-TYPE(1)
                MOVE 5 TO SQL-LEN(1)
                MOVE X'00' TO SQL-PREC(1)
@@ -1733,7 +1707,7 @@
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
            MOVE HV-MORA-ID-HIPO
-             TO SQL-VAR-0018
+             TO SQL-VAR-0014
            CALL 'OCSQLEXE' USING SQL-STMT-12
                                SQLCA
 
@@ -1831,9 +1805,9 @@
 
       *    EXEC SQL
       *        UPDATE TARJETAS
-      *        SET    ESTADO = :HV-ESTADO-INACTIVO
-      *        WHERE  FECHA_VENCIMIENTO < CURDATE()
-      *        AND    ESTADO = :HV-ESTADO-ACTIVO
+      *        SET    ESTADO_TARJETA = :HV-ESTADO-INACTIVO
+      *        WHERE  FECHA_VENCTO   < CURDATE()
+      *        AND    ESTADO_TARJETA = :HV-ESTADO-ACTIVO
       *    END-EXEC
            IF SQL-PREP OF SQL-STMT-13 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -1881,8 +1855,8 @@
 
       *================================================================*
       *   6000 - RESET OPERATIVO: CIERRE DE TARJETAS                  *
-      *   Mueve ACUM_MES a LIQUIDACION_MES y resetea ACUM_MES a 0    *
-      *   Solo aplica a tarjetas ACTIVAS (ESTADO = 'A')               *
+      *   Schema v3: resetea SALDO_UTILIZADO a 0 en tarjetas ACTIVAS  *
+      *   (el saldo del periodo ya quedo en AUDIT_TARJETAS).          *
       *================================================================*
        6000-RESET-OPERATIVO.
            MOVE '>>> RESET OPERATIVO TARJETAS...'
@@ -1891,9 +1865,8 @@
 
       *    EXEC SQL
       *        UPDATE TARJETAS
-      *        SET    LIQUIDACION_MES = ACUM_MES,
-      *               ACUM_MES        = 0
-      *        WHERE  ESTADO = :HV-ESTADO-ACTIVO
+      *        SET    SALDO_UTILIZADO = 0
+      *        WHERE  ESTADO_TARJETA = :HV-ESTADO-ACTIVO
       *    END-EXEC
            IF SQL-PREP OF SQL-STMT-14 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -1910,7 +1883,13 @@
                                SQLCA
 
            IF SQLCODE = 0
-               MOVE ' RESET TARJETAS: OK' TO WS-LOG-LINE
+               MOVE SQLERRD(3)        TO WS-AUX-CTR
+               MOVE SPACES TO WS-LOG-LINE
+               STRING ' RESET TARJETAS OK - SALDO_UTILIZADO=0: '
+                          DELIMITED BY SIZE
+                      WS-AUX-CTR
+                          DELIMITED BY SIZE
+                   INTO WS-LOG-LINE
                PERFORM 9100-LOG-WRITE
            ELSE
                MOVE SQLCODE TO WS-AUX-SQLCODE
@@ -2039,23 +2018,17 @@
       *   8000 - PAUSA FINAL: MUESTRA RESULTADO Y ESPERA TECLA       *
       *================================================================*
        8000-PAUSA-RESULTADO.
-           PERFORM 9900-LIMPIAR-PANTALLA
-           DISPLAY '================================================'
-           DISPLAY ' BAT000 - PROCESO DE CIERRE MENSUAL'
-           DISPLAY ' PERIODO: ' WS-PERIODO
-           DISPLAY '================================================'
-           DISPLAY ' '
+           DISPLAY SCR-MARCO.
+           DISPLAY SCR-RESUMEN.
            IF WS-ABORT = 'N' AND WS-CTR-ERRORES = 0
-               DISPLAY '>>> EXITO EN EJECUCION DE CIERRE MENSUAL'
+               DISPLAY SCR-MSG-OK
            ELSE
-               DISPLAY '>>> FALLO EN EJECUCION DE CIERRE MENSUAL'
-           END-IF
-           DISPLAY ' '
-           DISPLAY ' Consulte el detalle en: '
-           DISPLAY '   docs/logs/BAT_LOGS_' WS-PERIODO '.txt'
-           DISPLAY ' '
-           DISPLAY 'Presione ENTER para regresar al menu...'
-           ACCEPT WS-TECLA.
+               DISPLAY SCR-MSG-ERR
+           END-IF.
+           DISPLAY SCR-LOG-INFO.
+           DISPLAY "Presione ENTER para regresar al menu."
+              LINE 24 COL 05.
+           ACCEPT WS-TECLA LINE 24 COL 41.
 
       *================================================================*
       *   9900 - LIMPIAR PANTALLA (Windows: cls)                       *
@@ -2098,48 +2071,41 @@
       *  CUR-MORA                 IN USE CURSOR
       *  CUR-TARJETAS             IN USE CURSOR
       *  HV-APELLIDOS             IN USE CHAR(25)
-      *  HV-COD-ULT-MOV           IN USE THROUGH TEMP VAR SQL-VAR-0007 DECIMAL(3,0)
-      *  HV-COUNT-PERIODO         IN USE THROUGH TEMP VAR SQL-VAR-0026 DECIMAL(7,0)
-      *  HV-CTA-ACTIVA            IN USE THROUGH TEMP VAR SQL-VAR-0003 DECIMAL(1,0)
+      *  HV-COUNT-PERIODO         IN USE THROUGH TEMP VAR SQL-VAR-0022 DECIMAL(7,0)
       *  HV-DOC-CLIENTE           IN USE CHAR(12)
       *  HV-ESTADO-ACTIVO         IN USE CHAR(1)
+      *  HV-ESTADO-CLI            IN USE CHAR(1)
       *  HV-ESTADO-INACTIVO       IN USE CHAR(1)
       *  HV-FECHA-ALTA            IN USE CHAR(10)
-      *  HV-FECHA-ULT-MOV         IN USE CHAR(10)
       *  HV-HIPO-ESTADO           IN USE CHAR(20)
       *  HV-HIPO-FECHA-VENC       IN USE CHAR(10)
-      *  HV-HIPO-ID-CLI           IN USE THROUGH TEMP VAR SQL-VAR-0014 DECIMAL(9,0)
-      *  HV-HIPO-ID-HIPO          IN USE THROUGH TEMP VAR SQL-VAR-0013 DECIMAL(9,0)
-      *  HV-HIPO-MONTO-ORIG       IN USE THROUGH TEMP VAR SQL-VAR-0015 DECIMAL(15,2)
-      *  HV-HIPO-SALDO            IN USE THROUGH TEMP VAR SQL-VAR-0017 DECIMAL(15,2)
-      *  HV-HIPO-TASA             IN USE THROUGH TEMP VAR SQL-VAR-0016 DECIMAL(7,4)
+      *  HV-HIPO-ID-CLI           IN USE THROUGH TEMP VAR SQL-VAR-0010 DECIMAL(9,0)
+      *  HV-HIPO-ID-HIPO          IN USE THROUGH TEMP VAR SQL-VAR-0009 DECIMAL(9,0)
+      *  HV-HIPO-MONTO-ORIG       IN USE THROUGH TEMP VAR SQL-VAR-0011 DECIMAL(15,2)
+      *  HV-HIPO-SALDO            IN USE THROUGH TEMP VAR SQL-VAR-0013 DECIMAL(15,2)
+      *  HV-HIPO-TASA             IN USE THROUGH TEMP VAR SQL-VAR-0012 DECIMAL(7,4)
       *  HV-ID-CLIENTE            IN USE THROUGH TEMP VAR SQL-VAR-0001 DECIMAL(9,0)
-      *  HV-IMPORTE-MOV           IN USE THROUGH TEMP VAR SQL-VAR-0008 DECIMAL(13,2)
-      *  HV-IND-COD-MOV           IN USE INTEGER(2 BYTES)
-      *  HV-IND-FECHA-MOV         IN USE INTEGER(2 BYTES)
-      *  HV-IND-IMPORTE-MOV       IN USE INTEGER(2 BYTES)
       *  HV-IND-SALDO-CTA         IN USE INTEGER(2 BYTES)
-      *  HV-MORA-CLI-SALDO        IN USE THROUGH TEMP VAR SQL-VAR-0025 DECIMAL(13,2)
+      *  HV-MORA-CLI-SALDO        IN USE THROUGH TEMP VAR SQL-VAR-0021 DECIMAL(13,2)
       *  HV-MORA-ESTADO           IN USE CHAR(20)
-      *  HV-MORA-ID-CLI           IN USE THROUGH TEMP VAR SQL-VAR-0019 DECIMAL(9,0)
-      *  HV-MORA-ID-HIPO          IN USE THROUGH TEMP VAR SQL-VAR-0018 DECIMAL(9,0)
-      *  HV-MORA-MESES-MORA       IN USE THROUGH TEMP VAR SQL-VAR-0024 DECIMAL(5,0)
-      *  HV-MORA-MONTO-ORIG       IN USE THROUGH TEMP VAR SQL-VAR-0021 DECIMAL(15,2)
+      *  HV-MORA-ID-CLI           IN USE THROUGH TEMP VAR SQL-VAR-0015 DECIMAL(9,0)
+      *  HV-MORA-ID-HIPO          IN USE THROUGH TEMP VAR SQL-VAR-0014 DECIMAL(9,0)
+      *  HV-MORA-MESES-MORA       IN USE THROUGH TEMP VAR SQL-VAR-0020 DECIMAL(5,0)
+      *  HV-MORA-MONTO-ORIG       IN USE THROUGH TEMP VAR SQL-VAR-0017 DECIMAL(15,2)
       *  HV-MORA-NUEVO-ESTADO     IN USE CHAR(20)
-      *  HV-MORA-PAGO-MENS        IN USE THROUGH TEMP VAR SQL-VAR-0022 DECIMAL(15,2)
-      *  HV-MORA-SALDO-ACT        IN USE THROUGH TEMP VAR SQL-VAR-0020 DECIMAL(15,2)
-      *  HV-MORA-SALDO-ESP        IN USE THROUGH TEMP VAR SQL-VAR-0023 DECIMAL(15,2)
+      *  HV-MORA-PAGO-MENS        IN USE THROUGH TEMP VAR SQL-VAR-0018 DECIMAL(15,2)
+      *  HV-MORA-SALDO-ACT        IN USE THROUGH TEMP VAR SQL-VAR-0016 DECIMAL(15,2)
+      *  HV-MORA-SALDO-ESP        IN USE THROUGH TEMP VAR SQL-VAR-0019 DECIMAL(15,2)
       *  HV-NOMBRE                IN USE CHAR(25)
       *  HV-SALDO-CLI             IN USE THROUGH TEMP VAR SQL-VAR-0002 DECIMAL(13,2)
-      *  HV-SALDO-CTA             IN USE THROUGH TEMP VAR SQL-VAR-0006 DECIMAL(13,2)
-      *  HV-TARJ-ACUM             IN USE THROUGH TEMP VAR SQL-VAR-0011 DECIMAL(13,2)
+      *  HV-SALDO-CTA             IN USE THROUGH TEMP VAR SQL-VAR-0005 DECIMAL(13,2)
+      *  HV-TARJ-ACUM             IN USE THROUGH TEMP VAR SQL-VAR-0008 DECIMAL(13,2)
       *  HV-TARJ-ESTADO           IN USE CHAR(1)
-      *  HV-TARJ-ID-CLI           IN USE THROUGH TEMP VAR SQL-VAR-0009 DECIMAL(9,0)
-      *  HV-TARJ-LIMITE           IN USE THROUGH TEMP VAR SQL-VAR-0010 DECIMAL(13,2)
-      *  HV-TARJ-LIQUID           IN USE THROUGH TEMP VAR SQL-VAR-0012 DECIMAL(13,2)
+      *  HV-TARJ-ID-CLI           IN USE THROUGH TEMP VAR SQL-VAR-0006 DECIMAL(9,0)
+      *  HV-TARJ-LIMITE           IN USE THROUGH TEMP VAR SQL-VAR-0007 DECIMAL(13,2)
       *  HV-TARJ-NRO              IN USE CHAR(16)
-      *  HV-TIENE-HIPOTECA        IN USE THROUGH TEMP VAR SQL-VAR-0005 DECIMAL(1,0)
-      *  HV-TIENE-TARJETA         IN USE THROUGH TEMP VAR SQL-VAR-0004 DECIMAL(1,0)
+      *  HV-TIENE-HIPOTECA        IN USE THROUGH TEMP VAR SQL-VAR-0004 DECIMAL(1,0)
+      *  HV-TIENE-TARJETA         IN USE THROUGH TEMP VAR SQL-VAR-0003 DECIMAL(1,0)
       *  HV-TIPO-DOC              IN USE CHAR(3)
       *  WS-HOST-ESTADOS      NOT IN USE
       *  WS-HOST-ESTADOS.HV-ESTADO-ACTIVO NOT IN USE
@@ -2154,16 +2120,10 @@
       *  WS-HOST-HIPOTECAS.HV-HIPO-TASA NOT IN USE
       *  WS-HOST-MAESTRA      NOT IN USE
       *  WS-HOST-MAESTRA.HV-APELLIDOS NOT IN USE
-      *  WS-HOST-MAESTRA.HV-COD-ULT-MOV NOT IN USE
-      *  WS-HOST-MAESTRA.HV-CTA-ACTIVA NOT IN USE
       *  WS-HOST-MAESTRA.HV-DOC-CLIENTE NOT IN USE
+      *  WS-HOST-MAESTRA.HV-ESTADO-CLI NOT IN USE
       *  WS-HOST-MAESTRA.HV-FECHA-ALTA NOT IN USE
-      *  WS-HOST-MAESTRA.HV-FECHA-ULT-MOV NOT IN USE
       *  WS-HOST-MAESTRA.HV-ID-CLIENTE NOT IN USE
-      *  WS-HOST-MAESTRA.HV-IMPORTE-MOV NOT IN USE
-      *  WS-HOST-MAESTRA.HV-IND-COD-MOV NOT IN USE
-      *  WS-HOST-MAESTRA.HV-IND-FECHA-MOV NOT IN USE
-      *  WS-HOST-MAESTRA.HV-IND-IMPORTE-MOV NOT IN USE
       *  WS-HOST-MAESTRA.HV-IND-SALDO-CTA NOT IN USE
       *  WS-HOST-MAESTRA.HV-NOMBRE NOT IN USE
       *  WS-HOST-MAESTRA.HV-SALDO-CLI NOT IN USE
@@ -2187,7 +2147,6 @@
       *  WS-HOST-TARJETAS.HV-TARJ-ESTADO NOT IN USE
       *  WS-HOST-TARJETAS.HV-TARJ-ID-CLI NOT IN USE
       *  WS-HOST-TARJETAS.HV-TARJ-LIMITE NOT IN USE
-      *  WS-HOST-TARJETAS.HV-TARJ-LIQUID NOT IN USE
       *  WS-HOST-TARJETAS.HV-TARJ-NRO NOT IN USE
       *  WS-PERIODO               IN USE CHAR(6)
       **********************************************************************

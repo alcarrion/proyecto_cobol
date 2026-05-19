@@ -26,14 +26,14 @@
            05 SQL-CNAME  PIC X(8) VALUE 'CUR_CTAS'.
            05 FILLER     PIC X VALUE LOW-VALUE.
       **********************************************************************
-      * SQL-STMT-1 reemplazado: fecha obtenida via COBOL ACCEPT FROM DATE
        01 SQL-STMT-1.
            05 SQL-IPTR   POINTER VALUE NULL.
-           05 SQL-PREP   PIC X VALUE 'Y'.
+           05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 0.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMT   PIC X(1) VALUE SPACE.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 50.
+           05 SQL-STMT   PIC X(50) VALUE 'SELECT DATE_FORMAT(CURDATE(),'
+      -    ''%Y-%m-%d'') FROM DUAL'.
       **********************************************************************
        01 SQL-STMT-2.
            05 SQL-IPTR   POINTER VALUE NULL.
@@ -139,10 +139,7 @@
       *******       END OF PRECOMPILER-GENERATED VARIABLES           *******
       **********************************************************************
 
-       01  WS-FECHA-SYS.
-           05  WS-FS-ANIO    PIC 9(04).
-           05  WS-FS-MES     PIC 9(02).
-           05  WS-FS-DIA     PIC 9(02).
+      *> Variable de trabajo COBOL (debe ir ANTES de EXEC SQL)
        01  WS-TX-IMPORTE          PIC S9(13)V99 COMP-3.
 
       *    EXEC SQL INCLUDE SQLCA END-EXEC.
@@ -348,11 +345,24 @@
            MOVE INVM-SALDO-ACTUAL  TO DB-INVM-SALDO-ACTUAL.
            MOVE INVM-ESTADO-CUENTA TO DB-INVM-ESTADO-CUENTA.
 
-            *> Fecha de apertura obtenida por COBOL (no SQL) para evitar crash del compilador
-           ACCEPT WS-FECHA-SYS FROM DATE YYYYMMDD.
-           STRING WS-FS-ANIO '-' WS-FS-MES '-' WS-FS-DIA
-               DELIMITED BY SIZE
-               INTO DB-INVM-FECHA-HOY.
+      *    EXEC SQL
+      *        SELECT DATE_FORMAT(CURDATE(),'%Y-%m-%d')
+      *        INTO   :DB-INVM-FECHA-HOY FROM DUAL
+      *    END-EXEC.
+           IF SQL-PREP OF SQL-STMT-1 = 'N'
+               SET SQL-ADDR(1) TO ADDRESS OF
+                 DB-INVM-FECHA-HOY
+               MOVE 'X' TO SQL-TYPE(1)
+               MOVE 10 TO SQL-LEN(1)
+               MOVE 1 TO SQL-COUNT
+               CALL 'OCSQLPRE' USING SQLV
+                                   SQL-STMT-1
+                                   SQLCA
+               SET SQL-HCONN OF SQLCA TO NULL
+           END-IF
+           CALL 'OCSQLEXE' USING SQL-STMT-1
+                               SQLCA
+                   .
 
       *    EXEC SQL
       *        INSERT INTO ctactes

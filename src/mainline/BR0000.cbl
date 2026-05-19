@@ -59,6 +59,12 @@
        01  WS-AUX-CLI             PIC 9(08).
        01  WS-AUX-MONTO           PIC -9(13).99.
 
+      *    Formatos para DISPLAY (montos, tasa)
+       01  WS-FMT-MONTO           PIC ZZZ,ZZZ,ZZZ,ZZ9.99.
+       01  WS-FMT-MONTO-S         PIC ZZZ,ZZ9.99.
+       01  WS-FMT-TASA            PIC ZZ9.99.
+       01  WS-FMT-CUOTA           PIC ZZZ,ZZZ,ZZ9.99.
+
        01  WS-FECHA-EDITADA.
            05 WS-ED-ANIO          PIC 9(04).
            05 FILLER              PIC X(01) VALUE "-".
@@ -204,7 +210,6 @@
            END-IF.
 
            IF WS-PUEDE-CONTINUAR = 'S'
-               ACCEPT WS-FECHA-HOY FROM DATE YYYYMMDD
                PERFORM 2110-CAPTURAR-DATOS-ALTA
            END-IF.
 
@@ -256,36 +261,12 @@
                END-IF
            END-IF.
 
+      *    Tasa NO se pide al usuario - se calcula por plazo (9130).
            IF WS-PUEDE-CONTINUAR = 'S'
-               DISPLAY "Tasa anual % : " LINE 14 COL 05
-               ACCEPT WS-ENTRADA-TXT LINE 14 COL 22
-               PERFORM 9300-VALIDAR-NUMERO
-               IF VAL-ERROR
-                   DISPLAY "ERROR: tasa invalida."
-                      LINE 22 COL 05
-                   DISPLAY "Presione ENTER para continuar."
-                      LINE 24 COL 05
-                   ACCEPT WS-ENTRADA-TXT LINE 24 COL 36
-                   MOVE 'N' TO WS-PUEDE-CONTINUAR
-               ELSE
-                   MOVE FUNCTION NUMVAL(WS-ENTRADA-TXT)
-                       TO BORM-TASA-ANUAL
-                   IF BORM-TASA-ANUAL <= 0
-                       DISPLAY "ERROR: tasa mayor a cero."
-                          LINE 22 COL 05
-                       DISPLAY "Presione ENTER para continuar."
-                          LINE 24 COL 05
-                       ACCEPT WS-ENTRADA-TXT LINE 24 COL 36
-                       MOVE 'N' TO WS-PUEDE-CONTINUAR
-                   END-IF
-               END-IF
-           END-IF.
-
-           IF WS-PUEDE-CONTINUAR = 'S'
-               DISPLAY "Plazo (meses): " LINE 15 COL 05
-               ACCEPT WS-PLAZO-MESES LINE 15 COL 22
+               DISPLAY "Plazo (meses): " LINE 14 COL 05
+               ACCEPT WS-PLAZO-MESES LINE 14 COL 22
                IF WS-PLAZO-MESES <= 0 OR WS-PLAZO-MESES > 360
-                   DISPLAY "ERROR: plazo entre 1 y 360."
+                   DISPLAY "ERROR: plazo entre 1 y 360 meses."
                       LINE 22 COL 05
                    DISPLAY "Presione ENTER para continuar."
                       LINE 24 COL 05
@@ -295,10 +276,29 @@
            END-IF.
 
            IF WS-PUEDE-CONTINUAR = 'S'
+               PERFORM 9130-CALCULAR-TASA
+               MOVE BORM-TASA-ANUAL TO WS-FMT-TASA
+               DISPLAY "Tasa anual % : " LINE 15 COL 05
+               DISPLAY WS-FMT-TASA      LINE 15 COL 22
+               DISPLAY "(asignada por plazo)" LINE 15 COL 32
                PERFORM 9110-CALCULAR-VENCIMIENTO
                PERFORM 9120-CALCULAR-CUOTA
                PERFORM 2140-GUARDAR-HIPOTECA
            END-IF.
+
+       9130-CALCULAR-TASA.
+      *    Tabla de tasas por plazo (modelo de negocio v3):
+      *      meses <  3 => 2%
+      *      meses <  7 => 4%
+      *      meses >= 7 => 9%
+           EVALUATE TRUE
+              WHEN WS-PLAZO-MESES < 3
+                 MOVE 2 TO BORM-TASA-ANUAL
+              WHEN WS-PLAZO-MESES < 7
+                 MOVE 4 TO BORM-TASA-ANUAL
+              WHEN OTHER
+                 MOVE 9 TO BORM-TASA-ANUAL
+           END-EVALUATE.
 
        2140-GUARDAR-HIPOTECA.
            MOVE WS-CUENTA-DEBITO    TO BORM-CUENTA-DEBITO.
@@ -335,29 +335,36 @@
                DISPLAY SCR-MARCO
                DISPLAY "HIPOTECA REGISTRADA EXITOSAMENTE"
                   LINE 06 COL 05
-               DISPLAY "Nro Hip. : " LINE 08 COL 05
-               DISPLAY BORM-ID-HIPOTECA LINE 08 COL 18
-               DISPLAY "Cliente  : " LINE 09 COL 05
-               DISPLAY WS-NOMBRE-CLIENTE LINE 09 COL 18
-               DISPLAY "Apellido : " LINE 10 COL 05
-               DISPLAY WS-APELLIDO-CLIENTE LINE 10 COL 18
-               DISPLAY "Prestamo : " LINE 12 COL 05
-               DISPLAY BORM-MONTO-PRESTAMO LINE 12 COL 18
-               DISPLAY "Tasa A.  : " LINE 13 COL 05
-               DISPLAY BORM-TASA-ANUAL LINE 13 COL 18
-               DISPLAY "Plazo    : " LINE 14 COL 05
-               DISPLAY WS-PLAZO-MESES LINE 14 COL 18
-               DISPLAY "Cuota M. : " LINE 15 COL 05
-               DISPLAY BORM-CUOTA-MENSUAL LINE 15 COL 18
-               DISPLAY "Total Fin: " LINE 16 COL 05
-               DISPLAY WS-TOTAL-FINANCIADO LINE 16 COL 18
-               DISPLAY "Cta Deb. : " LINE 17 COL 05
-               DISPLAY BORM-CUENTA-DEBITO LINE 17 COL 18
-               DISPLAY "Vence    : " LINE 18 COL 05
-               DISPLAY BORM-FECHA-VENCIMIENTO LINE 18 COL 18
-               DISPLAY "Estado   : " LINE 19 COL 05
-               DISPLAY BORM-ESTADO-PRESTAMO LINE 19 COL 18
-               DISPLAY "El batch descontara la cuota mensual."
+               DISPLAY "Nro Hipoteca : " LINE 08 COL 05
+               DISPLAY BORM-ID-HIPOTECA LINE 08 COL 22
+               DISPLAY "Cliente      : " LINE 09 COL 05
+               DISPLAY WS-NOMBRE-CLIENTE LINE 09 COL 22
+               DISPLAY WS-APELLIDO-CLIENTE LINE 09 COL 48
+               MOVE BORM-MONTO-PRESTAMO TO WS-FMT-MONTO
+               DISPLAY "Monto prestamo : $" LINE 11 COL 05
+               DISPLAY WS-FMT-MONTO LINE 11 COL 22
+               MOVE BORM-TASA-ANUAL TO WS-FMT-TASA
+               DISPLAY "Tasa anual     : " LINE 12 COL 05
+               DISPLAY WS-FMT-TASA LINE 12 COL 22
+               DISPLAY "%" LINE 12 COL 29
+               DISPLAY "Plazo (meses)  : " LINE 13 COL 05
+               DISPLAY WS-PLAZO-MESES LINE 13 COL 22
+               MOVE BORM-CUOTA-MENSUAL TO WS-FMT-CUOTA
+               DISPLAY "Cuota mensual  : $" LINE 14 COL 05
+               DISPLAY WS-FMT-CUOTA LINE 14 COL 22
+               MOVE WS-TOTAL-FINANCIADO TO WS-FMT-MONTO
+               DISPLAY "Total a pagar  : $" LINE 15 COL 05
+               DISPLAY WS-FMT-MONTO LINE 15 COL 22
+               MOVE WS-INTERES-TOTAL TO WS-FMT-MONTO
+               DISPLAY "Interes total  : $" LINE 16 COL 05
+               DISPLAY WS-FMT-MONTO LINE 16 COL 22
+               DISPLAY "Cuenta debito  : " LINE 17 COL 05
+               DISPLAY BORM-CUENTA-DEBITO LINE 17 COL 22
+               DISPLAY "Vencimiento    : " LINE 18 COL 05
+               DISPLAY BORM-FECHA-VENCIMIENTO LINE 18 COL 22
+               DISPLAY "Estado         : " LINE 19 COL 05
+               DISPLAY BORM-ESTADO-PRESTAMO LINE 19 COL 22
+               DISPLAY "El batch descontara la cuota mensualmente."
                   LINE 21 COL 05
            ELSE
                CALL WS-PGM-TRAN USING 'R'
@@ -385,39 +392,52 @@
            PERFORM 9010-BUSCAR-HIPOTECA.
 
            IF NOT LK-EXITO
+               DISPLAY SCR-MARCO
+               DISPLAY "CONSULTA DE HIPOTECA"
+                  LINE 06 COL 05
                PERFORM 9500-MSG-ERROR-HIPOTECA
            ELSE
                DISPLAY SCR-MARCO
                DISPLAY "ESTADO DE LA HIPOTECA"
                   LINE 06 COL 05
-               DISPLAY "Nro Hip. : " LINE 08 COL 05
-               DISPLAY BORM-ID-HIPOTECA LINE 08 COL 18
-               DISPLAY "Cliente  : " LINE 09 COL 05
-               DISPLAY WS-NOMBRE-CLIENTE LINE 09 COL 18
-               DISPLAY "Apellido : " LINE 10 COL 05
-               DISPLAY WS-APELLIDO-CLIENTE LINE 10 COL 18
-               DISPLAY "Cta Deb. : " LINE 12 COL 05
-               DISPLAY BORM-CUENTA-DEBITO LINE 12 COL 18
-               DISPLAY "Prestamo : " LINE 13 COL 05
-               DISPLAY BORM-MONTO-PRESTAMO LINE 13 COL 18
-               DISPLAY "Saldo    : " LINE 14 COL 05
-               DISPLAY BORM-SALDO-DEUDA LINE 14 COL 18
-               DISPLAY "Tasa A.  : " LINE 15 COL 05
-               DISPLAY BORM-TASA-ANUAL LINE 15 COL 18
-               DISPLAY "Cuota M. : " LINE 16 COL 05
-               DISPLAY BORM-CUOTA-MENSUAL LINE 16 COL 18
-               DISPLAY "Mora     : " LINE 17 COL 05
-               DISPLAY BORM-MESES-MORA LINE 17 COL 18
-               DISPLAY " meses" LINE 17 COL 25
-               DISPLAY "Vence    : " LINE 18 COL 05
-               DISPLAY BORM-FECHA-VENCIMIENTO LINE 18 COL 18
-               DISPLAY "Estado   : " LINE 19 COL 05
-               DISPLAY BORM-ESTADO-PRESTAMO LINE 19 COL 18
+               DISPLAY "Nro Hipoteca   : " LINE 08 COL 05
+               DISPLAY BORM-ID-HIPOTECA LINE 08 COL 22
+               DISPLAY "Cliente        : " LINE 09 COL 05
+               DISPLAY WS-NOMBRE-CLIENTE LINE 09 COL 22
+               DISPLAY WS-APELLIDO-CLIENTE LINE 09 COL 48
+               DISPLAY "Cuenta debito  : " LINE 11 COL 05
+               DISPLAY BORM-CUENTA-DEBITO LINE 11 COL 22
+               MOVE BORM-MONTO-PRESTAMO TO WS-FMT-MONTO
+               DISPLAY "Monto prestamo : $" LINE 12 COL 05
+               DISPLAY WS-FMT-MONTO LINE 12 COL 22
+               MOVE BORM-SALDO-DEUDA TO WS-FMT-MONTO
+               DISPLAY "Saldo deuda    : $" LINE 13 COL 05
+               DISPLAY WS-FMT-MONTO LINE 13 COL 22
+               MOVE BORM-TASA-ANUAL TO WS-FMT-TASA
+               DISPLAY "Tasa anual     : " LINE 14 COL 05
+               DISPLAY WS-FMT-TASA LINE 14 COL 22
+               DISPLAY "%" LINE 14 COL 29
+               MOVE BORM-CUOTA-MENSUAL TO WS-FMT-CUOTA
+               DISPLAY "Cuota mensual  : $" LINE 15 COL 05
+               DISPLAY WS-FMT-CUOTA LINE 15 COL 22
+               DISPLAY "Meses en mora  : " LINE 16 COL 05
+               DISPLAY BORM-MESES-MORA LINE 16 COL 22
+               DISPLAY "Vencimiento    : " LINE 17 COL 05
+               DISPLAY BORM-FECHA-VENCIMIENTO LINE 17 COL 22
+               DISPLAY "Estado         : " LINE 18 COL 05
+               DISPLAY BORM-ESTADO-PRESTAMO LINE 18 COL 22
+               IF HIPO-PAGADO
+                  DISPLAY "** HIPOTECA YA SALDADA **"
+                     LINE 20 COL 05
+               END-IF
+               IF HIPO-MOROSO
+                  DISPLAY "** ATENCION: HIPOTECA EN MORA **"
+                     LINE 20 COL 05
+               END-IF
+               DISPLAY "Presione ENTER para continuar."
+                  LINE 24 COL 05
+               ACCEPT WS-ENTRADA-TXT LINE 24 COL 36
            END-IF.
-
-           DISPLAY "Presione ENTER para continuar."
-              LINE 24 COL 05.
-           ACCEPT WS-ENTRADA-TXT LINE 24 COL 36.
 
        2300-PROCESAR-PAGO.
            DISPLAY SCR-MARCO.
@@ -427,14 +447,22 @@
            PERFORM 9010-BUSCAR-HIPOTECA.
 
            IF NOT LK-EXITO
+               DISPLAY SCR-MARCO
+               DISPLAY "PAGO MANUAL DE CUOTA"
+                  LINE 06 COL 05
                PERFORM 9500-MSG-ERROR-HIPOTECA
                MOVE 'N' TO WS-PUEDE-CONTINUAR
            END-IF.
 
            IF WS-PUEDE-CONTINUAR = 'S'
                IF HIPO-PAGADO
-                   DISPLAY "RECHAZADA: hipoteca ya pagada."
+                   DISPLAY SCR-MARCO
+                   DISPLAY "PAGO MANUAL DE CUOTA"
+                      LINE 06 COL 05
+                   DISPLAY "OPERACION RECHAZADA:"
                       LINE 18 COL 05
+                   DISPLAY "La hipoteca ya esta totalmente pagada."
+                      LINE 19 COL 05
                    DISPLAY "Presione ENTER para continuar."
                       LINE 24 COL 05
                    ACCEPT WS-ENTRADA-TXT LINE 24 COL 36
@@ -446,25 +474,26 @@
                DISPLAY SCR-MARCO
                DISPLAY "PAGO MANUAL DE CUOTA"
                   LINE 06 COL 05
-               DISPLAY "Cliente      : " LINE 08 COL 05
+               DISPLAY "Cliente       : " LINE 08 COL 05
                DISPLAY WS-NOMBRE-CLIENTE LINE 08 COL 22
-               DISPLAY "Nro hipoteca : " LINE 09 COL 05
+               DISPLAY "Nro hipoteca  : " LINE 09 COL 05
                DISPLAY BORM-ID-HIPOTECA LINE 09 COL 22
-               DISPLAY "Saldo deuda  : " LINE 10 COL 05
-               DISPLAY BORM-SALDO-DEUDA LINE 10 COL 22
-               DISPLAY "Cuota mens.  : " LINE 11 COL 05
-               DISPLAY BORM-CUOTA-MENSUAL LINE 11 COL 22
+               MOVE BORM-SALDO-DEUDA TO WS-FMT-MONTO
+               DISPLAY "Saldo deuda   : $" LINE 10 COL 05
+               DISPLAY WS-FMT-MONTO LINE 10 COL 22
+               MOVE BORM-CUOTA-MENSUAL TO WS-FMT-CUOTA
+               DISPLAY "Cuota mensual : $" LINE 11 COL 05
+               DISPLAY WS-FMT-CUOTA LINE 11 COL 22
                IF HIPO-MOROSO
-                   DISPLAY "AVISO: hipoteca EN MORA - "
-                      LINE 13 COL 05
-                   DISPLAY BORM-MESES-MORA LINE 13 COL 30
-                   DISPLAY " meses" LINE 13 COL 36
+                  DISPLAY "** EN MORA - meses: " LINE 13 COL 05
+                  DISPLAY BORM-MESES-MORA LINE 13 COL 26
+                  DISPLAY " **" LINE 13 COL 30
                END-IF
-               DISPLAY "Monto a pagar: " LINE 15 COL 05
+               DISPLAY "Monto a pagar : $" LINE 15 COL 05
                ACCEPT WS-ENTRADA-TXT LINE 15 COL 22
                PERFORM 9300-VALIDAR-NUMERO
                IF VAL-ERROR
-                   DISPLAY "ERROR: monto invalido."
+                   DISPLAY "ERROR: monto invalido (use solo digitos)"
                       LINE 22 COL 05
                    DISPLAY "Presione ENTER para continuar."
                       LINE 24 COL 05
@@ -503,6 +532,7 @@
 
        2310-APLICAR-PAGO.
            SUBTRACT WS-MONTO-PAGO FROM BORM-SALDO-DEUDA.
+           MOVE 'N' TO WS-VAL-OK.
 
            EVALUATE TRUE
                WHEN BORM-SALDO-DEUDA = 0
@@ -512,7 +542,9 @@
                    MOVE "ACTIVO" TO BORM-ESTADO-PRESTAMO
                    MOVE ZERO     TO BORM-MESES-MORA
                WHEN OTHER
-                   CONTINUE
+      *            Pago parcial: no cubre la cuota completa.
+      *            La mora la evalua BAT000 en el cierre mensual.
+                   MOVE 'S' TO WS-VAL-OK
            END-EVALUATE.
 
            SET ACCION-UPDATE TO TRUE.
@@ -538,14 +570,26 @@
                DISPLAY SCR-MARCO
                DISPLAY "PAGO PROCESADO EXITOSAMENTE"
                   LINE 06 COL 05
-               DISPLAY "Pagado : " LINE 09 COL 05
-               DISPLAY WS-MONTO-PAGO LINE 09 COL 18
-               DISPLAY "Saldo  : " LINE 10 COL 05
-               DISPLAY BORM-SALDO-DEUDA LINE 10 COL 18
-               DISPLAY "Estado : " LINE 11 COL 05
-               DISPLAY BORM-ESTADO-PRESTAMO LINE 11 COL 18
-               DISPLAY "Mora   : " LINE 12 COL 05
-               DISPLAY BORM-MESES-MORA LINE 12 COL 18
+               MOVE WS-MONTO-PAGO TO WS-FMT-MONTO
+               DISPLAY "Monto pagado    : $" LINE 09 COL 05
+               DISPLAY WS-FMT-MONTO LINE 09 COL 25
+               MOVE BORM-SALDO-DEUDA TO WS-FMT-MONTO
+               DISPLAY "Saldo restante  : $" LINE 10 COL 05
+               DISPLAY WS-FMT-MONTO LINE 10 COL 25
+               DISPLAY "Estado          : " LINE 11 COL 05
+               DISPLAY BORM-ESTADO-PRESTAMO LINE 11 COL 25
+               DISPLAY "Meses en mora   : " LINE 12 COL 05
+               DISPLAY BORM-MESES-MORA LINE 12 COL 25
+               IF VAL-OK
+                  DISPLAY "AVISO: pago parcial - no cubre la cuota."
+                     LINE 15 COL 05
+                  DISPLAY "BAT000 evaluara la mora en el cierre."
+                     LINE 16 COL 05
+               END-IF
+               IF HIPO-PAGADO
+                  DISPLAY "** HIPOTECA TOTALMENTE PAGADA **"
+                     LINE 15 COL 05
+               END-IF
            ELSE
                CALL WS-PGM-TRAN USING 'R'
                MOVE SPACES TO WS-LOG-LINE
@@ -627,14 +671,33 @@
            END-IF.
 
            IF WS-PUEDE-CONTINUAR = 'S'
-               DISPLAY "Nro hipoteca  : " LINE 13 COL 05
-               ACCEPT BORM-ID-HIPOTECA LINE 13 COL 22
-
-               IF BORM-ID-HIPOTECA = ZERO
-                   MOVE 'E404' TO LK-COD-RETORNO
-                   MOVE "NUMERO DE HIPOTECA INVALIDO"
+               MOVE SPACES TO WS-ENTRADA-TXT
+               DISPLAY "Nro hipoteca (ej: 17): " LINE 13 COL 05
+               ACCEPT WS-ENTRADA-TXT LINE 13 COL 28
+               MOVE FUNCTION TRIM(WS-ENTRADA-TXT)
+                   TO WS-ENTRADA-TXT
+               IF WS-ENTRADA-TXT = SPACES
+                  MOVE 'E404' TO LK-COD-RETORNO
+                  MOVE "NUMERO DE HIPOTECA REQUERIDO"
                        TO LK-MENSAJE
-                   MOVE 'N' TO WS-PUEDE-CONTINUAR
+                  MOVE 'N' TO WS-PUEDE-CONTINUAR
+               ELSE
+                  PERFORM 9300-VALIDAR-NUMERO
+                  IF VAL-ERROR
+                     MOVE 'E404' TO LK-COD-RETORNO
+                     MOVE "NUMERO DE HIPOTECA INVALIDO"
+                         TO LK-MENSAJE
+                     MOVE 'N' TO WS-PUEDE-CONTINUAR
+                  ELSE
+                     COMPUTE BORM-ID-HIPOTECA =
+                         FUNCTION NUMVAL(WS-ENTRADA-TXT)
+                     IF BORM-ID-HIPOTECA = ZERO
+                        MOVE 'E404' TO LK-COD-RETORNO
+                        MOVE "NUMERO DE HIPOTECA INVALIDO"
+                            TO LK-MENSAJE
+                        MOVE 'N' TO WS-PUEDE-CONTINUAR
+                     END-IF
+                  END-IF
                END-IF
            END-IF.
 
