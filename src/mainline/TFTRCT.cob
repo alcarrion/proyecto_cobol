@@ -27,21 +27,30 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 0.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 124.
-           05 SQL-STMT   PIC X(124) VALUE 'SELECT ID_LOTE,FILE_NAME,FASE
-      -    ',TYPE_UPDATE FROM tffm WHERE FASE < ''40'' AND ESTADO_REPLIC
-      -    'A = ''R'' ORDER BY ID_LOTE ASC LIMIT 100'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 85.
+           05 SQL-STMT   PIC X(85) VALUE 'SELECT REPLICA_NO FROM tf_repl
+      -    'icas WHERE STATUS = ''L'' ORDER BY REPLICA_NO ASC LIMIT 1'.
       **********************************************************************
        01 SQL-STMT-1.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 0.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 108.
-           05 SQL-STMT   PIC X(108) VALUE 'SELECT REPLICA_NO FROM tf_repl
-      -    'icas WHERE STATUS = ''L'' ORDER BY REPLICA_NO ASC LIMIT 10'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 123.
+           05 SQL-STMT   PIC X(123) VALUE 'SELECT ID_LOTE,FILE_NAME,FASE
+      -    ',TYPE_UPDATE FROM tffm WHERE FASE < ''40'' AND ESTADO_REPLIC
+      -    'A = ''R'' ORDER BY ID_LOTE ASC LIMIT 1'.
       **********************************************************************
        01 SQL-STMT-2.
+           05 SQL-IPTR   POINTER VALUE NULL.
+           05 SQL-PREP   PIC X VALUE 'N'.
+           05 SQL-OPT    PIC X VALUE SPACE.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 0.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 86.
+           05 SQL-STMT   PIC X(86) VALUE 'SELECT REPLICA_NO FROM tf_repl
+      -    'icas WHERE STATUS = ''L'' ORDER BY REPLICA_NO ASC LIMIT 10'.
+      **********************************************************************
+       01 SQL-STMT-3.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
@@ -50,7 +59,7 @@
            05 SQL-STMT   PIC X(56) VALUE 'UPDATE tf_replicas SET STATUS 
       -    '= ''O'' WHERE REPLICA_NO = ?'.
       **********************************************************************
-       01 SQL-STMT-3.
+       01 SQL-STMT-4.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
@@ -59,7 +68,7 @@
            05 SQL-STMT   PIC X(48) VALUE 'UPDATE tffm SET REPLICA_NO = ?
       -    ' WHERE ID_LOTE = ?'.
       **********************************************************************
-       01 SQL-STMT-4.
+       01 SQL-STMT-5.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
@@ -68,7 +77,7 @@
            05 SQL-STMT   PIC X(42) VALUE 'UPDATE tffm SET FASE = ? WHERE
       -    ' ID_LOTE = ?'.
       **********************************************************************
-       01 SQL-STMT-5.
+       01 SQL-STMT-6.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
@@ -77,7 +86,7 @@
            05 SQL-STMT   PIC X(56) VALUE 'UPDATE tf_replicas SET STATUS 
       -    '= ''L'' WHERE REPLICA_NO = ?'.
       **********************************************************************
-       01 SQL-STMT-6.
+       01 SQL-STMT-7.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
@@ -87,7 +96,7 @@
       -    'ERROR_CODE = ''ERR-BATCH'',ERROR_MESSAGE = ? WHERE ID_LOTE =
       -    ' ?'.
       **********************************************************************
-       01 SQL-STMT-7.
+       01 SQL-STMT-8.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
@@ -143,7 +152,7 @@
 
        01  WS-BALANCEO-CARGA.
            05 WS-REPLICA-ACTUAL    PIC 9(02) VALUE 1.
-           05 WS-REPLICA-ARRAY     PIC X(04) OCCURS 10 TIMES VALUE SPACES.
+           05 WS-REPLICA-ARRAY     PIC X(04) OCCURS 10 TIMES.
            05 WS-REPLICA-COUNT     PIC 9(02) VALUE 0.
            05 WS-REPLICA-IDX       PIC 9(02) VALUE 0.
            05 WS-LOTES-PROCESADOS  PIC 9(09) VALUE 0.
@@ -181,23 +190,32 @@
            GOBACK.
 
        150-CARGAR-REPLICAS-DISPONIBLES.
-      * Carga inicial de todas las réplicas disponibles
-           MOVE 0 TO WS-REPLICA-COUNT
-           MOVE 1 TO WS-REPLICA-ACTUAL
-           MOVE 0 TO WS-LOTES-PROCESADOS
-
-           PERFORM VARYING WS-REPLICA-IDX FROM 1 BY 1
-               UNTIL WS-REPLICA-IDX > 6
-               MOVE "TF0" TO WS-REPLICA-ARRAY(WS-REPLICA-IDX)
-               STRING WS-REPLICA-ARRAY(WS-REPLICA-IDX)
-                   DELIMITED BY SPACE
-                   WS-REPLICA-IDX DELIMITED BY SIZE
-                   INTO WS-REPLICA-ARRAY(WS-REPLICA-IDX)
-               END-STRING
-               ADD 1 TO WS-REPLICA-COUNT
-           END-PERFORM
-
-           DISPLAY "RÉPLICAS DISPONIBLES CARGADAS: " WS-REPLICA-COUNT.
+           MOVE 0 TO WS-REPLICA-COUNT.
+           MOVE SPACES TO WS-REP-DISPONIBLE.
+      *    EXEC SQL
+      *        SELECT REPLICA_NO INTO :WS-REP-DISPONIBLE
+      *        FROM tf_replicas WHERE STATUS = 'L'
+      *        ORDER BY REPLICA_NO ASC LIMIT 1
+      *    END-EXEC.
+           IF SQL-PREP OF SQL-STMT-0 = 'N'
+               SET SQL-ADDR(1) TO ADDRESS OF
+                 WS-REP-DISPONIBLE
+               MOVE 'X' TO SQL-TYPE(1)
+               MOVE 4 TO SQL-LEN(1)
+               MOVE 1 TO SQL-COUNT
+               CALL 'OCSQLPRE' USING SQLV
+                                   SQL-STMT-0
+                                   SQLCA
+               SET SQL-HCONN OF SQLCA TO NULL
+           END-IF
+           CALL 'OCSQLEXE' USING SQL-STMT-0
+                               SQLCA
+                   .
+           IF NOT SQL-NODATA
+               MOVE 1 TO WS-REPLICA-COUNT
+           ELSE
+               DISPLAY "AVISO: NO HAY REPLICAS DISPONIBLES AL INICIO."
+           END-IF.
 
        100-BUSCAR-LOTE.
       *    EXEC SQL
@@ -208,7 +226,7 @@
       *        WHERE FASE < '40' AND ESTADO_REPLICA = 'R'
       *        ORDER BY ID_LOTE ASC LIMIT 1
       *    END-EXEC.
-           IF SQL-PREP OF SQL-STMT-0 = 'N'
+           IF SQL-PREP OF SQL-STMT-1 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  SQL-VAR-0001
                MOVE '3' TO SQL-TYPE(1)
@@ -228,71 +246,85 @@
                MOVE 10 TO SQL-LEN(4)
                MOVE 4 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-0
+                                   SQL-STMT-1
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
-           CALL 'OCSQLEXE' USING SQL-STMT-0
+           CALL 'OCSQLEXE' USING SQL-STMT-1
                                SQLCA
            MOVE SQL-VAR-0001 TO WS-ID-LOTE
                    .
 
        200-BUSCAR-REPLICA.
            MOVE SPACES TO WS-REP-DISPONIBLE.
-
-      * Implementar selección round-robin de réplicas
-           IF WS-REPLICA-ACTUAL > WS-REPLICA-COUNT
-               MOVE 1 TO WS-REPLICA-ACTUAL
+      *    EXEC SQL
+      *        SELECT REPLICA_NO INTO :WS-REP-DISPONIBLE
+      *        FROM tf_replicas WHERE STATUS = 'L'
+      *        ORDER BY REPLICA_NO ASC LIMIT 10
+      *    END-EXEC.
+           IF SQL-PREP OF SQL-STMT-2 = 'N'
+               SET SQL-ADDR(1) TO ADDRESS OF
+                 WS-REP-DISPONIBLE
+               MOVE 'X' TO SQL-TYPE(1)
+               MOVE 4 TO SQL-LEN(1)
+               MOVE 1 TO SQL-COUNT
+               CALL 'OCSQLPRE' USING SQLV
+                                   SQL-STMT-2
+                                   SQLCA
+               SET SQL-HCONN OF SQLCA TO NULL
            END-IF
-
-           MOVE WS-REPLICA-ARRAY(WS-REPLICA-ACTUAL)
-               TO WS-REP-DISPONIBLE
-
-           ADD 1 TO WS-REPLICA-ACTUAL
+           CALL 'OCSQLEXE' USING SQL-STMT-2
+                               SQLCA
+                   .
 
            IF WS-REP-DISPONIBLE NOT = SPACES
-      *        Marcar réplica como ocupada
-               IF SQL-PREP OF SQL-STMT-2 = 'N'
-                   SET SQL-ADDR(1) TO ADDRESS OF
-                     WS-REP-DISPONIBLE
-                   MOVE 'X' TO SQL-TYPE(1)
-                   MOVE 4 TO SQL-LEN(1)
-                   MOVE 1 TO SQL-COUNT
-                   CALL 'OCSQLPRE' USING SQLV
-                                       SQL-STMT-2
-                                       SQLCA
-                   SET SQL-HCONN OF SQLCA TO NULL
-               END-IF
-               CALL 'OCSQLEXE' USING SQL-STMT-2
+      *        EXEC SQL
+      *            UPDATE tf_replicas SET STATUS = 'O'
+      *            WHERE REPLICA_NO = :WS-REP-DISPONIBLE
+      *        END-EXEC
+           IF SQL-PREP OF SQL-STMT-3 = 'N'
+               SET SQL-ADDR(1) TO ADDRESS OF
+                 WS-REP-DISPONIBLE
+               MOVE 'X' TO SQL-TYPE(1)
+               MOVE 4 TO SQL-LEN(1)
+               MOVE 1 TO SQL-COUNT
+               CALL 'OCSQLPRE' USING SQLV
+                                   SQL-STMT-3
                                    SQLCA
-
-      *        Asignar réplica al lote
-               IF SQL-PREP OF SQL-STMT-3 = 'N'
-                   SET SQL-ADDR(1) TO ADDRESS OF
-                     WS-REP-DISPONIBLE
-                   MOVE 'X' TO SQL-TYPE(1)
-                   MOVE 4 TO SQL-LEN(1)
-                   SET SQL-ADDR(2) TO ADDRESS OF
-                     SQL-VAR-0001
-                   MOVE '3' TO SQL-TYPE(2)
-                   MOVE 5 TO SQL-LEN(2)
-                   MOVE X'00' TO SQL-PREC(2)
-                   MOVE 2 TO SQL-COUNT
-                   CALL 'OCSQLPRE' USING SQLV
-                                       SQL-STMT-3
-                                       SQLCA
-                   SET SQL-HCONN OF SQLCA TO NULL
-               END-IF
-               MOVE WS-ID-LOTE
-                 TO SQL-VAR-0001
-               CALL 'OCSQLEXE' USING SQL-STMT-3
+               SET SQL-HCONN OF SQLCA TO NULL
+           END-IF
+           CALL 'OCSQLEXE' USING SQL-STMT-3
+                               SQLCA
+      *        EXEC SQL
+      *            UPDATE tffm
+      *            SET REPLICA_NO = :WS-REP-DISPONIBLE
+      *            WHERE ID_LOTE = :WS-ID-LOTE
+      *        END-EXEC
+           IF SQL-PREP OF SQL-STMT-4 = 'N'
+               SET SQL-ADDR(1) TO ADDRESS OF
+                 WS-REP-DISPONIBLE
+               MOVE 'X' TO SQL-TYPE(1)
+               MOVE 4 TO SQL-LEN(1)
+               SET SQL-ADDR(2) TO ADDRESS OF
+                 SQL-VAR-0001
+               MOVE '3' TO SQL-TYPE(2)
+               MOVE 5 TO SQL-LEN(2)
+               MOVE X'00' TO SQL-PREC(2)
+               MOVE 2 TO SQL-COUNT
+               CALL 'OCSQLPRE' USING SQLV
+                                   SQL-STMT-4
                                    SQLCA
-
-               CALL 'OCSQLCMT' USING SQLCA END-CALL
+               SET SQL-HCONN OF SQLCA TO NULL
+           END-IF
+           MOVE WS-ID-LOTE
+             TO SQL-VAR-0001
+           CALL 'OCSQLEXE' USING SQL-STMT-4
+                               SQLCA
+      *        EXEC SQL COMMIT END-EXEC
+           CALL 'OCSQLCMT' USING SQLCA END-CALL
            END-IF.
 
        300-PROCESAR-LOTE.
-           ADD 1 TO WS-LOTES-PROCESADOS
            MOVE 'N' TO WS-LOTE-TERMINADO.
            PERFORM UNTIL WS-LOTE-TERMINADO = 'S'
                PERFORM 400-EVALUAR-FASE
@@ -335,7 +367,7 @@
       *        UPDATE tffm SET FASE = :WS-FASE
       *        WHERE ID_LOTE = :WS-ID-LOTE
       *    END-EXEC.
-           IF SQL-PREP OF SQL-STMT-4 = 'N'
+           IF SQL-PREP OF SQL-STMT-5 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  WS-FASE
                MOVE 'X' TO SQL-TYPE(1)
@@ -347,13 +379,13 @@
                MOVE X'00' TO SQL-PREC(2)
                MOVE 2 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-4
+                                   SQL-STMT-5
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
            MOVE WS-ID-LOTE
              TO SQL-VAR-0001
-           CALL 'OCSQLEXE' USING SQL-STMT-4
+           CALL 'OCSQLEXE' USING SQL-STMT-5
                                SQLCA
                    .
 
@@ -362,18 +394,18 @@
       *            UPDATE tf_replicas SET STATUS = 'L'
       *            WHERE REPLICA_NO = :WS-REP-DISPONIBLE
       *        END-EXEC
-           IF SQL-PREP OF SQL-STMT-5 = 'N'
+           IF SQL-PREP OF SQL-STMT-6 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  WS-REP-DISPONIBLE
                MOVE 'X' TO SQL-TYPE(1)
                MOVE 4 TO SQL-LEN(1)
                MOVE 1 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-5
+                                   SQL-STMT-6
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
-           CALL 'OCSQLEXE' USING SQL-STMT-5
+           CALL 'OCSQLEXE' USING SQL-STMT-6
                                SQLCA
            END-IF.
       *    EXEC SQL COMMIT END-EXEC.
@@ -392,7 +424,7 @@
       *            ERROR_MESSAGE = :DB-LK-MENSAJE
       *        WHERE ID_LOTE = :WS-ID-LOTE
       *    END-EXEC.
-           IF SQL-PREP OF SQL-STMT-6 = 'N'
+           IF SQL-PREP OF SQL-STMT-7 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  DB-LK-MENSAJE
                MOVE 'X' TO SQL-TYPE(1)
@@ -404,13 +436,13 @@
                MOVE X'00' TO SQL-PREC(2)
                MOVE 2 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-6
+                                   SQL-STMT-7
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
            MOVE WS-ID-LOTE
              TO SQL-VAR-0001
-           CALL 'OCSQLEXE' USING SQL-STMT-6
+           CALL 'OCSQLEXE' USING SQL-STMT-7
                                SQLCA
                    .
 
@@ -418,18 +450,18 @@
       *        UPDATE tf_replicas SET STATUS = 'L'
       *        WHERE REPLICA_NO = :WS-REP-DISPONIBLE
       *    END-EXEC.
-           IF SQL-PREP OF SQL-STMT-7 = 'N'
+           IF SQL-PREP OF SQL-STMT-8 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  WS-REP-DISPONIBLE
                MOVE 'X' TO SQL-TYPE(1)
                MOVE 4 TO SQL-LEN(1)
                MOVE 1 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-7
+                                   SQL-STMT-8
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
-           CALL 'OCSQLEXE' USING SQL-STMT-7
+           CALL 'OCSQLEXE' USING SQL-STMT-8
                                SQLCA
                    .
       *    EXEC SQL COMMIT END-EXEC.

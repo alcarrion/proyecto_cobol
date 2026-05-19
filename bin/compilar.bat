@@ -100,9 +100,9 @@ echo ============================================
 if %COMPILATION_FAILED% == 0 (
     echo.
     echo [OK] EXITO: Todos los ejecutables financieros generados en /bin
-    echo       - BANCSMENU.exe (Online Menu Core)
-    echo       - TFDRMAIN.exe  (Stage 2: Orchestrator Engine)
-    echo       - TFDRFILE.exe  (Stage 1: Ingestion Engine)
+    echo       - BANCSMENU.exe ^(Online Menu Core^)
+    echo       - TFDRMAIN.exe  ^(Stage 2: Orchestrator Engine^)
+    echo       - TFDRFILE.exe  ^(Stage 1: Ingestion Engine^)
     echo.
 ) else (
     echo.

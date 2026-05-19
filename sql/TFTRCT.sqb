@@ -36,12 +36,12 @@
 
        01  WS-BALANCEO-CARGA.
            05 WS-REPLICA-ACTUAL    PIC 9(02) VALUE 1.
-           05 WS-REPLICA-ARRAY     PIC X(04) OCCURS 10 TIMES VALUE SPACES.
+           05 WS-REPLICA-ARRAY     PIC X(04) OCCURS 10 TIMES.
            05 WS-REPLICA-COUNT     PIC 9(02) VALUE 0.
            05 WS-REPLICA-IDX       PIC 9(02) VALUE 0.
            05 WS-LOTES-PROCESADOS  PIC 9(09) VALUE 0.
-           
-           COPY LKTF. 
+
+           COPY LKTF.
 
        PROCEDURE DIVISION.
        000-MAIN.
@@ -73,14 +73,28 @@
            DISPLAY "TOTAL LOTES PROCESADOS: " WS-LOTES-PROCESADOS
            GOBACK.
 
+       150-CARGAR-REPLICAS-DISPONIBLES.
+           MOVE 0 TO WS-REPLICA-COUNT.
+           MOVE SPACES TO WS-REP-DISPONIBLE.
+           EXEC SQL
+               SELECT REPLICA_NO INTO :WS-REP-DISPONIBLE
+               FROM tf_replicas WHERE STATUS = 'L'
+               ORDER BY REPLICA_NO ASC LIMIT 1
+           END-EXEC.
+           IF NOT SQL-NODATA
+               MOVE 1 TO WS-REPLICA-COUNT
+           ELSE
+               DISPLAY "AVISO: NO HAY REPLICAS DISPONIBLES AL INICIO."
+           END-IF.
+
        100-BUSCAR-LOTE.
            EXEC SQL
-               SELECT ID_LOTE, FILE_NAME, FASE, TYPE_UPDATE
+               SELECT ID_LOTE, FILE_NAME, FASE, TYPE_UPDATE 
                INTO :WS-ID-LOTE, :WS-FILE-NAME, :WS-FASE,
-                    :WS-TYPE-UPDATE 
-               FROM tffm
-               WHERE FASE < '40' AND ESTADO_REPLICA = 'R'
-               ORDER BY ID_LOTE ASC LIMIT 100
+                    :WS-TYPE-UPDATE
+               FROM tffm 
+               WHERE FASE < '40' AND ESTADO_REPLICA = 'R' 
+               ORDER BY ID_LOTE ASC LIMIT 1
            END-EXEC.
 
        200-BUSCAR-REPLICA.

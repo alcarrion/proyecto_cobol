@@ -23,26 +23,26 @@
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 2.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 289.
-           05 SQL-STMT   PIC X(289) VALUE 'SELECT ID_CLIENTE,FECHA_ALTA,
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 303.
+           05 SQL-STMT   PIC X(303) VALUE 'SELECT ID_CLIENTE,FECHA_ALTA,
       -    'NOMBRE_CLIENTE,APELLIDOS_CLIENTE,FECHA_NACIMIENTO,DIRECCION_
       -    'CLIENTE,TELEF_CLIENTE,EMAIL_CLIENTE,SCORE_CREDITICIO,INGRESO
       -    'S_MENSUALES,TIENE_TARJETA,TIENE_HIPOTECA,ESTADO_CLIENTE,SALD
-      -    'O_TOTAL_VISTA FROM clientes WHERE TIPO_DOC = RTRIM(?) AND DO
-      -    'C_CLIENTE = RTRIM(?)'.
+      -    'O_TOTAL_VISTA FROM clientes WHERE RTRIM(TIPO_DOC) = RTRIM(?)
+      -    ' AND RTRIM(DOC_CLIENTE) = RTRIM(?)'.
       **********************************************************************
        01 SQL-STMT-1.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 15.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 287.
-           05 SQL-STMT   PIC X(287) VALUE 'INSERT INTO clientes (TIPO_DO
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 301.
+           05 SQL-STMT   PIC X(301) VALUE 'INSERT INTO clientes (TIPO_DO
       -    'C,DOC_CLIENTE,FECHA_ALTA,NOMBRE_CLIENTE,APELLIDOS_CLIENTE,FE
       -    'CHA_NACIMIENTO,DIRECCION_CLIENTE,TELEF_CLIENTE,EMAIL_CLIENTE
       -    ',SCORE_CREDITICIO,INGRESOS_MENSUALES,TIENE_TARJETA,TIENE_HIP
-      -    'OTECA,ESTADO_CLIENTE,SALDO_TOTAL_VISTA) VALUES (?,?,?,?,?,?,
-      -    '?,?,?,?,?,?,?,?,?)'.
+      -    'OTECA,ESTADO_CLIENTE,SALDO_TOTAL_VISTA) VALUES (RTRIM(?),RTR
+      -    'IM(?),?,?,?,?,?,?,?,?,?,?,?,?,?)'.
       **********************************************************************
        01 SQL-STMT-2.
            05 SQL-IPTR   POINTER VALUE NULL.
@@ -183,8 +183,8 @@
       *              :DB-ESTADO-CLIENTE,
       *              :DB-SALDO-TOTAL-VISTA
       *         FROM clientes
-      *        WHERE TIPO_DOC    = RTRIM(:DB-TIPO-DOC)
-      *          AND DOC_CLIENTE = RTRIM(:DB-DOC-CLIENTE)
+      *        WHERE RTRIM(TIPO_DOC)    = RTRIM(:DB-TIPO-DOC)
+      *          AND RTRIM(DOC_CLIENTE) = RTRIM(:DB-DOC-CLIENTE)
       *    END-EXEC.
            IF SQL-PREP OF SQL-STMT-0 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
@@ -329,8 +329,8 @@
       *          ESTADO_CLIENTE,
       *          SALDO_TOTAL_VISTA
       *       ) VALUES (
-      *          :DB-TIPO-DOC,
-      *          :DB-DOC-CLIENTE,
+      *          RTRIM(:DB-TIPO-DOC),
+      *          RTRIM(:DB-DOC-CLIENTE),
       *          :DB-FECHA-ALTA,
       *          :DB-NOMBRE-CLIENTE,
       *          :DB-APELLIDOS-CLIENTE,

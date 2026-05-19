@@ -35,7 +35,7 @@
            01 DB-STR PIC X(50).
       *    EXEC SQL END DECLARE SECTION END-EXEC.
        PROCEDURE DIVISION.
-           MOVE 'DSN=cobol;UID=root;PWD=;' TO DB-STR.
+           MOVE 'DSN=cobol;UID=root;PWD=tata;' TO DB-STR.
            INSPECT DB-STR REPLACING TRAILING SPACES BY LOW-VALUES.
       *    EXEC SQL CONNECT TO :DB-STR END-EXEC.
            MOVE 50 TO SQL-LEN(1)

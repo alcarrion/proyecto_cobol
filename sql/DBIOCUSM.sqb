@@ -92,8 +92,8 @@
                      :DB-ESTADO-CLIENTE,
                      :DB-SALDO-TOTAL-VISTA
                 FROM clientes
-               WHERE TIPO_DOC    = RTRIM(:DB-TIPO-DOC)
-                 AND DOC_CLIENTE = RTRIM(:DB-DOC-CLIENTE)
+               WHERE RTRIM(TIPO_DOC)    = RTRIM(:DB-TIPO-DOC)
+                 AND RTRIM(DOC_CLIENTE) = RTRIM(:DB-DOC-CLIENTE)
            END-EXEC.
 
            PERFORM 9000-EVALUAR-SQL.
@@ -152,8 +152,8 @@
                  ESTADO_CLIENTE,
                  SALDO_TOTAL_VISTA
               ) VALUES (
-                 :DB-TIPO-DOC,
-                 :DB-DOC-CLIENTE,
+                 RTRIM(:DB-TIPO-DOC),
+                 RTRIM(:DB-DOC-CLIENTE),
                  :DB-FECHA-ALTA,
                  :DB-NOMBRE-CLIENTE,
                  :DB-APELLIDOS-CLIENTE,
