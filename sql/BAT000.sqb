@@ -78,6 +78,11 @@
       *    Variables host para UPDATE de estado hipoteca y descuento
            05 HV-MORA-NUEVO-ESTADO PIC X(20).
            05 HV-MORA-CLI-SALDO    PIC S9(10)V99.
+      *    Cuenta de debito (FK a ctactes) y saldo de esa cuenta.
+      *    El debito mensual se aplica sobre CTACTES, no sobre el
+      *    agregado CLIENTES.SALDO_TOTAL_VISTA.
+           05 HV-MORA-CUENTA-DEB   PIC 9(8).
+           05 HV-MORA-CTA-SALDO    PIC S9(13)V99.
 
       *    Variables host para estados de tarjeta (evita literales SQL)
        01  WS-HOST-ESTADOS.
@@ -93,6 +98,13 @@
       *   DECLARACION DE CURSORES                                      *
       *================================================================*
 
+      *    NOTA: CTACTES es 1:N (multi-cuenta). Un LEFT JOIN
+      *    plano produce filas duplicadas por cliente y rompe la
+      *    UNIQUE (PERIODO, ID_CLIENTE) de AUDIT_MAESTRA con
+      *    SQLCODE -1062. Sumamos los saldos via subquery para
+      *    obtener EXACTAMENTE una fila por cliente. COALESCE
+      *    cubre clientes sin cuenta (antes LEFT JOIN devolvia
+      *    NULL).
            EXEC SQL DECLARE CUR-MAESTRA CURSOR FOR
                SELECT C.ID_CLIENTE,
                       C.TIPO_DOC,
@@ -104,10 +116,10 @@
                       C.ESTADO_CLIENTE,
                       C.TIENE_TARJETA,
                       C.TIENE_HIPOTECA,
-                      I.SALDO_ACTUAL
+                      COALESCE((SELECT SUM(SALDO_ACTUAL)
+                                FROM   CTACTES
+                                WHERE  ID_CLIENTE = C.ID_CLIENTE), 0)
                FROM   CLIENTES C
-               LEFT JOIN CTACTES I
-                      ON C.ID_CLIENTE = I.ID_CLIENTE
                ORDER BY C.ID_CLIENTE
            END-EXEC.
 
@@ -149,7 +161,8 @@
                           TIMESTAMPDIFF(MONTH,
                               CURDATE(), H.FECHA_VENCIMIENTO),
                           0),
-                      H.MESES_MORA
+                      H.MESES_MORA,
+                      H.CUENTA_DEBITO
                FROM   HIPOTECAS H
                WHERE  H.ESTADO_PRESTAMO IN ('ACTIVO', 'MOROSO')
                ORDER BY H.ID_CLIENTE, H.ID_HIPOTECA
@@ -789,7 +802,8 @@
                        :HV-MORA-ESTADO,
                        :HV-MORA-PAGO-MENS,
                        :HV-MORA-SALDO-ESP,
-                       :HV-MORA-MESES-MORA
+                       :HV-MORA-MESES-MORA,
+                       :HV-MORA-CUENTA-DEB
                END-EXEC
 
                EVALUATE SQLCODE
@@ -860,33 +874,38 @@
                                MOVE 'S' TO WS-FIN-MORA
                            END-IF
 
-      *                    Consultar saldo actual del cliente
+      *                    Consultar saldo de la cuenta debito de
+      *                    la hipoteca. Solo cuentas ACTIVAS: si la
+      *                    cuenta fue bloqueada/cerrada, SQLCODE=100
+      *                    y caera al ELSE general.
                            EXEC SQL
-                               SELECT SALDO_TOTAL_VISTA
-                               INTO   :HV-MORA-CLI-SALDO
-                               FROM   CLIENTES
-                               WHERE  ID_CLIENTE = :HV-MORA-ID-CLI
+                               SELECT SALDO_ACTUAL
+                               INTO   :HV-MORA-CTA-SALDO
+                               FROM   CTACTES
+                               WHERE  ID_CUENTA =
+                                      :HV-MORA-CUENTA-DEB
+                               AND    ESTADO_CUENTA = 'A'
                            END-EXEC
 
                            IF SQLCODE = 0
-      *                        Si el cliente tiene fondos descontar
-                               IF HV-MORA-CLI-SALDO >=
+      *                        Si la cuenta tiene fondos, debitar.
+                               IF HV-MORA-CTA-SALDO >=
                                   HV-MORA-PAGO-MENS
                                    EXEC SQL
-                                       UPDATE CLIENTES
-                                       SET    SALDO_TOTAL_VISTA =
-                                              SALDO_TOTAL_VISTA -
+                                       UPDATE CTACTES
+                                       SET    SALDO_ACTUAL =
+                                              SALDO_ACTUAL -
                                               :HV-MORA-PAGO-MENS
-                                       WHERE  ID_CLIENTE =
-                                              :HV-MORA-ID-CLI
+                                       WHERE  ID_CUENTA =
+                                              :HV-MORA-CUENTA-DEB
                                    END-EXEC
                                    IF SQLCODE NOT = 0
-                                       MOVE SQLCODE      TO
+                                       MOVE SQLCODE        TO
                                             WS-AUX-SQLCODE
-                                       MOVE HV-MORA-ID-CLI TO
+                                       MOVE HV-MORA-CUENTA-DEB TO
                                             WS-AUX-ID8
                                        MOVE SPACES TO WS-LOG-LINE
-                                       STRING 'ERROR DESCUENTO CLI: '
+                                       STRING 'ERROR DEBITO CUENTA: '
                                                   DELIMITED BY SIZE
                                               WS-AUX-ID8
                                                   DELIMITED BY SIZE
@@ -902,9 +921,6 @@
                                    ELSE
       *                                Descontar cuota tambien del
       *                                SALDO_DEUDA de la hipoteca.
-      *                                FECHA_HORA_ALT se actualiza
-      *                                automaticamente (no hay
-      *                                FECHA_ULT_PAGO en schema v3).
                                        EXEC SQL
                                            UPDATE HIPOTECAS
                                            SET    SALDO_DEUDA =
@@ -914,14 +930,14 @@
                                                   :HV-MORA-ID-HIPO
                                        END-EXEC
 
-                                       MOVE HV-MORA-ID-CLI  TO
+                                       MOVE HV-MORA-CUENTA-DEB TO
                                             WS-AUX-ID8
                                        MOVE HV-MORA-PAGO-MENS TO
                                             WS-AUX-MONTO13
                                        MOVE SPACES TO WS-LOG-LINE
-                                       STRING ' DESCUENTO APLICADO'
+                                       STRING ' DEBITO APLICADO'
                                                   DELIMITED BY SIZE
-                                              ' CLI: '
+                                              ' CTA: '
                                                   DELIMITED BY SIZE
                                               WS-AUX-ID8
                                                   DELIMITED BY SIZE
@@ -933,26 +949,27 @@
                                        PERFORM 9100-LOG-WRITE
                                    END-IF
                                ELSE
-                                   MOVE HV-MORA-ID-CLI    TO WS-AUX-ID8
-                                   MOVE HV-MORA-CLI-SALDO TO
-                                        WS-AUX-MONTO10
+                                   MOVE HV-MORA-CUENTA-DEB TO
+                                        WS-AUX-ID8
+                                   MOVE HV-MORA-CTA-SALDO  TO
+                                        WS-AUX-MONTO13
                                    MOVE SPACES TO WS-LOG-LINE
-                                   STRING ' SIN FONDOS CLI: '
+                                   STRING ' SIN FONDOS CTA: '
                                               DELIMITED BY SIZE
                                           WS-AUX-ID8
                                               DELIMITED BY SIZE
                                           ' SALDO: '
                                               DELIMITED BY SIZE
-                                          WS-AUX-MONTO10
+                                          WS-AUX-MONTO13
                                               DELIMITED BY SIZE
                                        INTO WS-LOG-LINE
                                    PERFORM 9100-LOG-WRITE
                                END-IF
                            ELSE
-                               MOVE SQLCODE      TO WS-AUX-SQLCODE
-                               MOVE HV-MORA-ID-CLI TO WS-AUX-ID8
+                               MOVE SQLCODE        TO WS-AUX-SQLCODE
+                               MOVE HV-MORA-CUENTA-DEB TO WS-AUX-ID8
                                MOVE SPACES TO WS-LOG-LINE
-                               STRING 'ERROR CONSULTA SALDO CLI: '
+                               STRING 'CTA NO DISPONIBLE: '
                                           DELIMITED BY SIZE
                                       WS-AUX-ID8
                                           DELIMITED BY SIZE
@@ -962,7 +979,6 @@
                                           DELIMITED BY SIZE
                                    INTO WS-LOG-LINE
                                PERFORM 9100-LOG-WRITE
-                               ADD 1 TO WS-CTR-ERRORES
                            END-IF
 
                        ELSE

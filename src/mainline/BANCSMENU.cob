@@ -81,11 +81,9 @@
            05 LINE 13 COL 04 VALUE
               "4. Hipotecas             ".
            05 LINE 14 COL 04 VALUE
-              "5. Cierre Mensual (BAT000)".
+              "5. Cierre Mensual".
            05 LINE 15 COL 04 VALUE
-              "6. Reportes Gerenciales (RP0000)".
-           05 LINE 16 COL 04 VALUE
-              "7. Procesos Batch - pendiente".
+              "6. Reportes Gerenciales".
            05 LINE 17 COL 04 VALUE
               "8. Salir".
            05 LINE 19 COL 02 VALUE
