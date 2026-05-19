@@ -25,10 +25,12 @@
 
            COPY BORMREC.
            COPY CUSMREC.
+           COPY INVMREC.
 
        01  WS-PROGRAMAS.
            05 WS-PGM-DBIOCUSM     PIC X(8) VALUE 'DBIOCUSM'.
            05 WS-PGM-DBIOBORM     PIC X(8) VALUE 'DBIOBORM'.
+           05 WS-PGM-DBIOINVM     PIC X(8) VALUE 'DBIOINVM'.
            05 WS-PGM-TRAN         PIC X(8) VALUE 'DBIOTRAN'.
 
        01  WS-ENTRADAS.
@@ -234,6 +236,18 @@
                   LINE 24 COL 05
                ACCEPT WS-ENTRADA-TXT LINE 24 COL 36
                MOVE 'N' TO WS-PUEDE-CONTINUAR
+           END-IF.
+
+           IF WS-PUEDE-CONTINUAR = 'S'
+               PERFORM 2115-VALIDAR-CUENTA-DEBITO
+               IF NOT LK-EXITO
+                   DISPLAY "RECHAZADA: " LINE 22 COL 05
+                   DISPLAY LK-MENSAJE LINE 22 COL 17
+                   DISPLAY "Presione ENTER para continuar."
+                      LINE 24 COL 05
+                   ACCEPT WS-ENTRADA-TXT LINE 24 COL 36
+                   MOVE 'N' TO WS-PUEDE-CONTINUAR
+               END-IF
            END-IF.
 
            IF WS-PUEDE-CONTINUAR = 'S'
@@ -527,10 +541,104 @@
            END-IF.
 
            IF WS-PUEDE-CONTINUAR = 'S'
+               IF WS-MONTO-PAGO > BORM-CUOTA-MENSUAL
+                   DISPLAY "RECHAZADA: pago excede la cuota mensual."
+                      LINE 22 COL 05
+                   DISPLAY "Presione ENTER para continuar."
+                      LINE 24 COL 05
+                   ACCEPT WS-ENTRADA-TXT LINE 24 COL 36
+                   MOVE 'N' TO WS-PUEDE-CONTINUAR
+               END-IF
+           END-IF.
+
+           IF WS-PUEDE-CONTINUAR = 'S'
                PERFORM 2310-APLICAR-PAGO
            END-IF.
 
+       2115-VALIDAR-CUENTA-DEBITO.
+      *    Verifica que WS-CUENTA-DEBITO:
+      *      1) Pertenezca al cliente (DBIOINVM filtra por
+      *         ID_CUENTA + ID_CLIENTE -> E404 si no)
+      *      2) Este ACTIVA ('A')
+      *      3) NO sea cuenta hipotecaria ('H'): esas son
+      *         internas del prestamo, no se pueden usar para
+      *         debito.
+           INITIALIZE REG-INVM.
+           MOVE WS-CUENTA-DEBITO TO INVM-ID-CUENTA.
+           MOVE CUSM-ID-CLIENTE  TO INVM-ID-CLIENTE.
+           MOVE 'S' TO LK-ACCION-DB.
+           CALL WS-PGM-DBIOINVM
+               USING REG-INVM,
+                     LK-DATOS-SESION,
+                     LK-DATOS-TRANSACCION.
+
+           IF LK-EXITO
+               IF INVM-ESTADO-CUENTA NOT = 'A'
+                   MOVE 'E001' TO LK-COD-RETORNO
+                   MOVE "CUENTA NO ESTA ACTIVA" TO LK-MENSAJE
+               END-IF
+           END-IF.
+
+           IF LK-EXITO
+               IF INVM-TIPO-CUENTA = 'H'
+                   MOVE 'E001' TO LK-COD-RETORNO
+                   MOVE "CUENTA HIPOTECARIA NO ES VALIDA"
+                       TO LK-MENSAJE
+               END-IF
+           END-IF.
+
+           IF NOT LK-EXITO
+               IF LK-ERROR-NODATA
+                   MOVE "CUENTA NO PERTENECE AL CLIENTE"
+                       TO LK-MENSAJE
+               END-IF
+           END-IF.
+
+       2305-DEBITAR-CUENTA.
+      *    Debita WS-MONTO-PAGO de la cuenta vista del cliente
+      *    via DBIOINVM accion 'R'. DBIOINVM valida que la cuenta
+      *    este ACTIVA, que no sea hipotecaria, y que haya saldo
+      *    suficiente. Tambien registra el movimiento en MOVIMIENTOS.
+           INITIALIZE REG-INVM.
+           MOVE BORM-CUENTA-DEBITO TO INVM-ID-CUENTA.
+           MOVE BORM-ID-CLIENTE    TO INVM-ID-CLIENTE.
+           MOVE WS-MONTO-PAGO      TO INVM-SALDO-ACTUAL.
+           MOVE 'R' TO LK-ACCION-DB.
+           CALL WS-PGM-DBIOINVM
+               USING REG-INVM,
+                     LK-DATOS-SESION,
+                     LK-DATOS-TRANSACCION.
+
        2310-APLICAR-PAGO.
+      *    PRIMERO debitar la cuenta corriente del cliente.
+      *    Si no hay saldo o la cuenta no esta activa, se rechaza
+      *    el pago sin tocar la hipoteca.
+           PERFORM 2305-DEBITAR-CUENTA.
+           IF NOT LK-EXITO
+               CALL WS-PGM-TRAN USING 'R'
+               MOVE BORM-ID-HIPOTECA TO WS-AUX-HIP
+               MOVE WS-MONTO-PAGO    TO WS-AUX-MONTO
+               MOVE SPACES TO WS-LOG-LINE
+               STRING 'PAGO HIPOTECA RECHAZADO - HIP: '
+                          DELIMITED BY SIZE
+                      WS-AUX-HIP   DELIMITED BY SIZE
+                      ' MONTO: '   DELIMITED BY SIZE
+                      WS-AUX-MONTO DELIMITED BY SIZE
+                      ' MOTIVO: '  DELIMITED BY SIZE
+                      LK-MENSAJE   DELIMITED BY SIZE
+                   INTO WS-LOG-LINE
+               PERFORM 9800-LOG-WRITE
+               DISPLAY SCR-MARCO
+               DISPLAY "PAGO RECHAZADO"
+                  LINE 06 COL 05
+               DISPLAY "Motivo : " LINE 09 COL 05
+               DISPLAY LK-MENSAJE LINE 09 COL 18
+               DISPLAY "Presione ENTER para continuar."
+                  LINE 24 COL 05
+               ACCEPT WS-ENTRADA-TXT LINE 24 COL 36
+               EXIT PARAGRAPH
+           END-IF.
+
            SUBTRACT WS-MONTO-PAGO FROM BORM-SALDO-DEUDA.
            MOVE 'N' TO WS-VAL-OK.
 
