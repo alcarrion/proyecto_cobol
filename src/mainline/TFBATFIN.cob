@@ -1391,10 +1391,24 @@
 
        9000-EJECUTAR-CORE-REGLAS.
 
+           DISPLAY "--------------------------------------------------"
+           DISPLAY " [>] TFBATFIN: Inicia Tx. Registro ID: "
+            DB-ID-REGISTRO
+           DISPLAY "     |-- Canal/Tipo    : " DB-TYPE-UPD
+           DISPLAY "     |-- Cuenta Origen : " DB-CUENTA
+           DISPLAY "     |-- Producto/Cod  : " DB-NUM-CREDITO
+           EVALUATE DB-NUM-CREDITO(1:3)
+               WHEN "002"
+                   DISPLAY "     |-- Monto (Deposito) : $" DB-MONTO
+               WHEN "003"
+                   DISPLAY "     |-- Monto (Retiro) : $" DB-MONTO
+               WHEN OTHER
+                   DISPLAY "     |-- Monto (X)     : $" DB-MONTO
+           END-EVALUATE.
+
       *----------------------------------------------------------------*
       * CANAL MAESTRO: PAGOS DE ACTIVOS / CRÉDITOS (PAG_CR)
       *----------------------------------------------------------------*
-
            IF DB-TYPE-UPD = "PAG_CR"
 
                EVALUATE DB-NUM-CREDITO
@@ -1511,6 +1525,8 @@
                MOVE "NOEXISTE" TO DB-COD-ERROR
                MOVE "CUENTA INEXISTENTE EN CATALOGO CORE"
                    TO DB-MSG-ERROR
+               DISPLAY "     [X] RECHAZADO: Cuenta Inexistente!"
+               DISPLAY "----------------------------------------------"
 
                EXIT PARAGRAPH
 
@@ -1579,7 +1595,7 @@
            MOVE DB-MONTO        TO CTA-MONTO-MOV
            MOVE MS-SALDO-ACTUAL TO CTA-SALDO-ACTUAL
 
-           EVALUATE DB-NUM-CREDITO
+           EVALUATE DB-NUM-CREDITO(1:3)
                WHEN "002"
                    MOVE "C" TO LK-TF-ACCION
 
@@ -1587,7 +1603,11 @@
                    MOVE "D" TO LK-TF-ACCION
 
                WHEN OTHER
-                   MOVE "C" TO LK-TF-ACCION
+                   MOVE 7 TO DB-ESTADO-FINAL
+                   MOVE "COD_INV" TO DB-COD-ERROR
+                   MOVE "MOVIMIENTO RECHAZADO: CODIGO INVALIDO"
+                   TO DB-MSG-ERROR
+                   EXIT PARAGRAPH
            END-EVALUATE.
 
            CALL "tkin01"
@@ -1617,7 +1637,9 @@
                END-EVALUATE
 
            END-IF.
-
+           DISPLAY " [V] TFBATFIN Finaliza con Estado:" DB-ESTADO-FINAL
+                   " | Codigo: " DB-COD-ERROR
+           DISPLAY "-------------------------------------------------".
       *================================================================*
       * 9100-EVALUAR-RESPUESTA-ACTIVO: SUBRUTINA DE FORMATEO FINANCIERO
       *================================================================*

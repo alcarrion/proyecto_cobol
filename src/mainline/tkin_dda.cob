@@ -98,18 +98,24 @@
 
       * Caso: Débito / Retiro / Extracción (Disminuye el balance)
                WHEN "D"
-                   COMPUTE WS-NUEVO-SALDO-SQL =
-                           CTA-SALDO-ACTUAL - CTA-MONTO-MOV
-                   MOVE 6 TO WS-COD-MOV-SQL
-                   PERFORM 1000-PERSISTIR-BALANCE
+      * ====== INICIO: REGLA DE NEGOCIO (FONDOS INSUFICIENTES) ======
+                   IF CTA-MONTO-MOV > CTA-SALDO-ACTUAL
+                       MOVE 07 TO LK-TF-COD-RETORNO
+                       MOVE "ERR: FONDOS INSUFICIENTES PARA DEBITO DDA"
+                         TO LK-TF-MENSAJE
+                   ELSE
+                       COMPUTE WS-NUEVO-SALDO-SQL =
+                               CTA-SALDO-ACTUAL - CTA-MONTO-MOV
+                       MOVE 6 TO WS-COD-MOV-SQL
+                       PERFORM 1000-PERSISTIR-BALANCE
+                   END-IF
+      * ====== FIN: REGLA DE NEGOCIO ================================
 
                WHEN OTHER
                    MOVE 99 TO LK-TF-COD-RETORNO
                    MOVE "ERR: ACCION CONTABLE INVALIDA EN DDA"
                      TO LK-TF-MENSAJE
            END-EVALUATE.
-
-           GOBACK.
 
       *================================================================*
       * ETAPA DE PERSISTENCIA: IMPACTO DIRECTO EN EL LIBRO MAYOR (DDA)
