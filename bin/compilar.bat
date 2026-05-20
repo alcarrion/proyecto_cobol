@@ -59,7 +59,6 @@ echo  3. Enlazando Componentes Contables Masivos
 echo ============================================
 
 echo Enlazando TFDRMAIN.exe (Stage 2: Orchestrator Engine)...
-:: CORRECCIÓN CRÍTICA: Se añade tkin_tarj.o para soportar transacciones 004
 "%COBC%" -x -v -o "%BIN_DIR%\TFDRMAIN.exe" ^
     TFDRMAIN.cob ^
     TFFILE.o BNCR004.o TFMX.o RRD000.o XXXREP.o ^
@@ -74,6 +73,13 @@ echo Enlazando TFDRFILE.exe (Stage 1: Ingestion Engine)...
 "%COBC%" -x -v -o "%BIN_DIR%\TFDRFILE.exe" ^
     TFDRFILE.cob ^
     TFFILE.o BNCR004.o ^
+    -L "%COBOL_LIBS_ESQL%" -locsql
+if errorlevel 1 set "COMPILATION_FAILED=1"
+
+echo.
+echo Enlazando TFSUMM.exe (Stage 3: End of Batch Report)...
+"%COBC%" -x -v -o "%BIN_DIR%\TFSUMM.exe" ^
+    TFSUMM.cob ^
     -L "%COBOL_LIBS_ESQL%" -locsql
 if errorlevel 1 set "COMPILATION_FAILED=1"
 
@@ -103,6 +109,7 @@ if %COMPILATION_FAILED% == 0 (
     echo       - BANCSMENU.exe ^(Online Menu Core^)
     echo       - TFDRMAIN.exe  ^(Stage 2: Orchestrator Engine^)
     echo       - TFDRFILE.exe  ^(Stage 1: Ingestion Engine^)
+    echo       - TFSUMM.exe    ^(Stage 3: EOB Report Engine^)
     echo.
 ) else (
     echo.

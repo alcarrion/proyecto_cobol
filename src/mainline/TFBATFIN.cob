@@ -334,7 +334,7 @@
                WHEN "TF06"
                    PERFORM 6000-PROCESAR-TF06
            END-EVALUATE.
-
+           MOVE 00 TO LK-TF-COD-RETORNO.
            GOBACK.
 
       *================================================================*
@@ -1552,7 +1552,7 @@
                        MOVE "ID_INVALID" TO DB-COD-ERROR
 
                        MOVE
-                       "LONGITUD DE CEDULA RECHAZADA (DEBE SER 10)"
+                       "CEDULA RECHAZADA LON"
                            TO DB-MSG-ERROR
 
                        EXIT PARAGRAPH
@@ -1568,7 +1568,7 @@
                        MOVE "ID_INVALID" TO DB-COD-ERROR
 
                        MOVE
-                       "LONGITUD DE PASAPORTE RECHAZADA (8-12)"
+                       "PASAPORTE RECHAZADO LON"
                            TO DB-MSG-ERROR
 
                        EXIT PARAGRAPH
@@ -1669,6 +1669,10 @@
                END-EVALUATE
 
            END-IF.
+
+           DISPLAY " [V] TX FINALIZADA | Estado: " DB-ESTADO-FINAL
+                   " | Codigo: " DB-COD-ERROR
+           DISPLAY "-------------------------------------------------".
       **********************************************************************
       *  : ESQL for GnuCOBOL/OpenCOBOL Version 3 (2024.04.30) Build May 10 2024
 

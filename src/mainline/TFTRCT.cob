@@ -45,13 +45,22 @@
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
+           05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 54.
+           05 SQL-STMT   PIC X(54) VALUE 'UPDATE tffm SET ESTADO_REPLICA
+      -    ' = ''P'' WHERE ID_LOTE = ?'.
+      **********************************************************************
+       01 SQL-STMT-3.
+           05 SQL-IPTR   POINTER VALUE NULL.
+           05 SQL-PREP   PIC X VALUE 'N'.
+           05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 0.
            05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 102.
            05 SQL-STMT   PIC X(102) VALUE 'SELECT REPLICA_NO FROM tf_rep
       -    'licas WHERE STATUS = ''L'' ORDER BY CURRENT_LOAD ASC,REPLICA
       -    '_NO ASC LIMIT 1'.
       **********************************************************************
-       01 SQL-STMT-3.
+       01 SQL-STMT-4.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
@@ -60,7 +69,7 @@
            05 SQL-STMT   PIC X(73) VALUE 'UPDATE tf_replicas SET STATUS 
       -    '= ''O'',CURRENT_LOAD = 1 WHERE REPLICA_NO = ?'.
       **********************************************************************
-       01 SQL-STMT-4.
+       01 SQL-STMT-5.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
@@ -69,7 +78,7 @@
            05 SQL-STMT   PIC X(42) VALUE 'UPDATE tffm SET FASE = ? WHERE
       -    ' ID_LOTE = ?'.
       **********************************************************************
-       01 SQL-STMT-5.
+       01 SQL-STMT-6.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
@@ -78,7 +87,7 @@
            05 SQL-STMT   PIC X(73) VALUE 'UPDATE tf_replicas SET STATUS 
       -    '= ''L'',CURRENT_LOAD = 0 WHERE REPLICA_NO = ?'.
       **********************************************************************
-       01 SQL-STMT-6.
+       01 SQL-STMT-7.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
@@ -88,14 +97,14 @@
       -    'ERROR_CODE = ''ERR-BATCH'',ERROR_MESSAGE = ? WHERE ID_LOTE =
       -    ' ?'.
       **********************************************************************
-       01 SQL-STMT-7.
+       01 SQL-STMT-8.
            05 SQL-IPTR   POINTER VALUE NULL.
            05 SQL-PREP   PIC X VALUE 'N'.
            05 SQL-OPT    PIC X VALUE SPACE.
            05 SQL-PARMS  PIC S9(4) COMP-5 VALUE 1.
-           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 56.
-           05 SQL-STMT   PIC X(56) VALUE 'UPDATE tf_replicas SET STATUS 
-      -    '= ''L'' WHERE REPLICA_NO = ?'.
+           05 SQL-STMLEN PIC S9(4) COMP-5 VALUE 73.
+           05 SQL-STMT   PIC X(73) VALUE 'UPDATE tf_replicas SET STATUS 
+      -    '= ''L'',CURRENT_LOAD = 0 WHERE REPLICA_NO = ?'.
       **********************************************************************
       *******          PRECOMPILER-GENERATED VARIABLES               *******
        01 SQLV-GEN-VARS.
@@ -246,6 +255,31 @@
                                SQLCA
            MOVE SQL-VAR-0001 TO WS-ID-LOTE
                    .
+           IF SQLCODE = 0
+      *        EXEC SQL
+      *            UPDATE tffm
+      *            SET ESTADO_REPLICA = 'P'
+      *            WHERE ID_LOTE = :WS-ID-LOTE
+      *        END-EXEC
+           IF SQL-PREP OF SQL-STMT-2 = 'N'
+               SET SQL-ADDR(1) TO ADDRESS OF
+                 SQL-VAR-0001
+               MOVE '3' TO SQL-TYPE(1)
+               MOVE 5 TO SQL-LEN(1)
+               MOVE X'00' TO SQL-PREC(1)
+               MOVE 1 TO SQL-COUNT
+               CALL 'OCSQLPRE' USING SQLV
+                                   SQL-STMT-2
+                                   SQLCA
+               SET SQL-HCONN OF SQLCA TO NULL
+           END-IF
+           MOVE WS-ID-LOTE
+             TO SQL-VAR-0001
+           CALL 'OCSQLEXE' USING SQL-STMT-2
+                               SQLCA
+      *        EXEC SQL COMMIT END-EXEC
+           CALL 'OCSQLCMT' USING SQLCA END-CALL
+           END-IF.
 
        200-BUSCAR-REPLICA.
            MOVE SPACES TO WS-REP-DISPONIBLE.
@@ -257,27 +291,6 @@
       *        ORDER BY CURRENT_LOAD ASC, REPLICA_NO ASC
       *        LIMIT 1
       *    END-EXEC.
-           IF SQL-PREP OF SQL-STMT-2 = 'N'
-               SET SQL-ADDR(1) TO ADDRESS OF
-                 WS-REP-DISPONIBLE
-               MOVE 'X' TO SQL-TYPE(1)
-               MOVE 4 TO SQL-LEN(1)
-               MOVE 1 TO SQL-COUNT
-               CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-2
-                                   SQLCA
-               SET SQL-HCONN OF SQLCA TO NULL
-           END-IF
-           CALL 'OCSQLEXE' USING SQL-STMT-2
-                               SQLCA
-                   .
-
-           IF SQLCODE = 0 AND WS-REP-DISPONIBLE NOT = SPACES
-      *        EXEC SQL
-      *            UPDATE tf_replicas
-      *            SET STATUS = 'O', CURRENT_LOAD = 1
-      *            WHERE REPLICA_NO = :WS-REP-DISPONIBLE
-      *        END-EXEC
            IF SQL-PREP OF SQL-STMT-3 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  WS-REP-DISPONIBLE
@@ -290,6 +303,27 @@
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
            CALL 'OCSQLEXE' USING SQL-STMT-3
+                               SQLCA
+                   .
+
+           IF SQLCODE = 0 AND WS-REP-DISPONIBLE NOT = SPACES
+      *        EXEC SQL
+      *            UPDATE tf_replicas
+      *            SET STATUS = 'O', CURRENT_LOAD = 1
+      *            WHERE REPLICA_NO = :WS-REP-DISPONIBLE
+      *        END-EXEC
+           IF SQL-PREP OF SQL-STMT-4 = 'N'
+               SET SQL-ADDR(1) TO ADDRESS OF
+                 WS-REP-DISPONIBLE
+               MOVE 'X' TO SQL-TYPE(1)
+               MOVE 4 TO SQL-LEN(1)
+               MOVE 1 TO SQL-COUNT
+               CALL 'OCSQLPRE' USING SQLV
+                                   SQL-STMT-4
+                                   SQLCA
+               SET SQL-HCONN OF SQLCA TO NULL
+           END-IF
+           CALL 'OCSQLEXE' USING SQL-STMT-4
                                SQLCA
       *        EXEC SQL COMMIT END-EXEC
            CALL 'OCSQLCMT' USING SQLCA END-CALL
@@ -338,7 +372,7 @@
       *        UPDATE tffm SET FASE = :WS-FASE
       *        WHERE ID_LOTE = :WS-ID-LOTE
       *    END-EXEC.
-           IF SQL-PREP OF SQL-STMT-4 = 'N'
+           IF SQL-PREP OF SQL-STMT-5 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  WS-FASE
                MOVE 'X' TO SQL-TYPE(1)
@@ -350,13 +384,13 @@
                MOVE X'00' TO SQL-PREC(2)
                MOVE 2 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-4
+                                   SQL-STMT-5
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
            MOVE WS-ID-LOTE
              TO SQL-VAR-0001
-           CALL 'OCSQLEXE' USING SQL-STMT-4
+           CALL 'OCSQLEXE' USING SQL-STMT-5
                                SQLCA
                    .
 
@@ -366,18 +400,18 @@
       *            SET STATUS = 'L', CURRENT_LOAD = 0
       *            WHERE REPLICA_NO = :WS-REP-DISPONIBLE
       *        END-EXEC
-           IF SQL-PREP OF SQL-STMT-5 = 'N'
+           IF SQL-PREP OF SQL-STMT-6 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  WS-REP-DISPONIBLE
                MOVE 'X' TO SQL-TYPE(1)
                MOVE 4 TO SQL-LEN(1)
                MOVE 1 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-5
+                                   SQL-STMT-6
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
-           CALL 'OCSQLEXE' USING SQL-STMT-5
+           CALL 'OCSQLEXE' USING SQL-STMT-6
                                SQLCA
            END-IF.
       *    EXEC SQL COMMIT END-EXEC.
@@ -396,7 +430,7 @@
       *            ERROR_MESSAGE = :DB-LK-MENSAJE
       *        WHERE ID_LOTE = :WS-ID-LOTE
       *    END-EXEC.
-           IF SQL-PREP OF SQL-STMT-6 = 'N'
+           IF SQL-PREP OF SQL-STMT-7 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  DB-LK-MENSAJE
                MOVE 'X' TO SQL-TYPE(1)
@@ -408,34 +442,36 @@
                MOVE X'00' TO SQL-PREC(2)
                MOVE 2 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-6
+                                   SQL-STMT-7
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
            MOVE WS-ID-LOTE
              TO SQL-VAR-0001
-           CALL 'OCSQLEXE' USING SQL-STMT-6
+           CALL 'OCSQLEXE' USING SQL-STMT-7
                                SQLCA
                    .
 
       *    EXEC SQL
-      *        UPDATE tf_replicas SET STATUS = 'L'
+      *        UPDATE tf_replicas
+      *        SET STATUS = 'L', CURRENT_LOAD = 0
       *        WHERE REPLICA_NO = :WS-REP-DISPONIBLE
       *    END-EXEC.
-           IF SQL-PREP OF SQL-STMT-7 = 'N'
+           IF SQL-PREP OF SQL-STMT-8 = 'N'
                SET SQL-ADDR(1) TO ADDRESS OF
                  WS-REP-DISPONIBLE
                MOVE 'X' TO SQL-TYPE(1)
                MOVE 4 TO SQL-LEN(1)
                MOVE 1 TO SQL-COUNT
                CALL 'OCSQLPRE' USING SQLV
-                                   SQL-STMT-7
+                                   SQL-STMT-8
                                    SQLCA
                SET SQL-HCONN OF SQLCA TO NULL
            END-IF
-           CALL 'OCSQLEXE' USING SQL-STMT-7
+           CALL 'OCSQLEXE' USING SQL-STMT-8
                                SQLCA
                    .
+
       *    EXEC SQL COMMIT END-EXEC.
            CALL 'OCSQLCMT' USING SQLCA END-CALL
                                    .

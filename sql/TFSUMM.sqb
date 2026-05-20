@@ -1,0 +1,94 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. TFSUMM.
+
+       ENVIRONMENT DIVISION.
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+           SELECT REPORTE-CIERRE ASSIGN TO WS-RUTA-REPORTE
+           ORGANIZATION IS LINE SEQUENTIAL.
+
+       DATA DIVISION.
+       FILE SECTION.
+       FD  REPORTE-CIERRE.
+       01  REG-REP                     PIC X(120).
+
+       WORKING-STORAGE SECTION.
+           EXEC SQL INCLUDE SQLCA END-EXEC.
+
+           EXEC SQL BEGIN DECLARE SECTION END-EXEC.
+       01  DB-DATOS-RESUMEN.
+           05 DB-FECHA-ISO             PIC X(10).
+           05 DB-TOT-ARCHIVOS          PIC 9(05).
+           05 DB-TOT-OK                PIC 9(05).
+           05 DB-TOT-ERR               PIC 9(05).
+           05 DB-FILE-NAME             PIC X(120).
+           05 DB-FASE                  PIC X(02).
+           EXEC SQL END DECLARE SECTION END-EXEC.
+
+       01  WS-FECHA-HORA-SYS           PIC X(21).
+       01  WS-FULL-DATE                PIC X(08).
+       01  WS-RUTA-REPORTE             PIC X(250).
+       01  WS-PRE-RUTA                 PIC X(100) 
+               VALUE "C:\banco\spool\Interfaces\BATCH-UPLOAD-S\".
+       01  WS-FILE-NAME             PIC X(120) VALUE "CIERRE_GENERAL".
+       01  WS-EOF-CURSOR               PIC X(01) VALUE 'N'.
+
+       01  WS-PLANTILLAS.
+           05 WS-SEPARADOR             PIC X(80) VALUE ALL "=".
+           05 WS-LINEA-F               PIC X(80) VALUE ALL "-".
+
+       PROCEDURE DIVISION.
+       000-MAIN.
+           DISPLAY ">>> TFSUMM: GENERANDO ACTA DE CUADRATURA <<<"
+
+           MOVE FUNCTION CURRENT-DATE(1:21) TO WS-FECHA-HORA-SYS
+           MOVE WS-FECHA-HORA-SYS(1:8) TO WS-FULL-DATE
+           
+           STRING WS-FULL-DATE(1:4) "-" WS-FULL-DATE(5:2) "-" 
+                  WS-FULL-DATE(7:2) DELIMITED BY SIZE INTO DB-FECHA-ISO
+
+           INITIALIZE WS-RUTA-REPORTE
+           STRING FUNCTION TRIM(WS-PRE-RUTA) DELIMITED BY SIZE
+                  "TRICKLE-FEED-REPORT\" DELIMITED BY SIZE
+                  FUNCTION TRIM(WS-FILE-NAME) DELIMITED BY SIZE
+                  ".out" DELIMITED BY SIZE
+                  INTO WS-RUTA-REPORTE
+           END-STRING.
+
+           OPEN OUTPUT REPORTE-CIERRE
+
+           WRITE REG-REP FROM WS-SEPARADOR
+           WRITE REG-REP FROM "   ACTA DE CUADRATURA - CORE BANCARIO "
+           WRITE REG-REP FROM WS-SEPARADOR
+           
+           INITIALIZE REG-REP
+           STRING " FECHA CONTABLE : " DELIMITED BY SIZE
+                  DB-FECHA-ISO DELIMITED BY SIZE INTO REG-REP
+           WRITE REG-REP
+           WRITE REG-REP FROM WS-LINEA-F
+
+           EXEC SQL
+               SELECT COUNT(*),
+                      COALESCE(SUM(CASE WHEN FASE = '40'
+                       THEN 1 ELSE 0 END), 0),
+                      COALESCE(SUM(CASE WHEN FASE = '99' 
+                      THEN 1 ELSE 0 END), 0)
+               INTO :DB-TOT-ARCHIVOS, :DB-TOT-OK, :DB-TOT-ERR
+               FROM tffm
+               WHERE FECHA_SISTEMA = :DB-FECHA-ISO
+           END-EXEC.
+
+           IF DB-TOT-ARCHIVOS = 0
+               WRITE REG-REP FROM ">>>ADVERTENCIA: NO HAY REGISTROS <<<"
+               CLOSE REPORTE-CIERRE
+               GOBACK
+           END-IF.
+
+           INITIALIZE REG-REP
+           STRING " TOTAL ARCHIVOS : " DELIMITED BY SIZE
+                  DB-TOT-ARCHIVOS DELIMITED BY SIZE INTO REG-REP
+           WRITE REG-REP
+           
+           CLOSE REPORTE-CIERRE
+           DISPLAY " [OK] ACTA GENERADA."
+           GOBACK.

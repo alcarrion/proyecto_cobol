@@ -96,6 +96,14 @@
                WHERE FASE < '40' AND ESTADO_REPLICA = 'R' 
                ORDER BY ID_LOTE ASC LIMIT 1
            END-EXEC.
+           IF SQLCODE = 0
+               EXEC SQL
+                   UPDATE tffm 
+                   SET ESTADO_REPLICA = 'P'
+                   WHERE ID_LOTE = :WS-ID-LOTE
+               END-EXEC
+               EXEC SQL COMMIT END-EXEC
+           END-IF.
 
        200-BUSCAR-REPLICA.
            MOVE SPACES TO WS-REP-DISPONIBLE.
@@ -184,7 +192,9 @@
            END-EXEC.
 
            EXEC SQL
-               UPDATE tf_replicas SET STATUS = 'L'
+               UPDATE tf_replicas 
+               SET STATUS = 'L', CURRENT_LOAD = 0
                WHERE REPLICA_NO = :WS-REP-DISPONIBLE
            END-EXEC.
+           
            EXEC SQL COMMIT END-EXEC.
