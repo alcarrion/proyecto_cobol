@@ -3,7 +3,7 @@
       *==========================================================
       * PROGRAMA PRECOMPILABLE: XXXREP.sqb
       * FASE 30: GENERACIÓN DE REPORTES DE CONCILIACIÓN
-      * FIJACIÓN: Separación estricta de párrafos para esqlOC
+      * INCLUYE: Trazabilidad (ID_REG, TRACE_ID) y Anti-Colisión
       *==========================================================
 
        ENVIRONMENT DIVISION.
@@ -22,37 +22,42 @@
            EXEC SQL INCLUDE SQLCA END-EXEC.
 
            EXEC SQL BEGIN DECLARE SECTION END-EXEC.
-       01  WS-TF-REGS-SQL.
-           05 WS-DATOS-TX-SQL      PIC X(500).
-           05 WS-ESTADO-SQL        PIC 9(01).
-           05 WS-COD-ERR-SQL       PIC X(10). 
-           05 WS-MSG-ERR-SQL       PIC X(200).
-           05 WS-ID-LOTE-SQL       PIC 9(09).
+      * --- ESTRUCTURA SQL ÚNICA (Evita error processexec) ---
+       01  DB-SQL-BUFFER.
+           05 DB-ID-REG-SQL            PIC 9(09).
+           05 DB-TRACE-ID-SQL          PIC X(40).
+           05 DB-DATOS-TX-SQL          PIC X(500).
+           05 DB-ESTADO-SQL            PIC 9(01).
+           05 DB-COD-ERR-SQL           PIC X(10). 
+           05 DB-MSG-ERR-SQL           PIC X(200).
+           05 DB-ID-LOTE-SQL           PIC 9(09).
            EXEC SQL END DECLARE SECTION END-EXEC.
 
        01  WS-CONTROL-REP.
-           05 WS-RUTA-FINAL        PIC X(250).
-           05 WS-STATUS-TXT        PIC X(05).
-           05 WS-FS                PIC X(02).
-           05 WS-EOF-REP           PIC X(01) VALUE 'N'.
-           05 WS-PRE-RUTA          PIC X(100).
+           05 WS-RUTA-FINAL            PIC X(250).
+           05 WS-STATUS-TXT            PIC X(05).
+           05 WS-FS                    PIC X(02).
+           05 WS-EOF-REP               PIC X(01) VALUE 'N'.
+           05 WS-PRE-RUTA              PIC X(100).
 
        LINKAGE SECTION.
            COPY LKTF.
+           
        01  WS-TFFM-VARS.
-           05 WS-ID-LOTE           PIC 9(09).
-           05 WS-FILE-NAME         PIC X(120).
-           05 WS-FASE              PIC X(02).
-           05 WS-TYPE-UPDATE       PIC X(10).
-           05 WS-REPLICA-ASIG      PIC X(04).
-           05 WS-RETRY-COUNT       PIC 9(02).
+           05 WS-ID-LOTE               PIC 9(09).
+           05 WS-FILE-NAME             PIC X(120).
+           05 WS-FASE                  PIC X(02).
+           05 WS-TYPE-UPDATE           PIC X(10).
+           05 WS-REPLICA-ASIG          PIC X(04).
+           05 WS-RETRY-COUNT           PIC 9(02).
 
        PROCEDURE DIVISION USING WS-TFFM-VARS, 
                                 LK-TRICKLE-FEED-INTERFACE.
+
        000-PRINCIPAL.
            MOVE "N" TO WS-EOF-REP
            MOVE 00 TO LK-TF-COD-RETORNO
-           MOVE WS-ID-LOTE TO WS-ID-LOTE-SQL
+           MOVE WS-ID-LOTE TO DB-ID-LOTE-SQL
            
            MOVE "C:\banco\spool\Interfaces\BATCH-UPLOAD-S\" 
              TO WS-PRE-RUTA
@@ -70,7 +75,8 @@
                GOBACK
            END-IF.
 
-           MOVE "TRAMA_TX|ESTADO|COD_ERR|DESCRIPCION"
+      * --- CABECERA DE AUDITORÍA ---
+           MOVE "ID_REG|TRACE_ID|TRAMA_TX|ESTADO|COD_ERR|DESCRIPCION"
              TO REG-SALIDA
            WRITE REG-SALIDA
            INITIALIZE REG-SALIDA
@@ -86,7 +92,7 @@
            PERFORM 400-CERRAR
            CLOSE ARCHIVO-SALIDA
            
-           DISPLAY "  [REP] REPORTE GENERADO CON EXITO"
+           DISPLAY "  [REP] REPORTE GENERADO CON EXITO: " WS-FILE-NAME
            GOBACK.
 
        100-ABRIR.
@@ -101,83 +107,89 @@
 
        101-OR.
            EXEC SQL DECLARE R1 CURSOR FOR 
-               SELECT DATOS_TX, ESTADO, 
+               SELECT ID_REGISTRO, ID_TRANSACCION, DATOS_TX, ESTADO, 
                       COALESCE(COD_ERROR, '000'), 
                       COALESCE(ERROR_MESSAGE, 'OK') 
-               FROM tf01 WHERE ID_LOTE = :WS-ID-LOTE-SQL 
+               FROM tf01 WHERE ID_LOTE = :DB-ID-LOTE-SQL 
            END-EXEC.
            EXEC SQL OPEN R1 END-EXEC.
 
        102-OR.
            EXEC SQL DECLARE R2 CURSOR FOR 
-               SELECT DATOS_TX, ESTADO, 
+               SELECT ID_REGISTRO, ID_TRANSACCION, DATOS_TX, ESTADO, 
                       COALESCE(COD_ERROR, '000'), 
                       COALESCE(ERROR_MESSAGE, 'OK') 
-               FROM tf02 WHERE ID_LOTE = :WS-ID-LOTE-SQL 
+               FROM tf02 WHERE ID_LOTE = :DB-ID-LOTE-SQL 
            END-EXEC.
            EXEC SQL OPEN R2 END-EXEC.
 
        103-OR.
            EXEC SQL DECLARE R3 CURSOR FOR 
-               SELECT DATOS_TX, ESTADO, 
+               SELECT ID_REGISTRO, ID_TRANSACCION, DATOS_TX, ESTADO, 
                       COALESCE(COD_ERROR, '000'), 
                       COALESCE(ERROR_MESSAGE, 'OK') 
-               FROM tf03 WHERE ID_LOTE = :WS-ID-LOTE-SQL 
+               FROM tf03 WHERE ID_LOTE = :DB-ID-LOTE-SQL 
            END-EXEC.
            EXEC SQL OPEN R3 END-EXEC.
 
        104-OR.
            EXEC SQL DECLARE R4 CURSOR FOR 
-               SELECT DATOS_TX, ESTADO, 
+               SELECT ID_REGISTRO, ID_TRANSACCION, DATOS_TX, ESTADO, 
                       COALESCE(COD_ERROR, '000'), 
                       COALESCE(ERROR_MESSAGE, 'OK') 
-               FROM tf04 WHERE ID_LOTE = :WS-ID-LOTE-SQL 
+               FROM tf04 WHERE ID_LOTE = :DB-ID-LOTE-SQL 
            END-EXEC.
            EXEC SQL OPEN R4 END-EXEC.
 
        105-OR.
            EXEC SQL DECLARE R5 CURSOR FOR 
-               SELECT DATOS_TX, ESTADO, 
+               SELECT ID_REGISTRO, ID_TRANSACCION, DATOS_TX, ESTADO, 
                       COALESCE(COD_ERROR, '000'), 
                       COALESCE(ERROR_MESSAGE, 'OK') 
-               FROM tf05 WHERE ID_LOTE = :WS-ID-LOTE-SQL 
+               FROM tf05 WHERE ID_LOTE = :DB-ID-LOTE-SQL 
            END-EXEC.
            EXEC SQL OPEN R5 END-EXEC.
 
        106-OR.
            EXEC SQL DECLARE R6 CURSOR FOR 
-               SELECT DATOS_TX, ESTADO, 
+               SELECT ID_REGISTRO, ID_TRANSACCION, DATOS_TX, ESTADO, 
                       COALESCE(COD_ERROR, '000'), 
                       COALESCE(ERROR_MESSAGE, 'OK') 
-               FROM tf06 WHERE ID_LOTE = :WS-ID-LOTE-SQL 
+               FROM tf06 WHERE ID_LOTE = :DB-ID-LOTE-SQL 
            END-EXEC.
            EXEC SQL OPEN R6 END-EXEC.
 
        200-FETCH.
            EVALUATE WS-REPLICA-ASIG
                WHEN "TF01" 
-                   EXEC SQL FETCH R1 INTO :WS-DATOS-TX-SQL, 
-                    :WS-ESTADO-SQL, :WS-COD-ERR-SQL, :WS-MSG-ERR-SQL 
+                   EXEC SQL FETCH R1 INTO :DB-ID-REG-SQL, 
+                   :DB-TRACE-ID-SQL, :DB-DATOS-TX-SQL, :DB-ESTADO-SQL, 
+                   :DB-COD-ERR-SQL, :DB-MSG-ERR-SQL 
                    END-EXEC
                WHEN "TF02" 
-                   EXEC SQL FETCH R2 INTO :WS-DATOS-TX-SQL, 
-                    :WS-ESTADO-SQL, :WS-COD-ERR-SQL, :WS-MSG-ERR-SQL 
-                   END-EXEC
+                   EXEC SQL FETCH R2 INTO :DB-ID-REG-SQL, 
+                   :DB-TRACE-ID-SQL, :DB-DATOS-TX-SQL, :DB-ESTADO-SQL, 
+                   :DB-COD-ERR-SQL, :DB-MSG-ERR-SQL 
+                   END-EXEC    
                WHEN "TF03" 
-                   EXEC SQL FETCH R3 INTO :WS-DATOS-TX-SQL, 
-                    :WS-ESTADO-SQL, :WS-COD-ERR-SQL, :WS-MSG-ERR-SQL 
+                   EXEC SQL FETCH R3 INTO :DB-ID-REG-SQL, 
+                   :DB-TRACE-ID-SQL, :DB-DATOS-TX-SQL, :DB-ESTADO-SQL, 
+                   :DB-COD-ERR-SQL, :DB-MSG-ERR-SQL 
                    END-EXEC
                WHEN "TF04" 
-                   EXEC SQL FETCH R4 INTO :WS-DATOS-TX-SQL, 
-                    :WS-ESTADO-SQL, :WS-COD-ERR-SQL, :WS-MSG-ERR-SQL 
+                   EXEC SQL FETCH R4 INTO :DB-ID-REG-SQL, 
+                   :DB-TRACE-ID-SQL, :DB-DATOS-TX-SQL, :DB-ESTADO-SQL, 
+                   :DB-COD-ERR-SQL, :DB-MSG-ERR-SQL 
                    END-EXEC
                WHEN "TF05" 
-                   EXEC SQL FETCH R5 INTO :WS-DATOS-TX-SQL, 
-                    :WS-ESTADO-SQL, :WS-COD-ERR-SQL, :WS-MSG-ERR-SQL 
+                   EXEC SQL FETCH R5 INTO :DB-ID-REG-SQL, 
+                   :DB-TRACE-ID-SQL, :DB-DATOS-TX-SQL, :DB-ESTADO-SQL, 
+                   :DB-COD-ERR-SQL, :DB-MSG-ERR-SQL 
                    END-EXEC
                WHEN "TF06" 
-                   EXEC SQL FETCH R6 INTO :WS-DATOS-TX-SQL, 
-                    :WS-ESTADO-SQL, :WS-COD-ERR-SQL, :WS-MSG-ERR-SQL 
+                   EXEC SQL FETCH R6 INTO :DB-ID-REG-SQL, 
+                   :DB-TRACE-ID-SQL, :DB-DATOS-TX-SQL, :DB-ESTADO-SQL, 
+                   :DB-COD-ERR-SQL, :DB-MSG-ERR-SQL 
                    END-EXEC
            END-EVALUATE.
 
@@ -193,18 +205,21 @@
        300-ESCRIBIR.
            INITIALIZE REG-SALIDA
            
-           IF WS-ESTADO-SQL = 4 
+           IF DB-ESTADO-SQL = 4 
                MOVE "OK" TO WS-STATUS-TXT 
-               MOVE "000" TO WS-COD-ERR-SQL
-               MOVE "PROCESADO" TO WS-MSG-ERR-SQL
+               MOVE "000" TO DB-COD-ERR-SQL
+               MOVE "PROCESADO" TO DB-MSG-ERR-SQL
            ELSE 
                MOVE "ERROR" TO WS-STATUS-TXT 
            END-IF.
            
-           STRING FUNCTION TRIM(WS-DATOS-TX-SQL) "|" 
-                  FUNCTION TRIM(WS-STATUS-TXT)   "|" 
-                  FUNCTION TRIM(WS-COD-ERR-SQL)  "|"
-                  FUNCTION TRIM(WS-MSG-ERR-SQL)
+      * --- ENSAMBLAJE DE TRAMA DE AUDITORÍA ---
+           STRING FUNCTION TRIM(DB-ID-REG-SQL)    "|"
+                  FUNCTION TRIM(DB-TRACE-ID-SQL)  "|"
+                  FUNCTION TRIM(DB-DATOS-TX-SQL)  "|" 
+                  FUNCTION TRIM(WS-STATUS-TXT)    "|" 
+                  FUNCTION TRIM(DB-COD-ERR-SQL)   "|"
+                  FUNCTION TRIM(DB-MSG-ERR-SQL)
                   DELIMITED BY SIZE INTO REG-SALIDA.
            
            WRITE REG-SALIDA.

@@ -69,7 +69,7 @@
                END-IF
            END-PERFORM.
            
-           DISPLAY "--- [CORE ENGINE] MÁQUINA DE ESTADOS EN REPOSO ---"
+           DISPLAY "--- [CORE ENGINE] DE ESTADOS EN REPOSO ---"
            DISPLAY "TOTAL LOTES PROCESADOS: " WS-LOTES-PROCESADOS
            GOBACK.
 
@@ -96,24 +96,31 @@
                WHERE FASE < '40' AND ESTADO_REPLICA = 'R' 
                ORDER BY ID_LOTE ASC LIMIT 1
            END-EXEC.
+           IF SQLCODE = 0
+               EXEC SQL
+                   UPDATE tffm 
+                   SET ESTADO_REPLICA = 'P'
+                   WHERE ID_LOTE = :WS-ID-LOTE
+               END-EXEC
+               EXEC SQL COMMIT END-EXEC
+           END-IF.
 
        200-BUSCAR-REPLICA.
            MOVE SPACES TO WS-REP-DISPONIBLE.
            EXEC SQL
-               SELECT REPLICA_NO INTO :WS-REP-DISPONIBLE
-               FROM tf_replicas WHERE STATUS = 'L' 
-               ORDER BY REPLICA_NO ASC LIMIT 10
+               SELECT REPLICA_NO 
+               INTO :WS-REP-DISPONIBLE
+               FROM tf_replicas 
+               WHERE STATUS = 'L' 
+               ORDER BY CURRENT_LOAD ASC, REPLICA_NO ASC 
+               LIMIT 1
            END-EXEC.
 
-           IF WS-REP-DISPONIBLE NOT = SPACES
+           IF SQLCODE = 0 AND WS-REP-DISPONIBLE NOT = SPACES
                EXEC SQL
-                   UPDATE tf_replicas SET STATUS = 'O'
+                   UPDATE tf_replicas 
+                   SET STATUS = 'O', CURRENT_LOAD = 1
                    WHERE REPLICA_NO = :WS-REP-DISPONIBLE
-               END-EXEC
-               EXEC SQL
-                   UPDATE tffm 
-                   SET REPLICA_NO = :WS-REP-DISPONIBLE
-                   WHERE ID_LOTE = :WS-ID-LOTE
                END-EXEC
                EXEC SQL COMMIT END-EXEC
            END-IF.
@@ -164,7 +171,8 @@
 
            IF WS-FASE = '40'
                EXEC SQL
-                   UPDATE tf_replicas SET STATUS = 'L'
+                   UPDATE tf_replicas 
+                   SET STATUS = 'L', CURRENT_LOAD = 0
                    WHERE REPLICA_NO = :WS-REP-DISPONIBLE
                END-EXEC
            END-IF.
@@ -184,7 +192,9 @@
            END-EXEC.
 
            EXEC SQL
-               UPDATE tf_replicas SET STATUS = 'L'
+               UPDATE tf_replicas 
+               SET STATUS = 'L', CURRENT_LOAD = 0
                WHERE REPLICA_NO = :WS-REP-DISPONIBLE
            END-EXEC.
+           
            EXEC SQL COMMIT END-EXEC.
