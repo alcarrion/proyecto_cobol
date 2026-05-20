@@ -1,11 +1,10 @@
-      *================================================================*
-      * PROGRAMA : DBIOBORM.sqb                                       *
-      * FUNCION  : Capa de Acceso a Datos - Hipotecas v3.0            *
-      * TABLA    : hipotecas, control_secuencias, clientes             *
-      * ACCIONES : S=Secuencia  A=Alta  C=Consulta  M=Modificar       *
-      * NOTA     : El Batch (BAT000) use CUENTA_DEBITO para debitar    *
-      *            automaticamente la cuota cada cierre mensual.       *
-      *================================================================*
+      ******************************************************************
+      * DBIOBORM.SQB - CAPA DE ACCESO A DATOS - HIPOTECAS
+      * v4.0 - Validaciones de entrada + mensajes consistentes
+      * TABLA    : hipotecas, control_secuencias, clientes
+      * ACCIONES : S=Secuencia  A=Alta  C=Consulta  M=Modificar
+      * NOTA     : BAT000 usa CUENTA_DEBITO para el debito mensual.
+      ******************************************************************
        IDENTIFICATION DIVISION.
        PROGRAM-ID. DBIOBORM.
 
@@ -66,6 +65,9 @@
                                 LK-SESION,
                                 LK-TRANSACCION.
 
+      ******************************************************************
+      * 0000 - DESPACHO DE ACCIONES
+      ******************************************************************
        0000-PRINCIPAL.
            MOVE '00  ' TO LK-COD-RETORNO.
            MOVE SPACES  TO LK-MENSAJE.
@@ -81,14 +83,14 @@
                    PERFORM 3000-ACTUALIZAR-HIPOTECA
                WHEN OTHER
                    MOVE 'E999' TO LK-COD-RETORNO
-                   MOVE "ACCION DB NO SOPORTADA" TO LK-MENSAJE
+                   MOVE "Accion DB no soportada" TO LK-MENSAJE
            END-EVALUATE.
 
            EXIT PROGRAM.
 
-      *----------------------------------------------------------------*
-      * 0500 - GENERAR NUMERO DE HIPOTECA DESDE SECUENCIA              *
-      *----------------------------------------------------------------*
+      ******************************************************************
+      * 0500 - GENERAR NUMERO DE HIPOTECA DESDE SECUENCIA
+      ******************************************************************
        0500-GENERAR-SECUENCIA.
            EXEC SQL
                UPDATE control_secuencias
@@ -110,15 +112,20 @@
 
                IF LK-COD-RETORNO = '00  '
                    MOVE WS-ID-HIPOTECA TO LK-BORM-ID-HIPOTECA
-                   MOVE "SECUENCIA GENERADA" TO LK-MENSAJE
+                   MOVE "Secuencia generada" TO LK-MENSAJE
                END-IF
            END-IF.
 
-      *----------------------------------------------------------------*
-      * 1000 - INSERTAR HIPOTECA NUEVA                                 *
-      * CUENTA_DEBITO: cuenta de donde el batch cobra cada mes         *
-      *----------------------------------------------------------------*
+      ******************************************************************
+      * 1000 - INSERTAR HIPOTECA NUEVA
+      *        Valida datos antes del INSERT para evitar errores de BD.
+      ******************************************************************
        1000-INSERTAR-HIPOTECA.
+           PERFORM 1050-VALIDAR-DATOS-ALTA.
+           IF LK-COD-RETORNO NOT = '00  '
+               EXIT PARAGRAPH
+           END-IF.
+
            MOVE LK-BORM-ID-HIPOTECA       TO WS-ID-HIPOTECA.
            MOVE LK-BORM-ID-CLIENTE        TO WS-ID-CLIENTE.
            MOVE LK-BORM-CUENTA-DEBITO     TO WS-CUENTA-DEBITO.
@@ -168,14 +175,56 @@
                PERFORM 9000-EVALUAR-SQL
 
                IF LK-COD-RETORNO = '00  '
-                   MOVE "HIPOTECA REGISTRADA" TO LK-MENSAJE
+                   MOVE "Hipoteca registrada" TO LK-MENSAJE
                END-IF
            END-IF.
 
-      *----------------------------------------------------------------*
-      * 2000 - CONSULTAR HIPOTECA POR ID                               *
-      *----------------------------------------------------------------*
+      ******************************************************************
+      * 1050 - VALIDACIONES PREVIAS AL INSERT
+      ******************************************************************
+       1050-VALIDAR-DATOS-ALTA.
+           EVALUATE TRUE
+               WHEN LK-BORM-ID-HIPOTECA = ZERO
+                   MOVE 'E001' TO LK-COD-RETORNO
+                   MOVE "ID de hipoteca invalido" TO LK-MENSAJE
+               WHEN LK-BORM-ID-CLIENTE = ZERO
+                   MOVE 'E001' TO LK-COD-RETORNO
+                   MOVE "ID de cliente invalido" TO LK-MENSAJE
+               WHEN LK-BORM-CUENTA-DEBITO = ZERO
+                   MOVE 'E001' TO LK-COD-RETORNO
+                   MOVE "Cuenta debito invalida" TO LK-MENSAJE
+               WHEN LK-BORM-MONTO-PRESTAMO <= 0
+                   MOVE 'E001' TO LK-COD-RETORNO
+                   MOVE "Monto prestamo debe ser mayor a cero"
+                       TO LK-MENSAJE
+               WHEN LK-BORM-CUOTA-MENSUAL <= 0
+                   MOVE 'E001' TO LK-COD-RETORNO
+                   MOVE "Cuota mensual debe ser mayor a cero"
+                       TO LK-MENSAJE
+               WHEN LK-BORM-TASA-ANUAL <= 0
+                   MOVE 'E001' TO LK-COD-RETORNO
+                   MOVE "Tasa anual debe ser mayor a cero"
+                       TO LK-MENSAJE
+               WHEN LK-BORM-ESTADO-PRESTAMO = SPACES
+                   MOVE 'E001' TO LK-COD-RETORNO
+                   MOVE "Estado prestamo requerido" TO LK-MENSAJE
+               WHEN LK-BORM-FECHA-VENCIMIENTO = SPACES
+                   MOVE 'E001' TO LK-COD-RETORNO
+                   MOVE "Fecha vencimiento requerida" TO LK-MENSAJE
+               WHEN OTHER
+                   MOVE '00  ' TO LK-COD-RETORNO
+           END-EVALUATE.
+
+      ******************************************************************
+      * 2000 - CONSULTAR HIPOTECA POR ID
+      ******************************************************************
        2000-CONSULTAR-HIPOTECA.
+           IF LK-BORM-ID-HIPOTECA = ZERO
+               MOVE 'E001' TO LK-COD-RETORNO
+               MOVE "ID de hipoteca invalido" TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF.
+
            MOVE LK-BORM-ID-HIPOTECA TO WS-ID-HIPOTECA.
 
            EXEC SQL
@@ -213,14 +262,32 @@
                MOVE WS-MESES-MORA        TO LK-BORM-MESES-MORA
                MOVE WS-ESTADO-PRESTAMO   TO LK-BORM-ESTADO-PRESTAMO
                MOVE WS-FECHA-VENCIMIENTO TO LK-BORM-FECHA-VENCIMIENTO
-               MOVE "CONSULTA EXITOSA"   TO LK-MENSAJE
+               MOVE "Consulta exitosa"   TO LK-MENSAJE
            END-IF.
 
-      *----------------------------------------------------------------*
-      * 3000 - ACTUALIZAR HIPOTECA                                     *
-      * Usado por BR0000 (pago manual) y por BAT000 (debito batch)     *
-      *----------------------------------------------------------------*
+      ******************************************************************
+      * 3000 - ACTUALIZAR HIPOTECA (pago manual y debito batch)
+      *        Valida que la hipoteca exista y no este ya pagada.
+      ******************************************************************
        3000-ACTUALIZAR-HIPOTECA.
+           IF LK-BORM-ID-HIPOTECA = ZERO
+               MOVE 'E001' TO LK-COD-RETORNO
+               MOVE "ID de hipoteca invalido" TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF.
+
+           IF LK-BORM-SALDO-DEUDA < 0
+               MOVE 'E001' TO LK-COD-RETORNO
+               MOVE "Saldo deuda no puede ser negativo" TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF.
+
+           IF LK-BORM-ESTADO-PRESTAMO = SPACES
+               MOVE 'E001' TO LK-COD-RETORNO
+               MOVE "Estado prestamo requerido" TO LK-MENSAJE
+               EXIT PARAGRAPH
+           END-IF.
+
            MOVE LK-BORM-ID-HIPOTECA     TO WS-ID-HIPOTECA.
            MOVE LK-BORM-ID-CLIENTE      TO WS-ID-CLIENTE.
            MOVE LK-BORM-SALDO-DEUDA     TO WS-SALDO-DEUDA.
@@ -248,28 +315,27 @@
                END-IF
 
                IF LK-COD-RETORNO = '00  '
-                   MOVE "HIPOTECA ACTUALIZADA" TO LK-MENSAJE
+                   MOVE "Hipoteca actualizada" TO LK-MENSAJE
                END-IF
            END-IF.
 
-      *----------------------------------------------------------------*
-      * 9000 - EVALUAR RESULTADO SQL                                   *
-      *----------------------------------------------------------------*
+      ******************************************************************
+      * 9000 - EVALUAR RESULTADO SQL
+      ******************************************************************
        9000-EVALUAR-SQL.
            EVALUATE SQLCODE
                WHEN 0
                    MOVE '00  ' TO LK-COD-RETORNO
                    IF LK-MENSAJE = SPACES
-                       MOVE "OPERACION EXITOSA" TO LK-MENSAJE
+                       MOVE "Operacion exitosa" TO LK-MENSAJE
                    END-IF
                WHEN 100
                    MOVE 'E404' TO LK-COD-RETORNO
-                   MOVE "HIPOTECA NO ENCONTRADA" TO LK-MENSAJE
+                   MOVE "Hipoteca no encontrada" TO LK-MENSAJE
                WHEN -803
                    MOVE 'E409' TO LK-COD-RETORNO
-                   MOVE "HIPOTECA DUPLICADA" TO LK-MENSAJE
+                   MOVE "Hipoteca duplicada" TO LK-MENSAJE
                WHEN OTHER
                    MOVE 'E999' TO LK-COD-RETORNO
-                   MOVE "ERROR TECNICO EN BD HIPOTECAS" TO LK-MENSAJE
+                   MOVE "Error tecnico en BD hipotecas" TO LK-MENSAJE
            END-EVALUATE.
-
